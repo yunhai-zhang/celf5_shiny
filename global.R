@@ -439,12 +439,12 @@ upsert_assessment <- function(patient_id, assessment_date, age_years,
   }
 }
 
-save_response <- function(assessment_id, subtest, item_number, score) {
+save_response <- function(assessment_id, subtest, item_number, response_text = NULL, score) {
   con <- get_con()
   on.exit(dbDisconnect(con))
   dbExecute(con,
-    "INSERT OR REPLACE INTO responses (assessment_id,subtest,item_number,score) VALUES (?,?,?,?)",
-    params = list(assessment_id, subtest, item_number, score))
+    "INSERT OR REPLACE INTO responses (assessment_id,subtest,item_number,response_text,score) VALUES (?,?,?,?,?)",
+    params = list(assessment_id, subtest, item_number, response_text, score))
 }
 
 save_subtest_scores <- function(assessment_id, scores_df) {
@@ -478,4 +478,56 @@ save_composite_scores <- function(assessment_id, indices_df) {
                     ci$score_lo[2], ci$score_hi[2],
                     ci$score_lo[3], ci$score_hi[3]))
   }
+}
+
+# ─────────────────────────────────────────────────────────────
+# 9. 缺失的数据库查询函数
+# ─────────────────────────────────────────────────────────────
+list_assessments <- function(limit = 100L) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  dbGetQuery(con,
+    "SELECT a.id, p.name AS patient_name, a.assessment_date,
+            a.age_years, a.age_months, a.age_days, a.age_group, a.status
+     FROM assessments a
+     JOIN patients p ON a.patient_id = p.id
+     ORDER BY a.assessment_date DESC
+     LIMIT ?",
+    params = list(limit))
+}
+
+get_assessment_full <- function(assessment_id) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+
+  ass <- dbGetQuery(con,
+    "SELECT a.*, p.name AS patient_name, p.dob, p.gender, p.examiner
+     FROM assessments a
+     JOIN patients p ON a.patient_id = p.id
+     WHERE a.id = ?",
+    params = list(assessment_id))
+
+  if (nrow(ass) == 0) return(NULL)
+
+  resp <- dbGetQuery(con,
+    "SELECT subtest, item_number, response_text, score
+     FROM responses WHERE assessment_id = ? ORDER BY subtest, item_number",
+    params = list(assessment_id))
+
+  ss <- dbGetQuery(con,
+    "SELECT subtest, raw_score, scaled_score FROM subtest_scores WHERE assessment_id = ?",
+    params = list(assessment_id))
+
+  cs <- dbGetQuery(con,
+    "SELECT composite, sum_scaled, standard_score, percentile_rank,
+            confidence_68_lo, confidence_68_hi, confidence_90_lo, confidence_90_hi,
+            confidence_95_lo, confidence_95_hi
+     FROM composite_scores WHERE assessment_id = ?",
+    params = list(assessment_id))
+
+  list(assessment = ass, responses = resp, subtest_scores = ss, composite_scores = cs)
+}
+
+start_assessment <- function(patient_id, assessment_date, age_years, age_months, age_days, age_group) {
+  upsert_assessment(patient_id, assessment_date, age_years, age_months, age_days, age_group)
 }
