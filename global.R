@@ -150,10 +150,10 @@ get_test_composition <- function(age_group) {
 SUBTEST_DEFS <- tibble(
   subtest = c("SC","LC","WS","WC","FD","FS","RS","WD","SA","SR","RC","SW","USP","PP"),
   full_name = c("Sentence Comprehension","Linguistic Concepts","Word Structure",
-                "Word Classes","Formulated Definitions","Formulated Sentences",
+                "Word Classes","Following Directions","Formulated Sentences",
                 "Recalling Sentences","Word Definitions","Sentence Assembly",
-                "Semantic Relationships","Reading Comprehension","Spelling and Writing",
-                "Understanding Spoken Paragraphs","Pragmatic Protocol"),
+                "Semantic Relationships","Reading Comprehension","Structured Writing",
+                "Understanding Spoken Paragraphs","Pragmatics Profile"),
   max_items = c(42L,36L,34L,40L,32L,48L,48L,21L,20L,20L,28L,44L,18L,15L),
   discontinue_rule = c(4L,4L,4L,4L,4L,4L,4L,4L,4L,4L,0L,0L,0L,0L)
 )

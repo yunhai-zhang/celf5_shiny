@@ -95,13 +95,13 @@ df_idx <- if (!is.null(idx) && length(idx) > 0) {
     mutate(
       Interpretation_CN = case_when(
         is.na(Score)                    ~ "暂无分数。",
-        Score >= 130                   ~ sprintf("非常优秀 — 分数 %d（第 %.1f 百分位）表明语言能力远超同龄预期。", Score, Percentile),
-        Score >= 120                   ~ sprintf("优秀 — 分数 %d（第 %.1f 百分位）表明语言能力明显高于平均水平。", Score, Percentile),
-        Score >= 110                   ~ sprintf("高于平均 — 分数 %d（第 %.1f 百分位）在正常范围内，显著高于平均。", Score, Percentile),
-        Score >= 90                    ~ sprintf("平均范围 — 分数 %d（第 %.1f 百分位）符合同龄预期，在正常范围内。", Score, Percentile),
-        Score >= 80                    ~ sprintf("低于平均 — 分数 %d（第 %.1f 百分位）略低于平均水平，建议提供针对性语言支持。", Score, Percentile),
-        Score >= 70                    ~ sprintf("边缘/临界 — 分数 %d（第 %.1f 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", Score, Percentile),
-        TRUE                           ~ sprintf("非常低 — 分数 %d（第 %.1f 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", Score, Percentile)
+        Score >= 130                   ~ sprintf("非常优秀 — 分数 %d（第 %s 百分位）表明语言能力远超同龄预期。", Score, fmt_pct(Percentile)),
+        Score >= 120                   ~ sprintf("优秀 — 分数 %d（第 %s 百分位）表明语言能力明显高于平均水平。", Score, fmt_pct(Percentile)),
+        Score >= 110                   ~ sprintf("高于平均 — 分数 %d（第 %s 百分位）在正常范围内，显著高于平均。", Score, fmt_pct(Percentile)),
+        Score >= 90                    ~ sprintf("平均范围 — 分数 %d（第 %s 百分位）符合同龄预期，在正常范围内。", Score, fmt_pct(Percentile)),
+        Score >= 80                    ~ sprintf("低于平均 — 分数 %d（第 %s 百分位）略低于平均水平，建议提供针对性语言支持。", Score, fmt_pct(Percentile)),
+        Score >= 70                    ~ sprintf("边缘/临界 — 分数 %d（第 %s 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", Score, fmt_pct(Percentile)),
+        TRUE                           ~ sprintf("非常低 — 分数 %d（第 %s 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", Score, fmt_pct(Percentile))
       )
     )
 } else {
@@ -184,7 +184,7 @@ if (nrow(df_idx) > 0) {
   df_idx_disp <- df_idx %>%
     mutate(
       `标准分数` = ifelse(is.na(Score), "—", as.character(round(Score, 0))),
-      `百分位` = ifelse(is.na(Percentile), "—", sprintf("%.1f", Percentile))
+      `百分位` = ifelse(is.na(Percentile), "—", fmt_pct(Percentile))
     ) %>%
     select(`复合分数`=Index_CN, `标准分数`, `百分位`, `解读`=Interpretation_CN)
   ft2 <- flextable(df_idx_disp)

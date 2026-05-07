@@ -364,7 +364,8 @@ server <- function(input, output, session) {
       showNotification(paste0("已删除评估 #", sel_id), type = "message")
       rv$assessment_id <- NULL
       rv$patient_id    <- NULL
-      proxy$reload()   # 刷新历史评估列表
+      # server=FALSE 的 DT 无法用 proxy 增量刷新，直接 reload 整页
+      session$reload()
       removeModal()
     }, error = function(e) {
       showNotification(paste0("删除失败: ", e$message), type = "error")
