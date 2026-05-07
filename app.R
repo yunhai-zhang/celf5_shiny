@@ -387,7 +387,7 @@ server <- function(input, output, session) {
     glue("年龄: {format_age(rv$age)} ({rv$age_group})  |  测试组合: {paste(rv$test_list, collapse=', ')}")
   })
 
-  # ── 测试进度 ────────────────────────────────────────────
+  # ── 测试进度（可点击卡片） ──────────────────────────────
   output$subtest_progress_ui <- renderUI({
     req(rv$test_list)
     map(rv$test_list, function(t) {
@@ -396,12 +396,34 @@ server <- function(input, output, session) {
       n_done <- sum(rv$responses$subtest == t, na.rm = TRUE)
       badge <- if (is_done) "✓ 完成" else glue("{n_done}/{max_i} 题")
       bg <- if (is_done) "#d4edda" else "#f8f9fa"
-      col <- if (is_done) "#155724" else "#212529"
+      col <- if (is_done) "#155724" else "#1B3A6B"
       box <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
-      div(style = glue("background:{bg}; border-radius:8px; padding:12px; margin:6px; display:inline-block; width:200px;"),
-          strong(style=glue("color:{col}"), t), br(), box, br(),
-          span(style=glue("color:{col}"), badge))
+      cursor <- if (is_done) "default" else "pointer"
+      tags$a(
+        href = "#",
+        onclick = sprintf("Shiny.setInputValue('jump_to_subtest', '%s', {priority: 'event'});", t),
+        style = glue("background:{bg}; border-radius:8px; padding:12px; margin:6px; display:inline-block; width:200px; text-decoration:none; cursor:{cursor}; border:1px solid #ddd;"),
+        strong(style = glue("color:{col}; display:block;"), t),
+        span(style = glue("color:{col}; font-size:12px;"), box),
+        br(),
+        span(style = glue("color:{col}; font-size:13px; font-weight:600;"), badge)
+      )
     }) %>% tagList()
+  })
+
+  # 进度卡片点击 → 跳转到对应 subtest 的评分页面
+  observeEvent(input$jump_to_subtest, {
+    t <- input$jump_to_subtest
+    updateTabsetPanel(session, "main_tabs", selected = "items")
+    rv$current_subtest <- t
+    sub_resp <- rv$responses %>% filter(subtest == t)
+    sp <- get_start_point(t, rv$age_group)
+    all_items <- seq_len(get_max_item(t))
+    done_items <- sub_resp$item_number
+    next_item <- min(setdiff(all_items, done_items), na.rm = TRUE)
+    rv$current_item <- next_item
+    rv$start_point <- sp
+    rv$discontinue_triggered <- FALSE
   })
 
   # ── Subtest 选择 ─────────────────────────────────────────
