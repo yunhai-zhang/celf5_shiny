@@ -226,14 +226,26 @@ get_discontinue_rule <- function(subtest) {
 # norms 表用 "5:0-5:5" / "9:0-9:11" / "12:0-12:11" / "15:0-15:21"
 # 两个方向都要转换
 
-age_group_to_questions <- function(age_group) {
-  # norms 格式 → questions 格式
-  dplyr::case_when(
-    age_group %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_5_8",
-    age_group %in% c("9:0-9:11","10:0-10:11")                                           ~ "age_9_11",
-    age_group %in% c("11:0-11:11","12:0-12:11","13:0-13:11","14:0-14:11")               ~ "age_12_14",
-    TRUE                                                                                  ~ "age_15_21"
-  )
+age_group_to_questions <- function(age_group, subtest = NULL) {
+  # WC uses a different banding: age_9_21 covers 11:0-21:11 (items 13-40)
+  # Other subtests use: age_5_8 (5:0-8:11), age_9_11 (9:0-10:11), age_12_14 (11:0-14:11), age_15_21 (15:0+)
+  if (!is.null(subtest) && subtest == "WC") {
+    dplyr::case_when(
+      age_group %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_5_8",
+      age_group %in% c("9:0-9:11","10:0-10:11")                                           ~ "age_9_11",
+      age_group %in% c("11:0-11:11","12:0-12:11","13:0-13:11","14:0-14:11",
+                       "15:0-15:11","16:0-16:11","17:0-17:11","18:0-18:11",
+                       "19:0-19:11","20:0-20:11","21:0-21:11")                             ~ "age_9_21",
+      TRUE                                                                                  ~ "age_9_21"
+    )
+  } else {
+    dplyr::case_when(
+      age_group %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_5_8",
+      age_group %in% c("9:0-9:11","10:0-10:11")                                           ~ "age_9_11",
+      age_group %in% c("11:0-11:11","12:0-12:11","13:0-13:11","14:0-14:11")               ~ "age_12_14",
+      TRUE                                                                                  ~ "age_15_21"
+    )
+  }
 }
 
 age_group_from_questions <- function(q_age_group) {
@@ -253,7 +265,7 @@ age_group_from_questions <- function(q_age_group) {
 get_question_info <- function(subtest, item_number, age_group) {
   con <- get_con()
   on.exit(dbDisconnect(con), add = TRUE)
-  q_ag <- age_group_to_questions(age_group)
+  q_ag <- age_group_to_questions(age_group, subtest)
   sql <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
           FROM questions WHERE subtest = ? AND age_group = ? AND item_number = ? LIMIT 1"
   q <- dbGetQuery(con, sql, params = list(subtest, q_ag, item_number))
@@ -278,7 +290,7 @@ get_question_info <- function(subtest, item_number, age_group) {
 get_max_item <- function(subtest, age_group) {
   con <- get_con()
   on.exit(dbDisconnect(con), add = TRUE)
-  q_ag <- age_group_to_questions(age_group)
+  q_ag <- age_group_to_questions(age_group, subtest)
   # Try with age_group filter first
   n <- dbGetQuery(con,
     "SELECT COUNT(*) FROM questions WHERE subtest = ? AND age_group = ? AND (question_en IS NOT NULL AND question_en != '')",
@@ -804,231 +816,248 @@ get_ors_responses <- function(assessment_id, rater_role) {
 }
 
 # ─────────────────────────────────────────────────────────────
-# Item Analysis: 基于 Test Objectives MD 的错误分类
+# Item Analysis: 基于 Test Objectives 的分类诊断
 # ─────────────────────────────────────────────────────────────
 
 ITEM_ANALYSIS <- list(
-  SC = list(  # Sentence Comprehension — 11类
-    categories = tibble::tibble(
-      category_zh = c("否定句", "修饰语（定语/状语）", "介词短语",
-                       "直接/间接宾语", "不定式", "动词短语",
-                       "关系从句", "从句（状语/宾语）", "疑问句",
-                       "被动语态", "直接/间接请求", "并列句"),
-      category_en = c("Negation", "Modification", "Prepositional Phrase",
-                       "Direct/Indirect Object", "Infinitive", "Verb Phrase",
-                       "Relative Clause", "Subordinate Clause", "Interrogative",
-                       "Passive Voice", "Direct/Indirect Request", "Compound"),
-      items = list(c(8,9,20), c(1,4,10), c(4,6,14,15,17,18),
-                   c(5,15,22), c(5,19), 25,
-                   c(2,3,11), c(13,20), 12,
-                   c(16,21), c(23,24), c(7,10,26))
-    ),
+  SC = list(
     domain_zh = "句子理解",
     domain_en = "Sentence Comprehension",
-    subtest = "SC"
-  ),
-  LC = list(  # Linguistic Concepts — 6类
-    categories = tibble::tibble(
-      category_zh = c("包含/排除", "位置概念", "数量", "序列", "条件", "时间"),
-      category_en = c("Inclusion/Exclusion", "Location", "Quantity",
-                       "Sequence", "Conditional", "Temporal"),
-      items = list(c(1,3,4,5,6,7,14,15,19,24,25), c(2,8,10,16,17),
-                   c(4,9), c(2,12,13,22), c(11,18,20), c(21,23))
+    categories = list(
+      list(cat_zh = "否定结构",     cat_en = "Negation",            items = c(8, 9, 20)),
+      list(cat_zh = "修饰语",       cat_en = "Modification",         items = c(1, 4, 10)),
+      list(cat_zh = "介词短语",     cat_en = "Prepositional Phrase", items = c(4, 6, 14, 15, 17, 18)),
+      list(cat_zh = "直接/间接宾语",cat_en = "Direct/Indirect Object",items = c(5, 15, 22)),
+      list(cat_zh = "不定式",       cat_en = "Infinitive",           items = c(5, 19)),
+      list(cat_zh = "动词短语",     cat_en = "Verb Phrase",          items = c(25)),
+      list(cat_zh = "关系从句",     cat_en = "Relative Clause",      items = c(2, 3, 11)),
+      list(cat_zh = "从句",         cat_en = "Subordinate Clause",    items = c(13, 20)),
+      list(cat_zh = "疑问句",       cat_en = "Interrogative",         items = c(12)),
+      list(cat_zh = "被动语态",     cat_en = "Passive Voice",         items = c(16, 21)),
+      list(cat_zh = "直接/间接请求",cat_en = "Direct/Indirect Request",items = c(23, 24)),
+      list(cat_zh = "并列句",       cat_en = "Compound",              items = c(7, 10, 26))
     ),
+    intervention = list(
+      zh = "针对语义/形态/句法结构错误进行分析；靶向提升接受性词汇和明确句子结构意识。",
+      en = "Analyze errors by semantic/morphologic/syntactic structures; target receptive vocabulary and explicit sentence structure awareness."
+    )
+  ),
+  LC = list(
     domain_zh = "语言概念",
     domain_en = "Linguistic Concepts",
-    subtest = "LC"
-  ),
-  WS = list(  # Word Structure — 11类形态规则
-    categories = tibble::tibble(
-      category_zh = c("规则复数", "不规则复数", "名词所有格",
-                       "第三人称单数", "规则过去式", "不规则过去式",
-                       "将来时", "名词派生", "比较级/最高级",
-                       "助动词+-ing形式", "代词（宾格/所有格/主格/反身）",
-                       "系动词（可缩/不可缩）"),
-      category_en = c("Regular Plural", "Irregular Plural", "Possessive Noun",
-                       "3rd Person Singular", "Regular Past Tense", "Irregular Past Tense",
-                       "Future Tense", "Noun Derivation", "Comparative/Superlative",
-                       "Auxiliary + -ing", "Pronouns (Obj/Poss/Subj/Reflex)",
-                       "Copula (Contractible/Uncontractible)"),
-      items = list(c(1,2), c(3,4), c(7,8), c(5,6), 16, 33,
-                   c(20,21), 9, c(22,23,24,25),
-                   c(11,12,13,14), c(15,17,18,19,29,30,31,32),
-                   c(10,26,27,28))
+    categories = list(
+      list(cat_zh = "包含/排除",  cat_en = "Inclusion/Exclusion", items = c(1, 3, 4, 5, 6, 7, 14, 15, 19, 24, 25)),
+      list(cat_zh = "位置",        cat_en = "Location",             items = c(2, 8, 10, 16, 17)),
+      list(cat_zh = "数量",        cat_en = "Quantity",             items = c(4, 9)),
+      list(cat_zh = "序列",        cat_en = "Sequence",            items = c(2, 12, 13, 22)),
+      list(cat_zh = "条件",        cat_en = "Conditional",        items = c(11, 18, 20)),
+      list(cat_zh = "时间",        cat_en = "Temporal",            items = c(21, 23))
     ),
+    intervention = list(
+      zh = "用课堂操作材料和时间/序列活动重点训练时间概念和位置概念。",
+      en = "Target temporal/location concepts with classroom manipulables and sequential activities."
+    )
+  ),
+  WS = list(
     domain_zh = "词汇结构",
     domain_en = "Word Structure",
-    subtest = "WS"
-  ),
-  WC = list(  # Word Classes — 6类语义关系
-    categories = tibble::tibble(
-      category_zh = c("语义类别（具体）", "位置关系", "组成成分", "同义词",
-                       "反义词", "宾语功能", "语义类别（抽象）"),
-      category_en = c("Semantic Class", "Location", "Composition",
-                       "Synonym", "Word Opposites", "Object Function", "Semantic Class (Abstract)"),
-      items = list(c(1,2,3,4,5,6,7,8,9,10,11,12,13,16,19,23,35,38),
-                   c(14,15), c(17,18),
-                   c(16,25,26,27,28,30,32,34,36,37,39,40),
-                   c(24,29,31,33), c(11,22),
-                   c(20,21))
+    categories = list(
+      list(cat_zh = "规则复数",         cat_en = "Regular Plural",              items = c(1, 2)),
+      list(cat_zh = "不规则复数",       cat_en = "Irregular Plural",             items = c(3, 4)),
+      list(cat_zh = "名词所有格",       cat_en = "Possessive Noun",              items = c(7, 8)),
+      list(cat_zh = "第三人称单数",     cat_en = "Third Person Singular",        items = c(5, 6)),
+      list(cat_zh = "规则过去式",       cat_en = "Regular Past Tense",           items = c(16)),
+      list(cat_zh = "不规则过去式",     cat_en = "Irregular Past Tense",         items = c(33)),
+      list(cat_zh = "将来时",           cat_en = "Future Tense",                 items = c(20, 21)),
+      list(cat_zh = "名词派生",         cat_en = "Noun Derivation",              items = c(9)),
+      list(cat_zh = "比较级/最高级",    cat_en = "Comparative/Superlative",     items = c(22, 23, 24, 25)),
+      list(cat_zh = "助动词+-ing",      cat_en = "Auxiliary + -ing",             items = c(11, 12, 13, 14)),
+      list(cat_zh = "代词",             cat_en = "Pronouns",                    items = c(15, 17, 18, 19, 29, 30, 31, 32)),
+      list(cat_zh = "系动词",           cat_en = "Copula",                       items = c(10, 26, 27, 28))
     ),
+    intervention = list(
+      zh = "通过模仿、图片替换和故事讲述，针对性训练特定形态规则。",
+      en = "Target specific morphological rules via imitation, picture substitution, and storytelling."
+    )
+  ),
+  WC = list(
     domain_zh = "词汇语义",
     domain_en = "Word Classes",
-    subtest = "WC"
-  ),
-  FD = list(  # Following Directions — 4级指令 + 修饰词
-    categories = tibble::tibble(
-      category_zh = c("1级指令", "2级指令", "3级指令", "4级指令",
-                       "无修饰词", "一个修饰词", "两个修饰词"),
-      category_en = c("1-Level Command", "2-Level Command", "3-Level Command", "4-Level Command",
-                       "No Modifier", "One Modifier", "Two Modifiers"),
-      items = list(c(1,2,5,11,12), c(3,4,6,7,9,10,13,14,15,25),
-                   c(8,16,17,18,20,21,22,24,26,32),
-                   c(19,27,28,29,30,31,33),
-                   c(6,8,19,23), c(1,2,3,4,5,7,9,10,11,13,14,16,21,22,24,25,29,31),
-                   c(12,15,17,18,20,26,27,28,30,32,33))
+    categories = list(
+      list(cat_zh = "语义类别",     cat_en = "Semantic Class",       items = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 19, 20, 21, 23, 35, 38)),
+      list(cat_zh = "位置关系",     cat_en = "Location",              items = c(14, 15)),
+      list(cat_zh = "组成成分",     cat_en = "Composition",           items = c(17, 18)),
+      list(cat_zh = "同义词",       cat_en = "Synonym",               items = c(16, 25, 26, 27, 28, 30, 32, 34, 36, 37, 39, 40)),
+      list(cat_zh = "反义词",       cat_en = "Word Opposites",        items = c(24, 29, 31, 33)),
+      list(cat_zh = "物体功能",     cat_en = "Object Function",       items = c(11, 22))
     ),
+    intervention = list(
+      zh = "靶向提升语义联想技能和元语言意识。",
+      en = "Target semantic association skills and metalinguistic awareness."
+    )
+  ),
+  FD = list(
     domain_zh = "跟随指令",
     domain_en = "Following Directions",
-    subtest = "FD"
-  ),
-  FS = list(  # Formulated Sentences — 9类句法成分
-    categories = tibble::tibble(
-      category_zh = c("名词", "代词", "动词", "形容词", "副词",
-                       "连接副词", "并列连词", "从属连词", "关联连词"),
-      category_en = c("Noun", "Pronoun", "Verb", "Adjective", "Adverb",
-                       "Conjunctive Adverb", "Coordinating Conjunction",
-                       "Subordinating Conjunction", "Correlative Conjunction"),
-      items = list(c(2,3), 1, 7, c(8,9), c(5,6,13,16,24),
-                   c(15,18,21,23,24), c(11,20,22), c(10,12,13,14,17,19,20,23),
-                   22)
+    categories = list(
+      list(cat_zh = "1级指令", cat_en = "1-Level Commands", items = c(1, 2, 5, 11, 12)),
+      list(cat_zh = "2级指令", cat_en = "2-Level Commands", items = c(3, 4, 6, 7, 9, 10, 13, 14, 15, 25)),
+      list(cat_zh = "3级指令", cat_en = "3-Level Commands", items = c(8, 16, 17, 18, 20, 21, 22, 24, 26, 32)),
+      list(cat_zh = "4级指令", cat_en = "4-Level Commands", items = c(19, 27, 28, 29, 30, 31, 33)),
+      list(cat_zh = "无修饰语", cat_en = "No Modifiers",    items = c(6, 8, 19, 23)),
+      list(cat_zh = "一个修饰语", cat_en = "One Modifier",  items = c(1, 2, 3, 4, 5, 7, 9, 10, 11, 13, 14, 16, 21, 22, 24, 25, 29, 31)),
+      list(cat_zh = "两个修饰语", cat_en = "Two Modifiers", items = c(12, 15, 17, 18, 20, 26, 27, 28, 30, 32, 33))
     ),
+    intervention = list(
+      zh = "简化指令、增加冗余度，并教授方向术语。",
+      en = "Simplify instructions, add redundancy, and teach orientation terms."
+    )
+  ),
+  FS = list(
     domain_zh = "造句",
     domain_en = "Formulated Sentences",
-    subtest = "FS"
-  ),
-  RS = list(  # Recalling Sentences
-    categories = tibble::tibble(
-      category_zh = c("主动句/被动句", "疑问句", "否定句", "并列结构", "关系/状语从句"),
-      category_en = c("Active/Passive", "Interrogative", "Negative",
-                       "Coordination", "Relative/Subordinate Clause"),
-      items = list(c(1,2,3), c(4,5), c(6,7), c(8,9), c(10,11,12))
+    categories = list(
+      list(cat_zh = "名词",             cat_en = "Noun",                     items = c(2, 3)),
+      list(cat_zh = "代词",             cat_en = "Pronoun",                   items = c(1)),
+      list(cat_zh = "动词",             cat_en = "Verb",                      items = c(7)),
+      list(cat_zh = "形容词",           cat_en = "Adjective",                 items = c(8, 9)),
+      list(cat_zh = "副词",             cat_en = "Adverb",                    items = c(5, 6, 13, 16, 24)),
+      list(cat_zh = "连接副词",         cat_en = "Conjunctive Adverb",        items = c(15, 18, 21, 23, 24)),
+      list(cat_zh = "并列连词",         cat_en = "Coordinating Conjunction",  items = c(11, 20, 22)),
+      list(cat_zh = "从属连词",         cat_en = "Subordinating Conjunction", items = c(10, 12, 13, 14, 17, 19, 20, 23)),
+      list(cat_zh = "关联连词",         cat_en = "Correlative Conjunction",   items = c(22))
     ),
+    intervention = list(
+      zh = "靶向提升语法标记和句法整合能力。",
+      en = "Target grammatical markers and syntactic integration."
+    )
+  ),
+  RS = list(
     domain_zh = "句子复述",
     domain_en = "Recalling Sentences",
-    subtest = "RS"
-  ),
-  WD = list(  # Word Definitions — 4类主题
-    categories = tibble::tibble(
-      category_zh = c("科学", "社会科学", "语言/文学/艺术", "体验性知识"),
-      category_en = c("Science", "Social Studies", "Language/Literature/Arts", "Experiential"),
-      items = list(c(4,15,16,18), c(7,8,9,10,13,14),
-                   c(5,11,12,17,19,20,21), c(1,2,3,6))
+    categories = list(
+      list(cat_zh = "主动/被动语态", cat_en = "Active/Passive", items = c()),
+      list(cat_zh = "疑问句",         cat_en = "Interrogative", items = c()),
+      list(cat_zh = "否定句",         cat_en = "Negative",       items = c()),
+      list(cat_zh = "并列结构",       cat_en = "Coordination",   items = c()),
+      list(cat_zh = "从句结构",       cat_en = "Clause",         items = c())
     ),
+    intervention = list(
+      zh = "重点训练复杂从句（从属/关系从句）和句子长度。",
+      en = "Target complex clauses (subordinate/relative) and sentence length."
+    )
+  ),
+  WD = list(
     domain_zh = "词汇定义",
     domain_en = "Word Definitions",
-    subtest = "WD"
-  ),
-  SA = list(  # Sentence Assembly
-    categories = tibble::tibble(
-      category_zh = c("主动/被动语态", "否定句", "疑问句", "从属/关系从句"),
-      category_en = c("Active/Passive Voice", "Negative", "Interrogative",
-                       "Subordinate/Relative Clause"),
-      items = list(c(1,2,3), c(4,5), c(6,7,8), c(9,10,11))
+    categories = list(
+      list(cat_zh = "科学类", cat_en = "Science",        items = c(4, 15, 16, 18)),
+      list(cat_zh = "社会科学", cat_en = "Social Studies", items = c(7, 8, 9, 10, 13, 14)),
+      list(cat_zh = "语言文学艺术", cat_en = "Language/Literature/Arts", items = c(5, 11, 12, 17, 19, 20, 21)),
+      list(cat_zh = "体验性", cat_en = "Experiential",   items = c(1, 2, 3, 6))
     ),
+    intervention = list(
+      zh = "针对词汇语义特征和概念理解进行训练。",
+      en = "Target vocabulary depth through semantic feature analysis."
+    )
+  ),
+  SA = list(
     domain_zh = "句子重组",
     domain_en = "Sentence Assembly",
-    subtest = "SA"
-  ),
-  SR = list(  # Semantic Relationships
-    categories = tibble::tibble(
-      category_zh = c("比较关系", "空间关系", "时间关系", "序列关系", "被动语态"),
-      category_en = c("Comparison", "Spatial Relations", "Temporal Relations",
-                       "Serial Order", "Passive Voice"),
-      items = list(c(1,2,3,4), c(5,6,7), c(8,9,10), c(11,12,13,14), c(15,16))
+    categories = list(
+      list(cat_zh = "主动/被动语态", cat_en = "Active/Passive",     items = c()),
+      list(cat_zh = "否定结构",     cat_en = "Negative",            items = c()),
+      list(cat_zh = "疑问句",       cat_en = "Interrogative",        items = c()),
+      list(cat_zh = "从句结构",     cat_en = "Subordinate/Relative",items = c())
     ),
+    intervention = list(
+      zh = "提升句子变化性和写作修订能力。",
+      en = "Target sentence variation and writing revision."
+    )
+  ),
+  SR = list(
     domain_zh = "语义关系",
     domain_en = "Semantic Relationships",
-    subtest = "SR"
+    categories = list(
+      list(cat_zh = "比较关系",     cat_en = "Comparison",     items = c()),
+      list(cat_zh = "空间关系",    cat_en = "Spatial",        items = c()),
+      list(cat_zh = "时间关系",    cat_en = "Temporal",       items = c()),
+      list(cat_zh = "序列关系",    cat_en = "Serial Order",   items = c()),
+      list(cat_zh = "被动语态",    cat_en = "Passive Voice",  items = c())
+    ),
+    intervention = list(
+      zh = "支持指令、序列和逻辑理解的训练。",
+      en = "Support directions, sequences, and logical understanding."
+    )
   )
 )
 
-# 诊断报告生成函数：输入 subtest + responses tibble，输出分类错误分析
-generate_item_analysis <- function(subtest, resp_df, ag) {
-  ia <- ITEM_ANALYSIS[[subtest]]
-  if (is.null(ia)) return(NULL)
+generate_item_analysis <- function(subtest, responses_df, age_group) {
+  ia_def <- ITEM_ANALYSIS[[subtest]]
+  if (is.null(ia_def)) return(NULL)
 
-  categories <- ia$categories
-  # resp_df: tibble with item_number, score
+  if (nrow(responses_df) == 0) return(NULL)
 
-  # 对每个 category，找出答错的 items
-  error_items <- purrr::map(categories$items, function(item_nums) {
-    item_nums <- as.integer(item_nums)
-    scored <- resp_df %>% dplyr::filter(.data$item_number %in% item_nums, !is.na(.data$score))
-    if (nrow(scored) == 0) return(character(0))
-    err <- scored %>% dplyr::filter(.data$score == 0) %>% dplyr::pull(.data$item_number)
-    as.character(err)
-  })
+  # 只取有 score 的题目
+  scored <- responses_df %>% filter(!is.na(score))
+  if (nrow(scored) == 0) return(NULL)
 
-  # 计算每个 category 的正确率
-  cat_performance <- purrr::map_dfr(seq_len(nrow(categories)), function(i) {
-    item_nums <- as.integer(categories$items[[i]])
-    scored <- resp_df %>% dplyr::filter(.data$item_number %in% item_nums, !is.na(.data$score))
-    n_total <- nrow(scored)
-    if (n_total == 0) {
-      pct <- NA_real_
+  perf_rows <- lapply(ia_def$categories, function(cat) {
+    cat_items   <- cat$items
+    cat_responses <- scored %>% filter(.data$item_number %in% cat_items)
+    n_items   <- length(cat_items)
+    n_scored  <- nrow(cat_responses)
+    n_correct <- sum(cat_responses$score > 0, na.rm = TRUE)
+
+    if (n_scored == 0) {
+      accuracy_pct <- NA_real_
+      flag <- "⚠️ 未评分"
+      err_items <- ""
     } else {
-      n_correct <- scored %>% dplyr::filter(.data$score > 0) %>% nrow()
-      pct <- n_correct / n_total * 100
+      accuracy_pct <- n_correct / n_scored * 100
+      err_vec <- cat_responses$item_number[cat_responses$score == 0]
+      err_items <- paste(sort(err_vec), collapse = ", ")
+      flag <- if (accuracy_pct < 60) "⚠️ 重点干预"
+              else if (accuracy_pct < 80) "🔶 提升空间"
+              else "✅ 掌握良好"
     }
-    tibble::tibble(
-      category_zh = categories$category_zh[[i]],
-      category_en = categories$category_en[[i]],
-      n_items = length(item_nums),
-      n_scored = n_total,
-      n_correct = scored %>% dplyr::filter(.data$score > 0) %>% nrow(),
-      accuracy_pct = pct,
-      error_items = paste(error_items[[i]], collapse = ", "),
-      flag = if (!is.na(pct) && pct < 60) "⚠️ 需要重点干预"
-             else if (!is.na(pct) && pct < 80) "🔶 可进一步提升"
-             else if (!is.na(pct)) "✅ 掌握良好"
-             else "—"
+
+    data.frame(
+      category_zh   = cat$cat_zh,
+      category_en   = cat$cat_en,
+      n_items       = n_items,
+      n_scored      = n_scored,
+      n_correct     = n_correct,
+      accuracy_pct  = accuracy_pct,
+      error_items   = err_items,
+      flag          = flag,
+      stringsAsFactors = FALSE
     )
   })
 
-  list(
-    subtest = subtest,
-    domain_zh = ia$domain_zh,
-    domain_en = ia$domain_en,
-    performance = cat_performance
+  perf <- bind_rows(perf_rows)
+  list(domain_zh = ia_def$domain_zh,
+       domain_en = ia_def$domain_en,
+       performance = perf,
+       intervention_zh = ia_def$intervention$zh,
+       intervention_en = ia_def$intervention$en)
+}
+
+item_analysis_panel <- function(subtest, raw_score) {
+  ia <- ITEM_ANALYSIS[[subtest]]
+  if (is.null(ia)) return(NULL)
+
+  tagList(
+    hr(),
+    h5(strong("📊 题目分析 Item Analysis — ", ia$domain_zh, " / ", ia$domain_en)),
+    p(strong("⚠️ <60% = 重点干预", class = "text-danger"), " | ",
+      strong("🔶 60-80% = 提升空间", class = "text-warning"), " | ",
+      strong("✅ 80%+ = 掌握良好", class = "text-success"),
+      class = "small"),
+    p(strong("干预建议: "), ia$intervention$zh,
+      class = "small text-muted", style = "font-style: italic;")
   )
 }
 
-# 简洁诊断建议生成
-generate_diagnosis_recommendations <- function(subtest, resp_df, scaled_score, ag) {
-  ia <- generate_item_analysis(subtest, resp_df, ag)
-  if (is.null(ia)) return(list(overall_zh = "暂无详细分析数据。", overall_en = "No detailed analysis data."))
 
-  perf <- ia$performance
-  flag_issues <- perf %>% dplyr::filter(stringr::str_starts(flag, "⚠️"))
-
-  if (nrow(flag_issues) == 0) {
-    overall_zh <- sprintf("综合语言评估结果显示，孩子在 %s 方面的各项技能表现正常，未发现显著薄弱环节。",
-                          ia$domain_zh)
-    overall_en <- sprintf("Overall, performance in %s is within normal limits. No significant areas of weakness identified.",
-                          ia$domain_en)
-  } else {
-    weak_zh <- paste0(sprintf("%s（%s准确率%.0f%%）",
-                              flag_issues$category_zh,
-                              flag_issues$category_en,
-                              flag_issues$accuracy_pct),
-                      collapse = "、")
-    overall_zh <- sprintf("孩子在 %s 方面的以下技能需要重点干预：%s。建议通过针对性练习提升相关能力。",
-                          ia$domain_zh, weak_zh)
-    overall_en <- sprintf("Significant weaknesses identified in %s: %s. Targeted intervention recommended.",
-                          ia$domain_en,
-                          paste0(flag_issues$category_en, collapse = ", "))
-  }
-
-  list(overall_zh = overall_zh, overall_en = overall_en, ia = ia)
-}
+# END OF FILE

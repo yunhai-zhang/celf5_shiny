@@ -685,11 +685,8 @@ server <- function(input, output, session) {
         column(4,
           wellPanel(
             h4("基本信息 / Basic Info"),
-            selectInput("ors_rater_role", "评分人 Rater:",
-              choices = c("teacher" = "teacher",
-                          "parent"  = "parent",
-                          "student" = "student"),
-              selected = "teacher"),
+            p("评分: 从不或几乎从不(1) → 有时(2) → 经常(3) → 总是或几乎总是(4)",
+              class = "small text-muted"),
             p("Section 1 Listening (1-9)   → 9题", class = "small text-muted"),
             p("Section 2 Speaking (10-28) → 19题", class = "small text-muted"),
             p("Section 3 Reading  (29-34) → 6题", class = "small text-muted"),
@@ -708,9 +705,9 @@ server <- function(input, output, session) {
   })
 
   output$ors_section_tabs <- renderUI({
-    req(rv$assessment_id, input$ors_rater_role)
+    req(rv$assessment_id)
 
-    role <- input$ors_rater_role
+    role <- "teacher"
     existing <- get_ors_responses(rv$assessment_id, role)
     existing_vec <- setNames(existing$score, paste0(existing$section, "_", existing$item_number))
 
@@ -774,7 +771,7 @@ server <- function(input, output, session) {
       observeEvent(input[[radioId]], {
         req(rv$assessment_id)
         score <- as.integer(input[[radioId]])
-        save_ors_response(rv$assessment_id, input$ors_rater_role, section, item_num, score)
+        save_ors_response(rv$assessment_id, "teacher", section, item_num, score)
         # 更新 summary cards
         invalidateLater(500)
       }, ignoreInit = TRUE)
@@ -786,8 +783,8 @@ server <- function(input, output, session) {
   ors_save_observer("writing",   35:40)
 
   output$ors_summary_cards <- renderUI({
-    req(rv$assessment_id, input$ors_rater_role)
-    sumry <- get_ors_summary(rv$assessment_id, input$ors_rater_role)
+    req(rv$assessment_id)
+    sumry <- get_ors_summary(rv$assessment_id, "teacher")
 
     make_card <- function(sec, label, icon) {
       val <- sumry[[paste0(sec, "_score")]]
@@ -921,42 +918,49 @@ server <- function(input, output, session) {
           hr(),
           p(strong("评估说明 Assessment: ")),
           p(interpretation$zh),
-          p(strong("Interpretation: "), p(interpretation$en, class = "text-muted small mb-0")),
-
-          # ── Item Analysis ─────────────────────────────
+          p(strong("Interpretation: "), span(interpretation$en, class = "text-muted small")),
+          # ── Item Analysis ───────────────────────────────
           {
             ia_result <- generate_item_analysis(st, full$responses[full$responses$subtest == st, ], ag)
-            if (!is.null(ia_result)) {
-              ia <- ia_result
+            ia_def    <- ITEM_ANALYSIS[[st]]
+            if (!is.null(ia_def) && !is.null(ia_result)) {
+              ia   <- ia_result
               perf <- ia$performance
-
               perf_rows <- purrr::pmap_chr(perf, function(category_zh, category_en, n_items, n_scored, n_correct, accuracy_pct, error_items, flag) {
-                pct_disp <- if (is.na(accuracy_pct)) "—" else sprintf("%.0f%%", accuracy_pct)
-                tr_clz <- if (grepl("⚠️", flag)) "table-danger"
-                          else if (grepl("🔶", flag)) "table-warning"
-                          else if (grepl("✅", flag)) "table-success"
-                          else ""
-                bg_clr <- if (is.na(accuracy_pct)) "bg-secondary" else if (accuracy_pct < 60) "bg-danger text-white" else if (accuracy_pct < 80) "bg-warning" else "bg-success text-white"
-                err_disp <- if (error_items == "") "无" else error_items
-                # Format: %s(tr_clz) %s(cat_zh) %s(cat_en) %d(n_items) %d(n_scored) %s(bg_clr) %s(pct) %s(flag) %s(err)
+                pct_disp  <- if (is.na(accuracy_pct)) "—" else sprintf("%.0f%%", accuracy_pct)
+                tr_clz    <- if (grepl("⚠️", flag)) "table-danger"
+                             else if (grepl("🔶", flag)) "table-warning"
+                             else if (grepl("✅", flag)) "table-success"
+                             else ""
+                bg_clr    <- if (is.na(accuracy_pct)) "bg-secondary text-white"
+                             else if (accuracy_pct < 60) "bg-danger text-white"
+                             else if (accuracy_pct < 80) "bg-warning"
+                             else "bg-success text-white"
+                err_disp  <- if (error_items == "") "无" else error_items
                 sprintf('<tr class="%s"><td>%s<br><small class="text-muted">%s</small></td><td class="text-center">%d</td><td class="text-center">%d</td><td class="text-center"><span class="badge %s">%s</span></td><td class="text-center">%s</td><td class="text-center small">%s</td></tr>',
                   tr_clz, category_zh, category_en, n_items, n_scored, bg_clr, pct_disp, flag, err_disp)
               })
-
-              header_row <- '<tr><th>技能类别</th><th>总题</th><th>已评分</th><th>正确率</th><th>状态</th><th>答错题</th></tr>'
-              tbl_html <- paste0('<table class="table table-sm">', header_row, paste(perf_rows, collapse = ""), '</table>')
-
+              header_row <- '<tr><th>技能类别</th><th>总题</th><th>已评</th><th>正确率</th><th>状态</th><th>错题</th></tr>'
+              tbl_html   <- paste0('<table class="table table-sm table-bordered">', header_row, paste(perf_rows, collapse = ""), '</table>')
               tagList(
                 hr(),
                 h5(strong("📊 题目分析 Item Analysis — ", ia$domain_zh, " / ", ia$domain_en)),
-                p(strong("⚠️ &lt;60% = 重点干预", class = "text-danger small"),
-                  " &nbsp;|&nbsp; ",
-                  strong("🔶 60-80% = 提升空间", class = "text-warning"),
-                  " &nbsp;|&nbsp; ",
-                  strong("✅ 80%+ = 掌握良好", class = "text-success")),
-                HTML(tbl_html)
+                p(HTML("⚠️ <strong class='text-danger'>&lt;60% = 重点干预</strong> | 🔶 <strong class='text-warning'>60–80% = 提升空间</strong> | ✅ <strong class='text-success'>80%+ = 掌握良好</strong>")),
+                HTML(tbl_html),
+                p(strong("干预建议: "), ia$intervention_zh,
+                  class = "small text-muted", style = "font-style:italic;")
               )
-            } else NULL
+            } else if (!is.null(ia_def)) {
+              tagList(
+                hr(),
+                h5(strong("Item Analysis — ", ia_def$domain_zh, " / ", ia_def$domain_en)),
+                p(HTML("&lt;60% = red | 60-80% = yellow | 80%+ = green")),
+                p(em("（完成打分后显示各技能类别的正确率）"),
+                  class = "small text-muted text-center"),
+                p(strong("干预建议: "), ia_def$intervention$zh,
+                  class = "small text-muted", style = "font-style:italic;")
+              )
+            }
           }
         )
       )
