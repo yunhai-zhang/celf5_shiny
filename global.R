@@ -642,10 +642,393 @@ start_assessment <- function(patient_id, assessment_date, age_years, age_months,
 delete_assessment <- function(assessment_id) {
   con <- get_con()
   on.exit(dbDisconnect(con))
-  # responses, subtest_scores, composite_scores 都要删
+  # responses, subtest_scores, composite_scores, ors 都要删
   dbExecute(con, "DELETE FROM responses WHERE assessment_id = ?", params = list(assessment_id))
   dbExecute(con, "DELETE FROM subtest_scores WHERE assessment_id = ?", params = list(assessment_id))
   dbExecute(con, "DELETE FROM composite_scores WHERE assessment_id = ?", params = list(assessment_id))
+  dbExecute(con, "DELETE FROM observational_rating_scale WHERE assessment_id = ?", params = list(assessment_id))
+  dbExecute(con, "DELETE FROM ors_summary WHERE assessment_id = ?", params = list(assessment_id))
   dbExecute(con, "DELETE FROM assessments WHERE id = ?", params = list(assessment_id))
   invisible()
+}
+
+# ─────────────────────────────────────────────────────────────
+# ORS: Observational Rating Scale
+# ─────────────────────────────────────────────────────────────
+
+ORS_SECTIONS <- list(
+  listening = list(
+    name_zh = "聆听 Listening",
+    name_en = "Listening",
+    items = 1:9,
+    behaviors_zh = c(
+      "注意力不集中。",
+      "难以听懂口语指令。",
+      "难以记住别人说的话。",
+      "难以理解别人的意思。",
+      "需要别人重复说过的话。",
+      "难以理解词语的含义。",
+      "难以理解新想法。",
+      "说话或聆听时难以保持眼神接触。",
+      "难以理解面部表情、手势或身体语言。"
+    )
+  ),
+  speaking = list(
+    name_zh = "表达 Speaking",
+    name_en = "Speaking",
+    items = 10:28,
+    behaviors_zh = c(
+      "难以回答别人的问题。",
+      "回答问题不如其他同学快。",
+      "难以在需要时寻求帮助。",
+      "难以提出问题。",
+      "说话时难以使用多样化的词汇。",
+      "难以找到（想起）合适的词。",
+      "难以表达自己的想法。",
+      "难以向别人描述事物。",
+      "说话时难以保持话题。",
+      "说话时难以抓住重点。",
+      "讲述事情时难以按正确顺序叙述。",
+      "说话时语法不规范。",
+      "说话时难以使用完整句子。",
+      "说话时句子短而不连贯。",
+      "说话时难以扩展答案或提供细节。",
+      "难以与人进行对话。",
+      "难以在一群人面前说话。",
+      "当别人听不懂时难以换一种方式表达。",
+      "当别人不理解时会感到沮丧。"
+    )
+  ),
+  reading = list(
+    name_zh = "阅读 Reading",
+    name_en = "Reading",
+    items = 29:34,
+    behaviors_zh = c(
+      "阅读时难以正确拼读单词。",
+      "难以理解所读内容。",
+      "难以解释所读内容。",
+      "难以找出段落大意。",
+      "难以记住细节。",
+      "难以按书面指令操作。"
+    )
+  ),
+  writing = list(
+    name_zh = "书写 Writing",
+    name_en = "Writing",
+    items = 35:40,
+    behaviors_zh = c(
+      "难以写下自己的想法。",
+      "书写时语法不规范。",
+      "难以写出完整句子。",
+      "句子短而不连贯。",
+      "书写时难以扩展答案或提供细节。",
+      "书写时难以将词语按正确顺序排列。"
+    )
+  )
+)
+
+score_label_zh <- function(score) {
+  labels <- c("1" = "从不或几乎从不", "2" = "有时", "3" = "经常", "4" = "总是或几乎总是")
+  labels[as.character(score)]
+}
+
+save_ors_response <- function(assessment_id, rater_role, section, item_number, score) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  dbExecute(con,
+    "INSERT OR REPLACE INTO observational_rating_scale
+     (assessment_id, rater_role, section, item_number, score, recorded_at)
+     VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+    params = list(assessment_id, rater_role, section, item_number, score))
+  # 更新 summary
+  update_ors_summary(assessment_id, rater_role)
+  invisible()
+}
+
+update_ors_summary <- function(assessment_id, rater_role) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+
+  for (sec in c("listening","speaking","reading","writing")) {
+    items <- ORS_SECTIONS[[sec]]$items
+    qry <- glue_sql("
+      SELECT AVG(score) as avg_score FROM observational_rating_scale
+      WHERE assessment_id = ? AND rater_role = ? AND section = ?
+      AND item_number IN ({items*})",
+      .con = con)
+    avg <- dbGetQuery(con, qry, params = list(assessment_id, rater_role, sec))$avg_score[1]
+
+    col_score <- paste0(sec, "_score")
+    if (is.na(avg)) next
+
+    dbExecute(con, glue_sql("
+      INSERT INTO ors_summary (assessment_id, rater_role, {col_score}, updated_at)
+      VALUES (?, ?, ?, datetime('now','localtime'))
+      ON CONFLICT(assessment_id, rater_role) DO UPDATE SET
+        {col_score} = excluded.{col_score},
+        updated_at  = excluded.updated_at",
+      .con = con),
+      params = list(assessment_id, rater_role, avg))
+  }
+
+  # 重新算 total
+  total_qry <- glue_sql("
+    SELECT SUM(
+      COALESCE(listening_score,0) + COALESCE(speaking_score,0) +
+      COALESCE(reading_score,0)  + COALESCE(writing_score,0)
+    ) as total FROM ors_summary WHERE assessment_id = ? AND rater_role = ?",
+    .con = con)
+  total <- dbGetQuery(con, total_qry, params = list(assessment_id, rater_role))$total[1]
+  dbExecute(con,
+    "UPDATE ors_summary SET total_score = ? WHERE assessment_id = ? AND rater_role = ?",
+    params = list(total, assessment_id, rater_role))
+  invisible()
+}
+
+get_ors_summary <- function(assessment_id, rater_role) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  dbGetQuery(con,
+    "SELECT * FROM ors_summary WHERE assessment_id = ? AND rater_role = ?",
+    params = list(assessment_id, rater_role))
+}
+
+get_ors_responses <- function(assessment_id, rater_role) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  dbGetQuery(con,
+    "SELECT section, item_number, score FROM observational_rating_scale
+     WHERE assessment_id = ? AND rater_role = ?
+     ORDER BY section, item_number",
+    params = list(assessment_id, rater_role))
+}
+
+# ─────────────────────────────────────────────────────────────
+# Item Analysis: 基于 Test Objectives MD 的错误分类
+# ─────────────────────────────────────────────────────────────
+
+ITEM_ANALYSIS <- list(
+  SC = list(  # Sentence Comprehension — 11类
+    categories = tibble::tibble(
+      category_zh = c("否定句", "修饰语（定语/状语）", "介词短语",
+                       "直接/间接宾语", "不定式", "动词短语",
+                       "关系从句", "从句（状语/宾语）", "疑问句",
+                       "被动语态", "直接/间接请求", "并列句"),
+      category_en = c("Negation", "Modification", "Prepositional Phrase",
+                       "Direct/Indirect Object", "Infinitive", "Verb Phrase",
+                       "Relative Clause", "Subordinate Clause", "Interrogative",
+                       "Passive Voice", "Direct/Indirect Request", "Compound"),
+      items = list(c(8,9,20), c(1,4,10), c(4,6,14,15,17,18),
+                   c(5,15,22), c(5,19), 25,
+                   c(2,3,11), c(13,20), 12,
+                   c(16,21), c(23,24), c(7,10,26))
+    ),
+    domain_zh = "句子理解",
+    domain_en = "Sentence Comprehension",
+    subtest = "SC"
+  ),
+  LC = list(  # Linguistic Concepts — 6类
+    categories = tibble::tibble(
+      category_zh = c("包含/排除", "位置概念", "数量", "序列", "条件", "时间"),
+      category_en = c("Inclusion/Exclusion", "Location", "Quantity",
+                       "Sequence", "Conditional", "Temporal"),
+      items = list(c(1,3,4,5,6,7,14,15,19,24,25), c(2,8,10,16,17),
+                   c(4,9), c(2,12,13,22), c(11,18,20), c(21,23))
+    ),
+    domain_zh = "语言概念",
+    domain_en = "Linguistic Concepts",
+    subtest = "LC"
+  ),
+  WS = list(  # Word Structure — 11类形态规则
+    categories = tibble::tibble(
+      category_zh = c("规则复数", "不规则复数", "名词所有格",
+                       "第三人称单数", "规则过去式", "不规则过去式",
+                       "将来时", "名词派生", "比较级/最高级",
+                       "助动词+-ing形式", "代词（宾格/所有格/主格/反身）",
+                       "系动词（可缩/不可缩）"),
+      category_en = c("Regular Plural", "Irregular Plural", "Possessive Noun",
+                       "3rd Person Singular", "Regular Past Tense", "Irregular Past Tense",
+                       "Future Tense", "Noun Derivation", "Comparative/Superlative",
+                       "Auxiliary + -ing", "Pronouns (Obj/Poss/Subj/Reflex)",
+                       "Copula (Contractible/Uncontractible)"),
+      items = list(c(1,2), c(3,4), c(7,8), c(5,6), 16, 33,
+                   c(20,21), 9, c(22,23,24,25),
+                   c(11,12,13,14), c(15,17,18,19,29,30,31,32),
+                   c(10,26,27,28))
+    ),
+    domain_zh = "词汇结构",
+    domain_en = "Word Structure",
+    subtest = "WS"
+  ),
+  WC = list(  # Word Classes — 6类语义关系
+    categories = tibble::tibble(
+      category_zh = c("语义类别（具体）", "位置关系", "组成成分", "同义词",
+                       "反义词", "宾语功能", "语义类别（抽象）"),
+      category_en = c("Semantic Class", "Location", "Composition",
+                       "Synonym", "Word Opposites", "Object Function", "Semantic Class (Abstract)"),
+      items = list(c(1,2,3,4,5,6,7,8,9,10,11,12,13,16,19,23,35,38),
+                   c(14,15), c(17,18),
+                   c(16,25,26,27,28,30,32,34,36,37,39,40),
+                   c(24,29,31,33), c(11,22),
+                   c(20,21))
+    ),
+    domain_zh = "词汇语义",
+    domain_en = "Word Classes",
+    subtest = "WC"
+  ),
+  FD = list(  # Following Directions — 4级指令 + 修饰词
+    categories = tibble::tibble(
+      category_zh = c("1级指令", "2级指令", "3级指令", "4级指令",
+                       "无修饰词", "一个修饰词", "两个修饰词"),
+      category_en = c("1-Level Command", "2-Level Command", "3-Level Command", "4-Level Command",
+                       "No Modifier", "One Modifier", "Two Modifiers"),
+      items = list(c(1,2,5,11,12), c(3,4,6,7,9,10,13,14,15,25),
+                   c(8,16,17,18,20,21,22,24,26,32),
+                   c(19,27,28,29,30,31,33),
+                   c(6,8,19,23), c(1,2,3,4,5,7,9,10,11,13,14,16,21,22,24,25,29,31),
+                   c(12,15,17,18,20,26,27,28,30,32,33))
+    ),
+    domain_zh = "跟随指令",
+    domain_en = "Following Directions",
+    subtest = "FD"
+  ),
+  FS = list(  # Formulated Sentences — 9类句法成分
+    categories = tibble::tibble(
+      category_zh = c("名词", "代词", "动词", "形容词", "副词",
+                       "连接副词", "并列连词", "从属连词", "关联连词"),
+      category_en = c("Noun", "Pronoun", "Verb", "Adjective", "Adverb",
+                       "Conjunctive Adverb", "Coordinating Conjunction",
+                       "Subordinating Conjunction", "Correlative Conjunction"),
+      items = list(c(2,3), 1, 7, c(8,9), c(5,6,13,16,24),
+                   c(15,18,21,23,24), c(11,20,22), c(10,12,13,14,17,19,20,23),
+                   22)
+    ),
+    domain_zh = "造句",
+    domain_en = "Formulated Sentences",
+    subtest = "FS"
+  ),
+  RS = list(  # Recalling Sentences
+    categories = tibble::tibble(
+      category_zh = c("主动句/被动句", "疑问句", "否定句", "并列结构", "关系/状语从句"),
+      category_en = c("Active/Passive", "Interrogative", "Negative",
+                       "Coordination", "Relative/Subordinate Clause"),
+      items = list(c(1,2,3), c(4,5), c(6,7), c(8,9), c(10,11,12))
+    ),
+    domain_zh = "句子复述",
+    domain_en = "Recalling Sentences",
+    subtest = "RS"
+  ),
+  WD = list(  # Word Definitions — 4类主题
+    categories = tibble::tibble(
+      category_zh = c("科学", "社会科学", "语言/文学/艺术", "体验性知识"),
+      category_en = c("Science", "Social Studies", "Language/Literature/Arts", "Experiential"),
+      items = list(c(4,15,16,18), c(7,8,9,10,13,14),
+                   c(5,11,12,17,19,20,21), c(1,2,3,6))
+    ),
+    domain_zh = "词汇定义",
+    domain_en = "Word Definitions",
+    subtest = "WD"
+  ),
+  SA = list(  # Sentence Assembly
+    categories = tibble::tibble(
+      category_zh = c("主动/被动语态", "否定句", "疑问句", "从属/关系从句"),
+      category_en = c("Active/Passive Voice", "Negative", "Interrogative",
+                       "Subordinate/Relative Clause"),
+      items = list(c(1,2,3), c(4,5), c(6,7,8), c(9,10,11))
+    ),
+    domain_zh = "句子重组",
+    domain_en = "Sentence Assembly",
+    subtest = "SA"
+  ),
+  SR = list(  # Semantic Relationships
+    categories = tibble::tibble(
+      category_zh = c("比较关系", "空间关系", "时间关系", "序列关系", "被动语态"),
+      category_en = c("Comparison", "Spatial Relations", "Temporal Relations",
+                       "Serial Order", "Passive Voice"),
+      items = list(c(1,2,3,4), c(5,6,7), c(8,9,10), c(11,12,13,14), c(15,16))
+    ),
+    domain_zh = "语义关系",
+    domain_en = "Semantic Relationships",
+    subtest = "SR"
+  )
+)
+
+# 诊断报告生成函数：输入 subtest + responses tibble，输出分类错误分析
+generate_item_analysis <- function(subtest, resp_df, ag) {
+  ia <- ITEM_ANALYSIS[[subtest]]
+  if (is.null(ia)) return(NULL)
+
+  categories <- ia$categories
+  # resp_df: tibble with item_number, score
+
+  # 对每个 category，找出答错的 items
+  error_items <- purrr::map(categories$items, function(item_nums) {
+    item_nums <- as.integer(item_nums)
+    scored <- resp_df %>% dplyr::filter(.data$item_number %in% item_nums, !is.na(.data$score))
+    if (nrow(scored) == 0) return(character(0))
+    err <- scored %>% dplyr::filter(.data$score == 0) %>% dplyr::pull(.data$item_number)
+    as.character(err)
+  })
+
+  # 计算每个 category 的正确率
+  cat_performance <- purrr::map_dfr(seq_len(nrow(categories)), function(i) {
+    item_nums <- as.integer(categories$items[[i]])
+    scored <- resp_df %>% dplyr::filter(.data$item_number %in% item_nums, !is.na(.data$score))
+    n_total <- nrow(scored)
+    if (n_total == 0) {
+      pct <- NA_real_
+    } else {
+      n_correct <- scored %>% dplyr::filter(.data$score > 0) %>% nrow()
+      pct <- n_correct / n_total * 100
+    }
+    tibble::tibble(
+      category_zh = categories$category_zh[[i]],
+      category_en = categories$category_en[[i]],
+      n_items = length(item_nums),
+      n_scored = n_total,
+      n_correct = scored %>% dplyr::filter(.data$score > 0) %>% nrow(),
+      accuracy_pct = pct,
+      error_items = paste(error_items[[i]], collapse = ", "),
+      flag = if (!is.na(pct) && pct < 60) "⚠️ 需要重点干预"
+             else if (!is.na(pct) && pct < 80) "🔶 可进一步提升"
+             else if (!is.na(pct)) "✅ 掌握良好"
+             else "—"
+    )
+  })
+
+  list(
+    subtest = subtest,
+    domain_zh = ia$domain_zh,
+    domain_en = ia$domain_en,
+    performance = cat_performance
+  )
+}
+
+# 简洁诊断建议生成
+generate_diagnosis_recommendations <- function(subtest, resp_df, scaled_score, ag) {
+  ia <- generate_item_analysis(subtest, resp_df, ag)
+  if (is.null(ia)) return(list(overall_zh = "暂无详细分析数据。", overall_en = "No detailed analysis data."))
+
+  perf <- ia$performance
+  flag_issues <- perf %>% dplyr::filter(stringr::str_starts(flag, "⚠️"))
+
+  if (nrow(flag_issues) == 0) {
+    overall_zh <- sprintf("综合语言评估结果显示，孩子在 %s 方面的各项技能表现正常，未发现显著薄弱环节。",
+                          ia$domain_zh)
+    overall_en <- sprintf("Overall, performance in %s is within normal limits. No significant areas of weakness identified.",
+                          ia$domain_en)
+  } else {
+    weak_zh <- paste0(sprintf("%s（%s准确率%.0f%%）",
+                              flag_issues$category_zh,
+                              flag_issues$category_en,
+                              flag_issues$accuracy_pct),
+                      collapse = "、")
+    overall_zh <- sprintf("孩子在 %s 方面的以下技能需要重点干预：%s。建议通过针对性练习提升相关能力。",
+                          ia$domain_zh, weak_zh)
+    overall_en <- sprintf("Significant weaknesses identified in %s: %s. Targeted intervention recommended.",
+                          ia$domain_en,
+                          paste0(flag_issues$category_en, collapse = ", "))
+  }
+
+  list(overall_zh = overall_zh, overall_en = overall_en, ia = ia)
 }

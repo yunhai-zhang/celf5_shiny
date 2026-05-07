@@ -158,6 +158,15 @@ ui <- fluidPage(
       )
     ),
 
+    # ── Tab 3b: 行为观察 ──────────────────────────────
+    tabPanel("行为观察 / ORS",
+      fluidRow(
+        column(12,
+          uiOutput("ors_ui")
+        )
+      )
+    ),
+
     # ── Tab 4: 评分报告 ─────────────────────────────
     tabPanel("评分报告 / Report",
       fluidRow(
@@ -662,6 +671,158 @@ server <- function(input, output, session) {
     }
   }
 
+  # ── ORS: Observational Rating Scale ────────────────────────
+  output$ors_ui <- renderUI({
+    req(rv$assessment_id)
+
+    tagList(
+      div(class = "page-header", style = "margin-bottom: 24px;",
+        h2("行为观察评分量表 / Observational Rating Scale (ORS)", style = "color: #003A6C;"),
+        p("由教师 / 家长 / 学生本人填写。评分：从不或几乎从不(1) → 有时(2) → 经常(3) → 总是或几乎总是(4)",
+          class = "text-muted")
+      ),
+      fluidRow(
+        column(4,
+          wellPanel(
+            h4("基本信息 / Basic Info"),
+            selectInput("ors_rater_role", "评分人 Rater:",
+              choices = c("teacher" = "teacher",
+                          "parent"  = "parent",
+                          "student" = "student"),
+              selected = "teacher"),
+            p("Section 1 Listening (1-9)   → 9题", class = "small text-muted"),
+            p("Section 2 Speaking (10-28) → 19题", class = "small text-muted"),
+            p("Section 3 Reading  (29-34) → 6题", class = "small text-muted"),
+            p("Section 4 Writing  (35-40) → 6题", class = "small text-muted"),
+            hr(),
+            uiOutput("ors_summary_cards")
+          )
+        ),
+        column(8,
+          wellPanel(
+            uiOutput("ors_section_tabs")
+          )
+        )
+      )
+    )
+  })
+
+  output$ors_section_tabs <- renderUI({
+    req(rv$assessment_id, input$ors_rater_role)
+
+    role <- input$ors_rater_role
+    existing <- get_ors_responses(rv$assessment_id, role)
+    existing_vec <- setNames(existing$score, paste0(existing$section, "_", existing$item_number))
+
+    tabBox(width = 12,
+      tabPanel("📖 Listening (1-9)",
+        ors_section_table("listening", 1:9, existing_vec, role)
+      ),
+      tabPanel("🗣 Speaking (10-28)",
+        ors_section_table("speaking", 10:28, existing_vec, role)
+      ),
+      tabPanel("📖 Reading (29-34)",
+        ors_section_table("reading", 29:34, existing_vec, role)
+      ),
+      tabPanel("✏️ Writing (35-40)",
+        ors_section_table("writing", 35:40, existing_vec, role)
+      )
+    )
+  })
+
+  ors_section_table <- function(section, items, existing_vec, role) {
+    sec_info <- ORS_SECTIONS[[section]]
+    item_zh  <- sec_info$behaviors_zh
+    n <- length(items)
+
+    tagList(
+      p(strong(sec_info$name_zh, " / ", sec_info$name_en, " — ", n, "题"), class = "text-primary", style = "margin-bottom: 12px;"),
+      fluidRow(
+        column(1, ""),
+        column(3, strong("从不", class = "text-center"), p("Never(1)", class = "small text-muted text-center")),
+        column(3, strong("有时", class = "text-center"), p("Sometimes(2)", class = "small text-muted text-center")),
+        column(3, strong("经常", class = "text-center"), p("Often(3)", class = "small text-muted text-center")),
+        column(3, strong("总是", class = "text-center"), p("Always(4)", class = "small text-muted text-center"))
+      ),
+      lapply(seq_along(items), function(i) {
+        item_num <- items[i]
+        key <- paste0(section, "_", item_num)
+        cur_val <- existing_vec[key]
+        radioId <- paste0("ors_s", section, "_i", item_num)
+
+        div(class = "ors-item-row",
+          style = "display: flex; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee;",
+          column(1, strong(item_num), style = "text-align: center;"),
+          column(3, p(item_zh[i], style = "margin: 0; font-size: 13px;")),
+          column(3, div(style = "text-align: center;",
+            radioButtons(radioId, label = NULL,
+              choices = c("1" = "1", "2" = "2", "3" = "3", "4" = "4"),
+              selected = cur_val %||% character(0),
+              inline = TRUE,
+              width = "120px")
+          )),
+          column(5, "")
+        )
+      })
+    )
+  }
+
+  # ── ORS 保存：实时保存每题的评分 ─────────────────────
+  ors_save_observer <- function(section, items) {
+    lapply(items, function(item_num) {
+      radioId <- paste0("ors_s", section, "_i", item_num)
+      observeEvent(input[[radioId]], {
+        req(rv$assessment_id)
+        score <- as.integer(input[[radioId]])
+        save_ors_response(rv$assessment_id, input$ors_rater_role, section, item_num, score)
+        # 更新 summary cards
+        invalidateLater(500)
+      }, ignoreInit = TRUE)
+    })
+  }
+  ors_save_observer("listening", 1:9)
+  ors_save_observer("speaking",  10:28)
+  ors_save_observer("reading",   29:34)
+  ors_save_observer("writing",   35:40)
+
+  output$ors_summary_cards <- renderUI({
+    req(rv$assessment_id, input$ors_rater_role)
+    sumry <- get_ors_summary(rv$assessment_id, input$ors_rater_role)
+
+    make_card <- function(sec, label, icon) {
+      val <- sumry[[paste0(sec, "_score")]]
+      if (is.na(val) || is.null(val)) {
+        bg <- "bg-secondary"; val_disp <- "—"
+      } else if (val >= 3.5) {
+        bg <- "bg-danger text-white"; val_disp <- sprintf("%.2f / 4.0", val)
+      } else if (val >= 3.0) {
+        bg <- "bg-warning"; val_disp <- sprintf("%.2f / 4.0", val)
+      } else if (val >= 2.5) {
+        bg <- "bg-info"; val_disp <- sprintf("%.2f / 4.0", val)
+      } else {
+        bg <- "bg-success"; val_disp <- sprintf("%.2f / 4.0", val)
+      }
+      # 低分=问题，高分=正常（ORS 越高问题越多）
+      tagList(
+        div(class = paste0("card mb-2"),
+          div(class = paste0("card-header ", bg), strong(icon, " ", label)),
+          div(class = "card-body text-center",
+            h4(val_disp),
+            p(if (is.na(val) || is.null(val)) "未填写" else if (val >= 3.5) "⚠ 需关注" else if (val >= 3.0) "轻微关注" else "正常",
+              class = "small")
+          )
+        )
+      )
+    }
+
+    tagList(
+      make_card("listening", "聆听", "👂"),
+      make_card("speaking",  "表达", "🗣"),
+      make_card("reading",   "阅读", "📖"),
+      make_card("writing",   "书写", "✏️")
+    )
+  })
+
   # ── 评分报告 ─────────────────────────────────────────────
   output$report_ui <- renderUI({
     req(rv$assessment_id)
@@ -760,7 +921,43 @@ server <- function(input, output, session) {
           hr(),
           p(strong("评估说明 Assessment: ")),
           p(interpretation$zh),
-          p(strong("Interpretation: "), p(interpretation$en, class = "text-muted small mb-0"))
+          p(strong("Interpretation: "), p(interpretation$en, class = "text-muted small mb-0")),
+
+          # ── Item Analysis ─────────────────────────────
+          {
+            ia_result <- generate_item_analysis(st, full$responses[full$responses$subtest == st, ], ag)
+            if (!is.null(ia_result)) {
+              ia <- ia_result
+              perf <- ia$performance
+
+              perf_rows <- purrr::pmap_chr(perf, function(category_zh, category_en, n_items, n_scored, n_correct, accuracy_pct, error_items, flag) {
+                pct_disp <- if (is.na(accuracy_pct)) "—" else sprintf("%.0f%%", accuracy_pct)
+                tr_clz <- if (grepl("⚠️", flag)) "table-danger"
+                          else if (grepl("🔶", flag)) "table-warning"
+                          else if (grepl("✅", flag)) "table-success"
+                          else ""
+                bg_clr <- if (is.na(accuracy_pct)) "bg-secondary" else if (accuracy_pct < 60) "bg-danger text-white" else if (accuracy_pct < 80) "bg-warning" else "bg-success text-white"
+                err_disp <- if (error_items == "") "无" else error_items
+                # Format: %s(tr_clz) %s(cat_zh) %s(cat_en) %d(n_items) %d(n_scored) %s(bg_clr) %s(pct) %s(flag) %s(err)
+                sprintf('<tr class="%s"><td>%s<br><small class="text-muted">%s</small></td><td class="text-center">%d</td><td class="text-center">%d</td><td class="text-center"><span class="badge %s">%s</span></td><td class="text-center">%s</td><td class="text-center small">%s</td></tr>',
+                  tr_clz, category_zh, category_en, n_items, n_scored, bg_clr, pct_disp, flag, err_disp)
+              })
+
+              header_row <- '<tr><th>技能类别</th><th>总题</th><th>已评分</th><th>正确率</th><th>状态</th><th>答错题</th></tr>'
+              tbl_html <- paste0('<table class="table table-sm">', header_row, paste(perf_rows, collapse = ""), '</table>')
+
+              tagList(
+                hr(),
+                h5(strong("📊 题目分析 Item Analysis — ", ia$domain_zh, " / ", ia$domain_en)),
+                p(strong("⚠️ &lt;60% = 重点干预", class = "text-danger small"),
+                  " &nbsp;|&nbsp; ",
+                  strong("🔶 60-80% = 提升空间", class = "text-warning"),
+                  " &nbsp;|&nbsp; ",
+                  strong("✅ 80%+ = 掌握良好", class = "text-success")),
+                HTML(tbl_html)
+              )
+            } else NULL
+          }
         )
       )
     }
