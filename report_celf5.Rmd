@@ -1,0 +1,219 @@
+---
+title: "CELF-5 评估报告"
+subtitle: "Clinical Evaluation of Language Fundamentals — Fifth Edition"
+author: "`r params$examiner_name`"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    reference_docx: template.docx  # optional Word template
+    toc: true
+params:
+  student_name: NA
+  student_sex: NA
+  student_grade: NA
+  school_name: NA
+  examiner_name: NA
+  age_years: NA
+  age_months: NA
+  scaled_scores: NA
+  indices: NA
+  raw_scores: NA
+  age_group: NA
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(flextable)
+library(officedown)
+```
+
+# 学生信息 Student Information
+
+| 项目 | 信息 |
+|------|------|
+| 姓名 Name | `r params$student_name` |
+| 性别 Sex | `r ifelse(params$student_sex == "F", "女 Female", "男 Male")` |
+| 年龄 Age | `r sprintf("%d岁 %d个月", params$age_years, params$age_months)` |
+| 年级 Grade | `r params$student_grade` |
+| 学校 School | `r params$school_name` |
+| 评估师 Examiner | `r params$examiner_name` |
+| 评估日期 Date | `r Sys.Date()` |
+| 年龄组 Age Group | `r params$age_group` |
+
+---
+
+# 评估概述 Assessment Overview
+
+本次评估使用 **CELF-5（Clinical Evaluation of Language Fundamentals — Fifth Edition）** 进行。
+该评估由 Elisabeth H. Wiig, Eleanor Semel 和 Wayne A. Secord 编制，Pearson 出版，
+用于评估 5-21 岁儿童及青少年的语言能力。
+
+**评估日期：** `r Sys.Date()`
+
+---
+
+# 原始分数 Raw Scores
+
+```{r raw-scores, echo=FALSE}
+raw <- params$raw_scores
+df_raw <- data.frame(
+  Subtest = names(raw),
+  `Raw Score` = sapply(raw, function(x) ifelse(is.na(x), "—", as.character(x))),
+  stringsAsFactors = FALSE
+)
+flextable(df_raw) |>
+  autofit() |>
+  bold(part = "header")
+```
+
+---
+
+# Scaled Scores 标准化分数
+
+**评分说明：** Scaled Score 以 10 为平均值（Mean），标准差为 3。范围 1-19。
+评分 8-13 为平均范围（蓝色区域），评分 7 为临界/边缘风险，评分低于 7 表明存在困难。
+
+| Scaled Score | Range 范围 | Description 描述 |
+|-------------|-----------|-----------------|
+| 13–19 | Above Average | 高于平均 |
+| 8–12  | Average | 平均范围 |
+| 7     | Low Average / Borderline | 边缘/临界 |
+| 5–6   | Below Average | 低于平均 |
+| 1–4   | Very Low | 非常低 |
+
+---
+
+```{r scaled-scores, echo=FALSE}
+ss <- params$scaled_scores
+df_ss <- data.frame(
+  Subtest = names(ss),
+  `Raw Score` = sapply(ss, function(x) ifelse(is.na(x$raw), "—", as.character(x$raw))),
+  `Scaled Score` = sapply(ss, function(x) ifelse(is.na(x$scaled), "—", as.character(x$scaled))),
+  Range = sapply(ss, function(x) {
+    if (is.na(x$scaled)) return("—")
+    sc <- x$scaled
+    if (sc >= 13) return("Above Average")
+    if (sc >= 8)  return("Average")
+    if (sc >= 7)  return("Borderline")
+    return("Below Average")
+  }),
+  stringsAsFactors = FALSE
+)
+flextable(df_ss) |>
+  autofit() |>
+  bold(part = "header") |>
+  bg(bg = ifelse(df_ss$Range == "Average", "#d4edda",
+           ifelse(df_ss$Range == "Borderline", "#fff3cd",
+           ifelse(df_ss$Range == "Below Average", "#f8d7da", "#f8f9fa"))),
+     part = "body")
+```
+
+---
+
+# Index Scores 指数分数
+
+**评分说明：** Index Scores 以 100 为平均值，标准差为 15。
+范围 90-110 为平均范围（蓝色区域）。
+
+| Index Score | Range 范围 | Description 描述 |
+|-------------|-----------|-----------------|
+| ≥ 130 | Very Superior | 非常优秀 |
+| 120–129 | Superior | 优秀 |
+| 110–119 | High Average | 高于平均 |
+| 90–109 | Average | 平均范围 |
+| 80–89 | Low Average | 低于平均 |
+| 70–79 | Borderline | 边缘 |
+| < 70 | Extremely Low | 非常低 |
+
+---
+
+```{r index-scores, echo=FALSE}
+idx <- params$indices
+df_idx <- data.frame(
+  Index = c(
+    "Core Language Score (CLS)",
+    "Receptive Language Index (RLI)",
+    "Expressive Language Index (ELI)",
+    "Language Content Index (LCI)",
+    if(params$age_group == "5-8") "Language Structure Index (LSI)"
+    else "Language Memory Index (LMI)"
+  ),
+  Score = c(idx$CLS, idx$RLI, idx$ELI, idx$LCI, idx$LSI_LMI),
+  Percentile = sapply(c(idx$CLS, idx$RLI, idx$ELI, idx$LCI, idx$LSI_LMI), function(s) {
+    if (is.na(s) || s < 40) return("—")
+    s <- max(40, min(160, s))
+    p <- pmin(99.9, pmax(0.1, 100 * pnorm((s - 100) / 15)))
+    sprintf("%.1f", p)
+  }),
+  Interpretation = sapply(c(idx$CLS, idx$RLI, idx$ELI, idx$LCI, idx$LSI_LMI),
+    function(s) {
+      if (is.na(s) || s < 40) return("—")
+      case_when(
+        s >= 130 ~ "Very Superior",
+        s >= 120 ~ "Superior",
+        s >= 110 ~ "High Average",
+        s >= 90  ~ "Average",
+        s >= 80  ~ "Low Average",
+        s >= 70  ~ "Borderline",
+        TRUE     ~ "Extremely Low"
+      )
+    }),
+  stringsAsFactors = FALSE
+)
+flextable(df_idx) |>
+  autofit() |>
+  bold(part = "header")
+```
+
+---
+
+# 临床解读 Clinical Interpretation
+
+## Core Language Score (CLS)
+
+`r if (!is.na(idx$CLS)) { if (idx$CLS >= 90) "学生的整体语言能力处于正常（平均）范围。" else if (idx$CLS >= 80) "学生的整体语言能力处于边缘范围，建议继续监测并在必要时提供支持。" else "学生的整体语言能力表明存在语言障碍，需要进一步评估和干预。" }`
+
+## Receptive vs. Expressive Language
+
+`r if (!is.na(idx$RLI) && !is.na(idx$ELI)) { diff <- abs(idx$RLI - idx$ELI); sprintf("接受性语言指数（RLI）与表达性语言指数（ELI）相差 %d 分。", diff) }`
+
+## Language Content vs. Structure
+
+`r if (!is.na(idx$LCI) && !is.na(idx$LSI_LMI)) { diff2 <- abs(idx$LCI - idx$LSI_LMI); sprintf("语言内容指数（LCI）与语言结构/记忆指数（LSI/LMI）相差 %d 分。", diff2) }`
+
+---
+
+# 建议 Recommendations
+
+1. 建议对语言能力低于平均范围的学生进行进一步的诊断性语言评估。
+2. 建议与学生家长/监护人沟通评估结果，并在学校环境中提供适当支持。
+3. 如有需要，建议转介至语言治疗师进行更详细的评估和干预计划。
+4. 建议在 6 个月后进行重新评估以监测进步情况。
+
+---
+
+# 附录 Appendix
+
+## Subtest Descriptions 测验描述
+
+| Subtest 缩写 | 全称 | 评估能力 |
+|------------|------|---------|
+| SC | Sentence Comprehension | 理解口语句子 |
+| LC | Linguistic Concepts | 基本语言概念理解 |
+| WS | Word Structure | 词结构/词法 |
+| WC | Word Classes | 词汇语义关系 |
+| FD | Following Directions | 跟随口头指令 |
+| FS | Formulated Sentences | 造句能力 |
+| RS | Recalling Sentences | 句子复述 |
+| USP | Understanding Spoken Paragraphs | 口语段落理解 |
+| PP | Pragmatics Profile | 语用能力观察问卷 |
+| WD | Word Definitions | 词汇定义 |
+| SA | Sentence Assembly | 句子重组 |
+| SR | Semantic Relationships | 语义关系理解 |
+| RC | Reading Comprehension | 阅读理解（补充） |
+| SW | Structured Writing | 命题写作（补充） |
+
+---
+
+**© 2013 NCS Pearson, Inc.  All rights reserved.**
+*CELF-5 and its components may not be reproduced without written permission from Pearson.*

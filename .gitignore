@@ -1,0 +1,9 @@
+*.bak
+*.save
+*.test
+*.current
+*.full_backup
+__pycache__/
+*.pyc
+*.Rproj
+.Rhistory
