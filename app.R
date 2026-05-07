@@ -208,9 +208,18 @@ server <- function(input, output, session) {
     req(!is.null(input$assessments_table_rows_selected))
     tagList(
       hr(),
-      actionButton("btn_load_assessment", "加载选中评估 / Load Selected",
-                   class = "btn-primary",
-                   style = sprintf("background:%s;", celf5_blue))
+      fluidRow(
+        column(6,
+          actionButton("btn_load_assessment", "📂 加载 / Load",
+                       class = "btn-primary",
+                       style = sprintf("width:100%%; background:%s;", celf5_blue))
+        ),
+        column(6,
+          actionButton("btn_delete_confirm", "🗑 删除 / Delete",
+                       class = "btn-danger",
+                       style = "width:100%;")
+        )
+      )
     )
   })
 
@@ -308,6 +317,51 @@ server <- function(input, output, session) {
     updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")
   })
 
+  # ── 删除评估（两步确认）────────────────────────────────
+  observeEvent(input$btn_delete_confirm, {
+    row <- input$assessments_table_rows_selected
+    if (is.null(row) || length(row) == 0) {
+      showNotification("请先在表格中选择一行", type = "warning"); return()
+    }
+    all_assessments <- list_assessments()
+    sel_id   <- all_assessments$id[row]
+    sel_name <- all_assessments$patient_name[row]
+    sel_date <- as.character(all_assessments$assessment_date[row])
+    msg <- paste0(
+      "确定要删除以下评估记录吗？此操作不可撤销。\n\n",
+      "受试者：", sel_name, "\n",
+      "评估日期：", sel_date, "\n",
+      "评估编号：#", sel_id
+    )
+    showModal(modalDialog(
+      title = "⚠️ 确认删除 / Confirm Delete",
+      HTML(str_replace_all(msg, "\n", "<br>")),
+      footer = tagList(
+        actionButton("btn_delete_confirmed",
+                     "🗑 确认删除 / Confirm Delete",
+                     class = "btn-danger"),
+        modalButton("取消 / Cancel")
+      ),
+      easyClose = FALSE
+    ))
+  })
+
+  observeEvent(input$btn_delete_confirmed, {
+    row <- input$assessments_table_rows_selected
+    if (is.null(row) || length(row) == 0) { removeModal(); return() }
+    all_assessments <- list_assessments()
+    sel_id <- all_assessments$id[row]
+    tryCatch({
+      delete_assessment(sel_id)
+      showNotification(paste0("已删除评估 #", sel_id), type = "message")
+      rv$assessment_id <- NULL
+      rv$patient_id    <- NULL
+    }, error = function(e) {
+      showNotification(paste0("删除失败: ", e$message), type = "error")
+    })
+    removeModal()
+  })
+
   # ── Header 信息 ─────────────────────────────────────────
   output$current_patient <- renderText({
     req(rv$assessment_id)
@@ -342,8 +396,9 @@ server <- function(input, output, session) {
   # ── Subtest 选择 ─────────────────────────────────────────
   output$subtest_selector <- renderUI({
     req(rv$test_list)
-    opts <- setNames(rv$test_list, map(rv$test_list, ~{
-      SUBTEST_DEFS %>% filter(subtest==.) %>% pull(full_name) %>% .[[1]]
+    opts <- setNames(rv$test_list, map_chr(rv$test_list, ~{
+      val <- SUBTEST_DEFS %>% filter(subtest==.x) %>% pull(full_name)
+      if (length(val)==0) .x else val[[1]]
     }))
     selectInput("selected_subtest", "选择测试 / Select Subtest", choices = opts, selectize=FALSE)
   })

@@ -534,3 +534,15 @@ get_assessment_full <- function(assessment_id) {
 start_assessment <- function(patient_id, assessment_date, age_years, age_months, age_days, age_group) {
   upsert_assessment(patient_id, assessment_date, age_years, age_months, age_days, age_group)
 }
+
+# ── 删除评估 ───────────────────────────────────────────────
+delete_assessment <- function(assessment_id) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  # responses, subtest_scores, composite_scores 都要删
+  dbExecute(con, "DELETE FROM responses WHERE assessment_id = ?", params = list(assessment_id))
+  dbExecute(con, "DELETE FROM subtest_scores WHERE assessment_id = ?", params = list(assessment_id))
+  dbExecute(con, "DELETE FROM composite_scores WHERE assessment_id = ?", params = list(assessment_id))
+  dbExecute(con, "DELETE FROM assessments WHERE id = ?", params = list(assessment_id))
+  invisible()
+}
