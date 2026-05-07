@@ -220,24 +220,76 @@ get_discontinue_rule <- function(subtest) {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 3b. 题目信息查询（来自 questions 表）
+# 3b. age_group 格式转换（questions 表 vs norms 表）
 # ─────────────────────────────────────────────────────────────
-get_question_info <- function(subtest, item_number) {
+# questions 表用 "age_5_8" / "age_9_11" / "age_12_14" / "age_15_21"
+# norms 表用 "5:0-5:5" / "9:0-9:11" / "12:0-12:11" / "15:0-15:21"
+# 两个方向都要转换
+
+age_group_to_questions <- function(age_group) {
+  # norms 格式 → questions 格式
+  dplyr::case_when(
+    age_group %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_5_8",
+    age_group %in% c("9:0-9:11","10:0-10:11")                                           ~ "age_9_11",
+    age_group %in% c("11:0-11:11","12:0-12:11","13:0-13:11","14:0-14:11")               ~ "age_12_14",
+    TRUE                                                                                  ~ "age_15_21"
+  )
+}
+
+age_group_from_questions <- function(q_age_group) {
+  # questions 格式 → norms 格式
+  dplyr::case_when(
+    q_age_group == "age_5_8"  ~ "5:0-5:5",
+    q_age_group == "age_9_11" ~ "9:0-9:11",
+    q_age_group == "age_12_14" ~ "12:0-12:11",
+    q_age_group == "age_15_21" ~ "15:0-15:21",
+    TRUE ~ q_age_group  # fallback
+  )
+}
+
+# ─────────────────────────────────────────────────────────────
+# 3c. 题目信息查询（来自 questions 表）
+# ─────────────────────────────────────────────────────────────
+get_question_info <- function(subtest, item_number, age_group) {
   con <- get_con()
   on.exit(dbDisconnect(con), add = TRUE)
+  q_ag <- age_group_to_questions(age_group)
   sql <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
-          FROM questions WHERE subtest = ? AND item_number = ? LIMIT 1"
-  q <- dbGetQuery(con, sql, params = list(subtest, item_number))
+          FROM questions WHERE subtest = ? AND age_group = ? AND item_number = ? LIMIT 1"
+  q <- dbGetQuery(con, sql, params = list(subtest, q_ag, item_number))
   if (nrow(q) == 0) {
-    return(tibble(
-      question_en = NA_character_,
-      prompt_en   = NA_character_,
-      stimulus_en = NA_character_,
-      scoring_key = NA_character_,
-      max_score   = NA_integer_
-    ))
+    # fallback: try without age_group filter (e.g. PP has age_group='A')
+    sql2 <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
+             FROM questions WHERE subtest = ? AND item_number = ? LIMIT 1"
+    q <- dbGetQuery(con, sql2, params = list(subtest, item_number))
+    if (nrow(q) == 0) {
+      return(tibble(
+        question_en = NA_character_,
+        prompt_en   = NA_character_,
+        stimulus_en = NA_character_,
+        scoring_key = NA_character_,
+        max_score   = NA_integer_
+      ))
+    }
   }
   q
+}
+
+get_max_item <- function(subtest, age_group) {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+  q_ag <- age_group_to_questions(age_group)
+  # Try with age_group filter first
+  n <- dbGetQuery(con,
+    "SELECT COUNT(*) FROM questions WHERE subtest = ? AND age_group = ? AND (question_en IS NOT NULL AND question_en != '')",
+    params = list(subtest, q_ag))[[1]]
+  if (n > 0) return(as.integer(n))
+  # Fallback for PP (age_group='A') or generic subtests
+  n2 <- dbGetQuery(con,
+    "SELECT COUNT(*) FROM questions WHERE subtest = ? AND (question_en IS NOT NULL AND question_en != '')",
+    params = list(subtest))[[1]]
+  if (n2 > 0) return(as.integer(n2))
+  1L
 }
 
 # ─────────────────────────────────────────────────────────────

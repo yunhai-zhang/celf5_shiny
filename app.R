@@ -392,7 +392,7 @@ server <- function(input, output, session) {
     req(rv$test_list)
     map(rv$test_list, function(t) {
       is_done <- t %in% rv$completed_subtests
-      max_i <- get_max_item(t)
+      max_i <- get_max_item(t, rv$age_group)
       n_done <- sum(rv$responses$subtest == t, na.rm = TRUE)
       badge <- if (is_done) "✓ 完成" else glue("{n_done}/{max_i} 题")
       bg <- if (is_done) "#d4edda" else "#f8f9fa"
@@ -418,7 +418,7 @@ server <- function(input, output, session) {
     rv$current_subtest <- t
     sub_resp <- rv$responses %>% filter(subtest == t)
     sp <- get_start_point(t, rv$age_group)
-    all_items <- seq_len(get_max_item(t))
+    all_items <- seq_len(get_max_item(t, rv$age_group))
     done_items <- sub_resp$item_number
     next_item <- min(setdiff(all_items, done_items), na.rm = TRUE)
     rv$current_item <- next_item
@@ -441,24 +441,13 @@ server <- function(input, output, session) {
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
     max_done <- if (nrow(sub_resp) > 0) max(sub_resp$item_number) else 0L
     sp <- get_start_point(rv$current_subtest, rv$age_group)
-    all_items <- seq_len(get_max_item(rv$current_subtest))
+    all_items <- seq_len(get_max_item(rv$current_subtest, rv$age_group))
     done_items <- sub_resp$item_number
     next_item <- min(setdiff(all_items, done_items), na.rm=TRUE)
     rv$current_item <- next_item
     rv$start_point <- sp
     rv$discontinue_triggered <- FALSE
   })
-
-  # 从 DB 查实际题目数（比 SUBTEST_DEFS 的硬编码更准确）
-  get_max_item <- function(subtest) {
-    con <- get_con()
-    on.exit(dbDisconnect(con))
-    n <- dbGetQuery(con, sprintf(
-      "SELECT COUNT(*) FROM questions WHERE subtest = '%s' AND (question_en IS NOT NULL AND question_en != '')",
-      subtest))[[1]]
-    if (n == 0) return(1L)
-    as.integer(n)
-  }
 
   # ── 题目 UI ─────────────────────────────────────────────
   output$question_ui <- renderUI({
@@ -467,7 +456,7 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     item_n <- rv$current_item
     sp <- rv$start_point
-    max_item <- get_max_item(t)
+    max_item <- get_max_item(t, rv$age_group)
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
@@ -500,7 +489,7 @@ server <- function(input, output, session) {
     }
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
-    qi <- get_question_info(t, item_n)
+    qi <- get_question_info(t, item_n, rv$age_group)
 
     # 题目文字优先用 question_en，其次 prompt_en
     stimulus_txt <- if (!is.na(qi$question_en) && nzchar(qi$question_en)) qi$question_en[1] else ""
@@ -616,7 +605,7 @@ server <- function(input, output, session) {
     showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
 
     # ── 导航：保存后自动前进到下一题 ───────────────────────────
-    max_i <- get_max_item(t)
+    max_i <- get_max_item(t, rv$age_group)
     if (rv$discontinue_triggered || i_n >= max_i) {
       # 本测验结束，切换到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
@@ -642,7 +631,7 @@ server <- function(input, output, session) {
   observeEvent(input$btn_next, {
     t <- rv$current_subtest
     i_n <- rv$current_item
-    max_i <- get_max_item(t)
+    max_i <- get_max_item(t, rv$age_group)
 
     # 仅导航：不自动保存（用户必须点"保存并下一题"）
     if (i_n < max_i) {
