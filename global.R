@@ -364,14 +364,21 @@ get_composite_score <- function(scaled_df, composite, age_group) {
 
 # Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
 fmt_pct <- function(p) {
-  if (is.na(p) || is.null(p)) return(NA_character_)
-  suppressWarnings(num <- as.numeric(p))
-  if (is.na(num)) {
-    if (grepl("<", p, fixed = TRUE)) return("<0.1")
-    if (grepl(">", p, fixed = TRUE)) return(">99.9")
-    return(as.character(p))
+  if (is.null(p) && length(p) == 1) return("—")
+  if (length(p) > 1) {
+    # Vectorized path: called from case_when with a tibble column
+    vapply(p, fmt_pct, FUN.VALUE = character(1), USE.NAMES = FALSE)
+  } else {
+    # Scalar path
+    if (is.na(p)) return("—")
+    suppressWarnings(num <- as.numeric(p))
+    if (is.na(num)) {
+      if (grepl("<", p, fixed = TRUE)) return("<0.1")
+      if (grepl(">", p, fixed = TRUE)) return(">99.9")
+      return(p)
+    }
+    sprintf("%.1f", num)
   }
-  sprintf("%.1f", num)
 }
 
 get_confidence_intervals <- function(standard_score, composite, age_group) {
