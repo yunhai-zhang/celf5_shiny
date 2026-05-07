@@ -539,9 +539,19 @@ get_assessment_full <- function(assessment_id) {
      FROM responses WHERE assessment_id = ? ORDER BY subtest, item_number",
     params = list(assessment_id))
 
-  ss <- dbGetQuery(con,
-    "SELECT subtest, raw_score, scaled_score FROM subtest_scores WHERE assessment_id = ?",
-    params = list(assessment_id))
+  # ── 计算各 subtest 的量表分（从 responses 实时计算）─────────
+  ag <- ass$age_group[1]
+  if (nrow(resp) > 0 && !is.na(ag)) {
+    raw_list <- resp %>%
+      dplyr::filter(!is.na(.data$score)) %>%
+      dplyr::group_by(.data$subtest) %>%
+      dplyr::summarise(raw_score = sum(.data$score, na.rm = TRUE), .groups = "drop") %>%
+      purrr::set_names(nm = "subtest", "raw_score") %>%
+      { x <- .; split(x$raw_score, x$subtest) }
+    ss <- calculate_scaled_scores(raw_list, ag)
+  } else {
+    ss <- tibble::tibble(subtest = character(), raw_score = integer(), scaled_score = integer())
+  }
 
   cs <- dbGetQuery(con,
     "SELECT composite, sum_scaled, standard_score, percentile_rank,

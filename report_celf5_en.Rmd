@@ -1,0 +1,205 @@
+---
+title: "CELF-5 Assessment Report"
+subtitle: "Clinical Evaluation of Language Fundamentals — Fifth Edition"
+output:
+  word_document:
+    toc: true
+    toc_depth: 3
+params:
+  assessment_id: NA
+  student_name: NA
+  student_sex: NA
+  age_years: NA
+  age_months: NA
+  age_days: NA
+  age_group: NA
+  assessment_date: NA
+  examiner_name: NA
+  scaled_scores: NA
+  indices: NA
+  raw_scores: NA
+  overall_en: NA
+  overall_zh: NA
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(flextable)
+library(officedown)
+library(tibble)
+```
+
+```{r student-info, echo=FALSE, results="asis"}
+ss  <- params$scaled_scores
+idx <- params$indices
+ag  <- params$age_group
+
+# Build subtest table
+df_ss <- if (is.data.frame(ss) && nrow(ss) > 0) {
+  ss %>%
+    mutate(
+      Range = case_when(
+        is.na(scaled_score)              ~ "No Score",
+        scaled_score >= 13              ~ "Above Average",
+        scaled_score >= 8               ~ "Average",
+        scaled_score >= 7               ~ "Borderline",
+        scaled_score >= 5               ~ "Below Average",
+        TRUE                            ~ "Very Low"
+      ),
+      Interpretation = case_when(
+        is.na(scaled_score)             ~ "No score available.",
+        scaled_score >= 13              ~ "Performance significantly above age-level expectations; strong competency indicated.",
+        scaled_score >= 8               ~ "Performance within the expected range; no significant difficulty identified.",
+        scaled_score >= 7               ~ "Performance slightly below expected range; mild difficulty possible; monitoring recommended.",
+        scaled_score >= 5               ~ "Performance below expected range; language disorder likely; further assessment warranted.",
+        TRUE                            ~ "Performance significantly below expected range; language disorder strongly indicated; immediate intervention recommended."
+      )
+    )
+} else {
+  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range = character(), Interpretation = character())
+}
+
+# Build composite table
+df_idx <- if (!is.null(idx) && length(idx) > 0) {
+  comps <- c("CLS", "RLI", "ELI", "LCI")
+  if (ag %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11")) {
+    comps <- c(comps, "LSI")
+  } else {
+    comps <- c(comps, "LMI")
+  }
+  idx_df <- tibble(
+    Index = comps,
+    Score = sapply(comps, function(c) {
+      s <- idx[[c]]
+      if (is.null(s) || is.na(s)) NA_real_ else s
+    }),
+    Percentile = sapply(comps, function(c) {
+      p <- idx[[paste0(c, "_pct")]]
+      if (is.null(p) || is.na(p)) NA_real_ else p
+    })
+  ) %>%
+    mutate(
+      Interpretation = case_when(
+        is.na(Score)                    ~ "No score available.",
+        Score >= 130                    ~ "Very Superior — Exceptional language ability well above age-level expectations.",
+        Score >= 120                    ~ "Superior — Well above average; strong language skills.",
+        Score >= 110                    ~ "High Average — Above average; within normal limits.",
+        Score >= 90                     ~ "Average — Within the average range; consistent with age-level expectations.",
+        Score >= 80                     ~ "Low Average — Slightly below average; student may benefit from targeted language support.",
+        Score >= 70                     ~ "Borderline — Significantly below average; language disorder suggested; intervention strongly recommended.",
+        TRUE                            ~ "Extremely Low — Far below average; significant language disorder requiring immediate intervention."
+      )
+    )
+  idx_df
+} else {
+  tibble(Index = character(), Score = double(), Percentile = double(), Interpretation = character())
+}
+```
+
+---
+
+# Student Information
+
+```{r student-table, echo=FALSE, results="asis"}
+df_info <- tibble(
+  `Item` = c("Name", "Sex", "Age", "Grade / Year", "Examiner", "Assessment Date", "Age Group"),
+  `Information` = c(
+    params$student_name,
+    if (params$student_sex == "F") "Female" else "Male",
+    sprintf("%d years %d months", params$age_years, params$age_months),
+    "—",
+    params$examiner_name %||% "—",
+    params$assessment_date,
+    params$age_group
+  )
+)
+flextable(df_info) |> autofit() |> bold(part = "header")
+```
+
+---
+
+# Overall Assessment
+
+**Summary:**
+
+`r params$overall_en`
+
+---
+
+# Subtest Scaled Scores
+
+> Scaled Scores: Mean = 10, SD = 3. Range: 1–19. Scores of 8–12 are within the average range. Scores below 7 suggest the presence of difficulty.
+
+```{r subtest-table, echo=FALSE, results="asis"}
+if (nrow(df_ss) > 0) {
+  ft <- flextable(df_ss %>% select(`Subtest` = subtest, `Raw Score` = raw_score,
+                                   `Scaled Score` = scaled_score, Range, Interpretation))
+  ft <- autofit(ft)
+  ft <- bold(ft, part = "header")
+  ft
+} else {
+  cat("\nNo subtest data available.\n")
+}
+```
+
+---
+
+# Composite Scores
+
+> Composite Scores: Mean = 100, SD = 15. Scores of 90–110 are within the average range.
+
+```{r composite-table, echo=FALSE, results="asis"}
+if (nrow(df_idx) > 0) {
+  df_idx_disp <- df_idx %>%
+    mutate(
+      `Standard Score` = ifelse(is.na(Score), "—", as.character(round(Score, 0))),
+      `Percentile Rank` = ifelse(is.na(Percentile), "—", sprintf("%.1f", Percentile))
+    ) %>%
+    select(`Composite Score` = Index, `Standard Score`, `Percentile Rank`, Interpretation)
+  ft2 <- flextable(df_idx_disp)
+  ft2 <- autofit(ft2)
+  ft2 <- bold(ft2, part = "header")
+  ft2
+} else {
+  cat("\nNo composite score data available.\n")
+}
+```
+
+---
+
+# Recommendations
+
+1. **Further Diagnostic Assessment:** Students whose language abilities fall below the average range are advised to undergo a more comprehensive diagnostic language assessment to determine the nature and severity of any language disorder.
+
+2. **Parent/Guardian Communication:** It is recommended that assessment results be communicated to the student's parent or guardian, and that appropriate support be provided within the school setting.
+
+3. **Language Intervention:** If a language disorder is identified, referral to a speech-language pathologist for detailed assessment and the development of an individualized intervention plan is strongly recommended.
+
+4. **Reassessment:** A follow-up reassessment is recommended in 6 months to monitor progress and evaluate the effectiveness of any interventions provided.
+
+---
+
+# Appendix: Subtest Descriptions
+
+| Abbrev. | Subtest Name | Skill Assessed |
+|---------|-------------|----------------|
+| SC | Sentence Comprehension | Ability to understand spoken sentences of varying syntactic complexity |
+| LC | Linguistic Concepts | Ability to understand basic linguistic concepts presented orally |
+| WS | Word Structure | Knowledge of morphological word-structure rules |
+| WC | Word Classes | Ability to identify semantic relationships between words |
+| FD | Following Directions | Ability to follow multi-step oral directions |
+| FS | Formulated Sentences | Ability to formulate complete, correct sentences using target vocabulary |
+| RS | Recalling Sentences | Ability to recall and accurately reproduce sentences |
+| USP | Understanding Spoken Paragraphs | Ability to understand main ideas in spoken paragraphs |
+| PP | Pragmatics Profile | Pragmatic language skills as observed across situations |
+| WD | Word Definitions | Ability to define words by describing semantic features |
+| SA | Sentence Assembly | Ability to construct grammatically well-formed sentences |
+| SR | Semantic Relationships | Ability to interpret sentences involving semantic relationships |
+| RC | Reading Comprehension | Ability to understand written passages |
+| SW | Structured Writing | Ability to produce organized narrative writing |
+
+---
+
+*© 2013 NCS Pearson, Inc. All rights reserved. CELF-5 and its components may not be reproduced without written permission from Pearson.*
+
+*Generated by CELF-5 Shiny Assessment System — `r Sys.Date()`*

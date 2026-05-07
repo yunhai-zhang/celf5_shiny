@@ -26,12 +26,11 @@ ui <- fluidPage(
   tags$head(
     tags$script(HTML("
       // Clear dateInput browser-cache values on page load
+      // DOB needs manual entry so clear it; assessment_date defaults to today so leave it
       window.addEventListener('load', function() {
         setTimeout(function() {
           var dob = document.querySelector('#dob input');
-          var ad  = document.querySelector('#assessment_date input');
           if (dob) { dob.value = ''; dob.dispatchEvent(new Event('change', {bubbles: true})); }
-          if (ad)  { ad.value  = ''; ad.dispatchEvent(new Event('change',  {bubbles: true})); }
         }, 200);
       });
     ")),
@@ -92,12 +91,17 @@ ui <- fluidPage(
             div(class = "panel-heading", "基本信息 / Basic Info"),
             div(class = "panel-body",
               textInput("patient_name", "姓名 * / Name *", placeholder = "受试者姓名"),
-              textInput("patient_gender", "性别 / Gender", placeholder = "男 M / 女 F"),
+              selectInput("patient_gender", "性别 / Gender",
+                          choices = c("— 请选择 / Select —" = "",
+                                      "男 / Male"   = "M",
+                                      "女 / Female" = "F"),
+                          selected = "", width = "100%"),
               textInput("school_name", "学校 / School", placeholder = "就读学校"),
               textInput("grade_level", "年级 / Grade", placeholder = "如：小一、初二、高一"),
               textInput("examiner", "评估师 / Examiner", placeholder = "评估师姓名"),
               dateInput("dob", "出生日期 * / Date of Birth *", format = "yyyy-mm-dd", value = character(0)),
-              dateInput("assessment_date", "评估日期 * / Assessment Date *", format = "yyyy-mm-dd", value = character(0)),
+              dateInput("assessment_date", "评估日期 * / Assessment Date *",
+                        format = "yyyy-mm-dd", value = Sys.Date()),
               actionButton("btn_start", "▶ 开始评估 / Start Assessment", class = "btn-primary",
                            style = sprintf("width:100%%; background:%s; border-color:%s;", celf5_blue, celf5_blue))
             )
@@ -203,6 +207,9 @@ server <- function(input, output, session) {
                     language = list(emptyTable = "暂无历史评估记录")),
                   rownames = FALSE)
   }, server = FALSE)
+
+  # dataTableProxy 用于 server=FALSE 模式下刷新表格
+  proxy <- dataTableProxy("assessments_table")
 
   # 加载按钮（独立 output，选中行后才显示）
   output$load_btn_ui <- renderUI({
@@ -357,10 +364,12 @@ server <- function(input, output, session) {
       showNotification(paste0("已删除评估 #", sel_id), type = "message")
       rv$assessment_id <- NULL
       rv$patient_id    <- NULL
+      proxy$reload()   # 刷新历史评估列表
+      removeModal()
     }, error = function(e) {
       showNotification(paste0("删除失败: ", e$message), type = "error")
+      removeModal()
     })
-    removeModal()
   })
 
   # ── Header 信息 ─────────────────────────────────────────
@@ -506,9 +515,14 @@ server <- function(input, output, session) {
     )
   })
 
+  # Manual Chapter 3 评分类型（全部核实自原文）：
+  # FD/SA/SR/RC/SW: 1分制（1=正确, 0=错误）
+  # FS/WD/USP: 2分制（2=正确, 1=部分, 0=错误）
+  # RS: 3分制（3=0错误, 2=1错误, 1=2-3错误, 0=4+错误）
   max_score_for_subtest <- function(t) {
-    case_when(t %in% c("SC","LC","WS","WC","RC","SW") ~ 1L,
-              t %in% c("FD","FS","RS","WD","SA","SR","USP") ~ 2L,
+    case_when(t %in% c("SC","LC","WS","WC","FD","SA","SR","RC","SW") ~ 1L,
+              t %in% c("FS","WD","USP") ~ 2L,
+              t == "RS" ~ 3L,
               TRUE ~ 1L)
   }
 
@@ -654,9 +668,104 @@ server <- function(input, output, session) {
     full <- get_assessment_full(rv$assessment_id)
     scaled_df <- full$subtest_scores
 
-    if (nrow(scaled_df) == 0) return(p("尚无打分数据"))
+    if (nrow(scaled_df) == 0) {
+      return(div(class = "alert alert-warning", role = "alert",
+                 "尚无打分数据。请先完成至少一个子测试的打分并保存。"))
+    }
 
     ag <- rv$age_group
+
+    # ── 子测试分页签定义 ────────────────────────────────
+    subtest_display <- function(st, ss_row) {
+      # ss_row: nrow(scaled_df[st]) = 1
+      raw    <- ss_row$raw_score
+      scaled <- ss_row$scaled_score
+      score_lbl <- if (is.na(scaled)) "—" else as.character(scaled)
+
+      rng <- if (is.na(scaled)) {
+        "No Score"
+      } else if (scaled >= 13) {
+        "bg-success text-white"
+      } else if (scaled >= 8) {
+        "bg-primary text-white"
+      } else if (scaled >= 7) {
+        "bg-warning"
+      } else {
+        "bg-danger text-white"
+      }
+
+      interpretation <- if (is.na(scaled)) {
+        list(en = "No score available for this subtest.",
+             zh = "该子测试暂无分数。")
+      } else if (scaled >= 13) {
+        list(en = "Above Average — Performance is significantly above the expected level for the student's age. This suggests strong competency in this skill area.",
+             zh = "高于平均 — 表现显著高于同龄预期水平，提示该技能领域能力较强。")
+      } else if (scaled >= 8) {
+        list(en = "Average — Performance is within the expected range for the student's age. No significant difficulty identified in this skill area.",
+             zh = "平均范围 — 表现符合同龄预期水平，该技能领域未发现显著困难。")
+      } else if (scaled >= 7) {
+        list(en = "Borderline — Performance is slightly below the expected range. There may be mild difficulty in this skill area; monitoring and follow-up are recommended.",
+             zh = "边缘/临界 — 表现略低于预期范围，该技能领域可能存在轻度困难，建议持续监测或跟进。")
+      } else if (scaled >= 5) {
+        list(en = "Below Average — Performance is below the expected range for the student's age. This indicates a language disorder that warrants further assessment and intervention.",
+             zh = "低于平均 — 表现低于同龄预期水平，提示存在语言障碍，需要进一步评估和干预。")
+      } else {
+        list(en = "Very Low — Performance is significantly below the expected level. This strongly suggests a language disorder requiring immediate intervention.",
+             zh = "非常低 — 表现显著低于预期水平，强烈提示存在语言障碍，需要立即进行干预。")
+      }
+
+      # Subtest 中文名
+      subtest_names <- c(
+        SC  = "句子理解 / Sentence Comprehension",
+        LC  = "语言概念 / Linguistic Concepts",
+        WS  = "词汇结构 / Word Structure",
+        WC  = "词汇语义 / Word Classes",
+        FD  = "跟随指令 / Following Directions",
+        FS  = "造句 / Formulated Sentences",
+        RS  = "句子复述 / Recalling Sentences",
+        USP = "段落理解 / Understanding Spoken Paragraphs",
+        PP  = "语用观察 / Pragmatics Profile",
+        WD  = "词汇定义 / Word Definitions",
+        SA  = "句子重组 / Sentence Assembly",
+        SR  = "语义关系 / Semantic Relationships",
+        RC  = "阅读理解 / Reading Comprehension",
+        SW  = "命题写作 / Structured Writing"
+      )
+
+      subtest_desc_en <- c(
+        SC  = "Ability to understand spoken sentences of varying syntactic complexity, including passive voice, conditional statements, and embedded clauses.",
+        LC  = "Ability to understand basic linguistic concepts (e.g., comparatives, spatial relations, temporal terms) presented orally.",
+        WS  = "Knowledge of morphological word-structure rules (plurals, verb tense, comparatives, derivational morphemes).",
+        WC  = "Ability to identify semantic relationships between words (synonymy, antonymy, hierarchical, and functional relationships).",
+        FD  = "Ability to follow multi-step oral directions of varying syntactic complexity.",
+        FS  = "Ability to formulate complete, semantically and syntactically correct sentences using target vocabulary.",
+        RS  = "Ability to recall and accurately reproduce sentences of varying length and syntactic complexity.",
+        USP = "Ability to understand main ideas and relevant details in spoken paragraphs; assessing listening comprehension.",
+        PP  = "Pragmatic language skills as observed across social communication situations.",
+        WD  = "Ability to define words by describing their semantic features and relevant attributes.",
+        SA  = "Ability to construct grammatically well-formed sentences using specified word classes.",
+        SR  = "Ability to interpret sentences involving semantic relationships such as comparison, location, time, serial order, and passive voice.",
+        RC  = "Ability to understand written passages and answer comprehension questions.",
+        SW  = "Ability to produce organized narrative writing following structural conventions."
+      )
+
+      div(class = "card mb-3",
+        div(class = "card-header d-flex justify-content-between align-items-center",
+          strong(subtest_names[[st]] %||% st),
+          span(class = paste0("badge ", rng), score_lbl)
+        ),
+        div(class = "card-body",
+          p(strong("原始分 Raw Score: "), as.character(raw %||% "—")),
+          p(strong("量表分 Scaled Score (M=10, SD=3): "), score_lbl),
+          hr(),
+          p(strong("评估说明 Assessment: ")),
+          p(interpretation$zh),
+          p(strong("Interpretation: "), p(interpretation$en, class = "text-muted small mb-0"))
+        )
+      )
+    }
+
+    # ── 复合分数 ─────────────────────────────────────────
     comp_list <- c("CLS","RLI","ELI","LCI")
     if (ag %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11")) {
       comp_list <- c(comp_list, "LSI")
@@ -664,43 +773,277 @@ server <- function(input, output, session) {
       comp_list <- c(comp_list, "LMI")
     }
 
-    comp_rows <- map(comp_list, function(comp) {
-      cs <- get_composite_score(scaled_df, comp, ag)
+    comp_display <- lapply(comp_list, function(comp) {
+      cs  <- get_composite_score(scaled_df, comp, ag)
       cis <- get_confidence_intervals(cs$standard_score[1], comp, ag)
-      tibble(
-        Composite=comp,
-        `Scaled Sum`=cs$sum_scaled[1],
-        `Standard Score`=cs$standard_score[1],
-        Percentile=glue("{cs$percentile[1]}%"),
-        `68% CI`=glue("[{cis$score_lo[1]}, {cis$score_hi[1]}]"),
-        `90% CI`=glue("[{cis$score_lo[2]}, {cis$score_hi[2]}]"),
-        `95% CI`=glue("[{cis$score_lo[3]}, {cis$score_hi[3]}]")
-      )
-    }) %>% bind_rows()
+      std <- cs$standard_score[1]
+      pct <- cs$percentile[1]
+      ss_sum <- cs$sum_scaled[1]
 
+      rng_css <- if (is.na(std) || std < 70) "bg-danger text-white"
+        else if (std < 80)  "bg-warning"
+        else if (std < 90)  "bg-info text-white"
+        else if (std < 110) "bg-primary text-white"
+        else if (std < 120) "bg-info text-white"
+        else if (std < 130) "bg-success text-white"
+        else                "bg-success text-white"
+
+      comp_names <- c(
+        CLS = "核心语言分数 / Core Language Score",
+        RLI = "接受性语言指数 / Receptive Language Index",
+        ELI = "表达性语言指数 / Expressive Language Index",
+        LCI = "语言内容指数 / Language Content Index",
+        LSI = "语言结构指数 / Language Structure Index",
+        LMI = "语言记忆指数 / Language Memory Index"
+      )
+
+      comp_desc_en <- c(
+        CLS = "Core Language Score (CLS) is the most clinically sensitive composite score. It is calculated from the sum of the highest-performing subtests across core language domains and is the best single indicator of overall language ability.",
+        RLI = "Receptive Language Index (RLI) reflects the student's ability to understand spoken and written language. Subtests include Sentence Comprehension, Linguistic Concepts, and Word Structure.",
+        ELI = "Expressive Language Index (ELI) reflects the student's ability to use language expressively. Subtests include Word Classes, Formulated Sentences, and Naming.",
+        LCI = "Language Content Index (LCI) measures vocabulary and semantic knowledge. For ages 5–8 it includes Word Classes, Understanding Spoken Paragraphs, and Word Definitions; for ages 9–21 it includes Word Classes, Understanding Spoken Paragraphs, and Sentence Assembly.",
+        LSI = "Language Structure Index (LSI) measures morphological and syntactic skills. It includes Word Structure, Linguistic Concepts, and Recalling Sentences.",
+        LMI = "Language Memory Index (LMI) measures verbal memory and sentence recall. It includes Recalling Sentences, Sentence Assembly, and Understanding Spoken Paragraphs."
+      )
+
+      int_en <- if (is.na(std)) {
+        "No score available."
+      } else if (std >= 130) {
+        paste0("Very Superior — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) indicates exceptional language ability well above age-level expectations.")
+      } else if (std >= 120) {
+        paste0("Superior — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is well above average, suggesting strong language skills.")
+      } else if (std >= 110) {
+        paste0("High Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is above average, within normal limits.")
+      } else if (std >= 90) {
+        paste0("Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is within the average range, consistent with age-level expectations.")
+      } else if (std >= 80) {
+        paste0("Low Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is slightly below average. The student may benefit from targeted language support.")
+      } else if (std >= 70) {
+        paste0("Borderline — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is significantly below average and suggests a language disorder. Intervention is strongly recommended.")
+      } else {
+        paste0("Extremely Low — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is far below average, indicating a significant language disorder requiring immediate intervention.")
+      }
+
+      int_zh <- if (is.na(std)) {
+        "暂无分数。"
+      } else if (std >= 130) {
+        sprintf("非常优秀 — 分数 %d（第 %.1f 百分位）表明语言能力远超同龄预期。", std, pct)
+      } else if (std >= 120) {
+        sprintf("优秀 — 分数 %d（第 %.1f 百分位）表明语言能力明显高于平均水平。", std, pct)
+      } else if (std >= 110) {
+        sprintf("高于平均 — 分数 %d（第 %.1f 百分位）在正常范围内，显著高于平均。", std, pct)
+      } else if (std >= 90) {
+        sprintf("平均范围 — 分数 %d（第 %.1f 百分位）符合同龄预期，在正常范围内。", std, pct)
+      } else if (std >= 80) {
+        sprintf("低于平均 — 分数 %d（第 %.1f 百分位）略低于平均水平，建议提供针对性语言支持。", std, pct)
+      } else if (std >= 70) {
+        sprintf("边缘/临界 — 分数 %d（第 %.1f 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", std, pct)
+      } else {
+        sprintf("非常低 — 分数 %d（第 %.1f 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", std, pct)
+      }
+
+      div(class = "card mb-3",
+        div(class = "card-header d-flex justify-content-between align-items-center",
+          strong(comp_names[[comp]] %||% comp),
+          span(class = paste0("badge ", rng_css),
+               if (is.na(std)) "—" else paste0(std, " (", sprintf("%.1f", pct %||% 0), "%)"))
+        ),
+        div(class = "card-body",
+          if (!is.na(ss_sum)) p(strong("量表分合计 Scaled Sum: "), ss_sum),
+          if (!is.na(std))    p(strong("标准分数 Standard Score (M=100, SD=15): "), std),
+          if (nrow(cis) >= 1 && !is.na(cis$score_lo[1])) {
+            p(strong("68% 置信区间: "), glue("[{cis$score_lo[1]}, {cis$score_hi[1]}]"))
+          },
+          p(strong("解读 Interpretation: ")),
+          p(int_zh),
+          p(strong("Clinical Note: "), p(int_en, class = "text-muted small mb-0"))
+        )
+      )
+    })
+
+    # ── 语言能力总评 ─────────────────────────────────────
+    cls_score <- {
+      cs <- get_composite_score(scaled_df, "CLS", ag)
+      cs$standard_score[1]
+    }
+    overall_en <- if (is.na(cls_score)) {
+      "Overall language ability could not be determined due to insufficient subtest data."
+    } else if (cls_score >= 90) {
+      "Overall, the student's language abilities are within the average range for their age. No significant language disorder was identified on the CELF-5."
+    } else if (cls_score >= 80) {
+      "Overall, the student's language abilities are in the low-average range. There may be mild difficulties that warrant monitoring and potentially targeted intervention."
+    } else {
+      "Overall, the student's performance on the CELF-5 suggests the presence of a language disorder. Results should be interpreted in the context of all available information. Comprehensive intervention is recommended."
+    }
+
+    overall_zh <- if (is.na(cls_score)) {
+      "由于子测试数据不足，无法确定整体语言能力水平。"
+    } else if (cls_score >= 90) {
+      "整体而言，该学生的语言能力处于同龄正常（平均）范围内。CELF-5 未发现显著语言障碍。"
+    } else if (cls_score >= 80) {
+      "整体而言，该学生的语言能力处于低于平均范围。可能存在轻度困难，建议持续监测并在适当时提供针对性干预。"
+    } else {
+      "整体而言，该学生在 CELF-5 上的表现提示存在语言障碍。结果应结合所有可用信息进行解读。建议进行综合干预。"
+    }
+
+    # 存入 rv 供 downloadHandler 使用
+    rv$overall_en <- overall_en
+    rv$overall_zh <- overall_zh
+
+    # ── 下载按钮行 ───────────────────────────────────────
     tagList(
-      h2("CELF-5 评估报告"),
+      h2("CELF-5 评估报告 / Assessment Report"),
       hr(),
-      h3("基本信息"),
-      p(strong("受试者: "), full$assessment$patient_name),
-      p(strong("年龄: "), glue("{full$assessment$age_years}y {full$assessment$age_months}m {full$assessment$age_days}d ({ag})")),
-      p(strong("评估日期: "), full$assessment$assessment_date),
-      p(strong("评估师: "), full$assessment$examiner %||% "—"),
+      h3("基本信息 / Student Information"),
+      fluidRow(
+        column(6, p(strong("姓名 Name: "), full$assessment$patient_name)),
+        column(6, p(strong("性别 Sex: "), if (full$assessment$gender == "F") "女 / Female" else "男 / Male"))
+      ),
+      fluidRow(
+        column(6, p(strong("年龄 Age: "), glue("{full$assessment$age_years}y {full$assessment$age_months}m ({ag})"))),
+        column(6, p(strong("评估日期 Date: "), full$assessment$assessment_date))
+      ),
+      fluidRow(
+        column(6, p(strong("评估师 Examiner: "), full$assessment$examiner %||% "—")),
+        column(6, p(strong("评估编号 ID: "), rv$assessment_id))
+      ),
       hr(),
-      h3("各测试量表分"),
-      renderTable({ scaled_df %>% select(Test=subtest, Raw=raw_score, Scaled=scaled_score) }),
+      h3("整体评估结论 / Overall Assessment"),
+      div(class = "alert alert-info", role = "alert",
+        p(strong("总评 Summary: "), overall_zh),
+        p(strong("Overall: "), p(overall_en, class = "text-muted small mb-0"))
+      ),
       hr(),
-      h3("复合分数（Composite Scores）"),
-      renderTable({ comp_rows }),
+      h3("各测试量表分 / Subtest Scaled Scores"),
+      p("量表分以10为均值（Mean），标准差为3，范围1-19。8-12为平均范围，低于7提示存在困难。",
+        class = "small text-muted"),
+      lapply(seq_len(nrow(scaled_df)), function(i) {
+        st <- scaled_df$subtest[i]
+        subtest_display(st, scaled_df[i, ])
+      }),
       hr(),
-      downloadButton("download_report", "下载完整报告")
+      h3("复合分数 / Composite Scores"),
+      p("复合分数以100为均值，标准差为15。90-110为平均范围。",
+        class = "small text-muted"),
+      comp_display,
+      hr(),
+      h3("下载报告 / Download Report"),
+      fluidRow(
+        column(6, downloadButton("download_report_en", "Download Report (English)")),
+        column(6, downloadButton("download_report_zh", "下载中文报告 (Chinese)"))
+      ),
+      hr(),
+      p("© 2013 NCS Pearson, Inc. All rights reserved. CELF-5 may not be reproduced without written permission from Pearson.",
+        class = "small text-muted text-center")
     )
   })
-
-  output$download_report <- downloadHandler(
-    filename = function() glue("CELF5_{rv$assessment_id}_{Sys.Date()}.pdf"),
+  # ── 下载处理器：英文报告 ───────────────────────────────
+  output$download_report_en <- downloadHandler(
+    filename = function() glue("CELF5_Report_{rv$assessment_id}_{Sys.Date()}_EN.docx"),
     content = function(file) {
-      showNotification("报告生成中...", type="message")
+      full <- get_assessment_full(rv$assessment_id)
+      scaled_df <- full$subtest_scores
+      ag <- rv$age_group
+
+      # Build indices list for params
+      idx_list <- list()
+      for (comp in c("CLS","RLI","ELI","LCI","LSI","LMI")) {
+        cs <- get_composite_score(scaled_df, comp, ag)
+        idx_list[[comp]] <- cs$standard_score[1]
+        idx_list[[paste0(comp, "_pct")]] <- cs$percentile[1]
+      }
+
+      # Build raw_scores named list
+      raw_list <- if (nrow(scaled_df) > 0) {
+        setNames(as.list(scaled_df$raw_score), scaled_df$subtest)
+      } else {
+        list()
+      }
+
+      showNotification("Generating English report...", type = "message", duration = 3)
+
+      tryCatch({
+        rmarkdown::render(
+          input = "report_celf5_en.Rmd",
+          output_file = file,
+          params = list(
+            assessment_id   = rv$assessment_id,
+            student_name     = full$assessment$patient_name,
+            student_sex      = full$assessment$gender,
+            age_years        = full$assessment$age_years,
+            age_months       = full$assessment$age_months,
+            age_days         = full$assessment$age_days,
+            age_group        = ag,
+            assessment_date  = as.character(full$assessment$assessment_date),
+            examiner_name    = full$assessment$examiner %||% NA,
+            scaled_scores    = scaled_df,
+            indices          = idx_list,
+            raw_scores       = raw_list,
+            overall_en        = isolate(rv$overall_en %||% "No assessment data available."),
+            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+          ),
+          envir = new.env(parent = globalenv()),
+          quiet = TRUE
+        )
+        showNotification("English report downloaded successfully!", type = "message")
+      }, error = function(e) {
+        showNotification(paste0("Report error: ", e$message), type = "error")
+        cat(file = stderr(), "download_report_en error:", e$message, "\n")
+      })
+    }
+  )
+
+  # ── 下载处理器：中文报告 ──────────────────────────────
+  output$download_report_zh <- downloadHandler(
+    filename = function() glue("CELF5_报告_{rv$assessment_id}_{Sys.Date()}_ZH.docx"),
+    content = function(file) {
+      full <- get_assessment_full(rv$assessment_id)
+      scaled_df <- full$subtest_scores
+      ag <- rv$age_group
+
+      idx_list <- list()
+      for (comp in c("CLS","RLI","ELI","LCI","LSI","LMI")) {
+        cs <- get_composite_score(scaled_df, comp, ag)
+        idx_list[[comp]] <- cs$standard_score[1]
+        idx_list[[paste0(comp, "_pct")]] <- cs$percentile[1]
+      }
+
+      raw_list <- if (nrow(scaled_df) > 0) {
+        setNames(as.list(scaled_df$raw_score), scaled_df$subtest)
+      } else {
+        list()
+      }
+
+      showNotification("正在生成中文报告...", type = "message", duration = 3)
+
+      tryCatch({
+        rmarkdown::render(
+          input = "report_celf5_zh.Rmd",
+          output_file = file,
+          params = list(
+            assessment_id   = rv$assessment_id,
+            student_name     = full$assessment$patient_name,
+            student_sex      = full$assessment$gender,
+            age_years        = full$assessment$age_years,
+            age_months       = full$assessment$age_months,
+            age_days         = full$assessment$age_days,
+            age_group        = ag,
+            assessment_date  = as.character(full$assessment$assessment_date),
+            examiner_name    = full$assessment$examiner %||% NA,
+            scaled_scores    = scaled_df,
+            indices          = idx_list,
+            raw_scores       = raw_list,
+            overall_en       = isolate(rv$overall_en %||% "No assessment data available."),
+            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+          ),
+          envir = new.env(parent = globalenv()),
+          quiet = TRUE
+        )
+        showNotification("中文报告下载成功！", type = "message")
+      }, error = function(e) {
+        showNotification(paste0("报告错误: ", e$message), type = "error")
+        cat(file = stderr(), "download_report_zh error:", e$message, "\n")
+      })
     }
   )
 }

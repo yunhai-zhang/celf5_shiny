@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 *.Rproj
 .Rhistory
+celf5_assessments.db

@@ -1,0 +1,224 @@
+---
+title: "CELF-5 评估报告"
+subtitle: "Clinical Evaluation of Language Fundamentals — Fifth Edition"
+output:
+  word_document:
+    toc: true
+    toc_depth: 3
+params:
+  assessment_id: NA
+  student_name: NA
+  student_sex: NA
+  age_years: NA
+  age_months: NA
+  age_days: NA
+  age_group: NA
+  assessment_date: NA
+  examiner_name: NA
+  scaled_scores: NA
+  indices: NA
+  raw_scores: NA
+  overall_en: NA
+  overall_zh: NA
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(flextable)
+library(officedown)
+library(tibble)
+```
+
+```{r student-info, echo=FALSE, results="asis"}
+ss  <- params$scaled_scores
+idx <- params$indices
+ag  <- params$age_group
+
+# 子测试分表
+df_ss <- if (is.data.frame(ss) && nrow(ss) > 0) {
+  ss %>%
+    mutate(
+      Range_CN = case_when(
+        is.na(scaled_score)              ~ "无分数",
+        scaled_score >= 13              ~ "高于平均",
+        scaled_score >= 8               ~ "平均范围",
+        scaled_score >= 7               ~ "边缘/临界",
+        scaled_score >= 5               ~ "低于平均",
+        TRUE                            ~ "非常低"
+      ),
+      Interpretation_CN = case_when(
+        is.na(scaled_score)             ~ "该子测试暂无分数。",
+        scaled_score >= 13              ~ "表现显著高于同龄预期水平，提示该技能领域能力较强。",
+        scaled_score >= 8               ~ "表现符合同龄预期水平，该技能领域未发现显著困难。",
+        scaled_score >= 7               ~ "表现略低于预期范围，该技能领域可能存在轻度困难，建议持续监测或跟进。",
+        scaled_score >= 5               ~ "表现低于同龄预期水平，提示存在语言障碍，需要进一步评估和干预。",
+        TRUE                            ~ "表现显著低于预期水平，强烈提示存在语言障碍，需要立即进行干预。"
+      )
+    )
+} else {
+  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range_CN = character(), Interpretation_CN = character())
+}
+
+# 复合分数表
+df_idx <- if (!is.null(idx) && length(idx) > 0) {
+  comps <- c("CLS", "RLI", "ELI", "LCI")
+  if (ag %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11")) {
+    comps <- c(comps, "LSI")
+  } else {
+    comps <- c(comps, "LMI")
+  }
+  tibble(
+    Index_CN = c("核心语言分数 (CLS)", "接受性语言指数 (RLI)", "表达性语言指数 (ELI)",
+                  "语言内容指数 (LCI)", if(length(comps)==5) "语言结构指数 (LSI)" else "语言记忆指数 (LMI)"),
+    Index = comps,
+    Score = sapply(comps, function(c) {
+      s <- idx[[c]]
+      if (is.null(s) || is.na(s)) NA_real_ else s
+    }),
+    Percentile = sapply(comps, function(c) {
+      p <- idx[[paste0(c, "_pct")]]
+      if (is.null(p) || is.na(p)) NA_real_ else p
+    })
+  ) %>%
+    mutate(
+      Interpretation_CN = case_when(
+        is.na(Score)                    ~ "暂无分数。",
+        Score >= 130                   ~ sprintf("非常优秀 — 分数 %d（第 %.1f 百分位）表明语言能力远超同龄预期。", Score, Percentile),
+        Score >= 120                   ~ sprintf("优秀 — 分数 %d（第 %.1f 百分位）表明语言能力明显高于平均水平。", Score, Percentile),
+        Score >= 110                   ~ sprintf("高于平均 — 分数 %d（第 %.1f 百分位）在正常范围内，显著高于平均。", Score, Percentile),
+        Score >= 90                    ~ sprintf("平均范围 — 分数 %d（第 %.1f 百分位）符合同龄预期，在正常范围内。", Score, Percentile),
+        Score >= 80                    ~ sprintf("低于平均 — 分数 %d（第 %.1f 百分位）略低于平均水平，建议提供针对性语言支持。", Score, Percentile),
+        Score >= 70                    ~ sprintf("边缘/临界 — 分数 %d（第 %.1f 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", Score, Percentile),
+        TRUE                           ~ sprintf("非常低 — 分数 %d（第 %.1f 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", Score, Percentile)
+      )
+    )
+} else {
+  tibble(Index_CN = character(), Index = character(), Score = double(), Percentile = double(), Interpretation_CN = character())
+}
+```
+
+---
+
+# 学生信息 / Student Information
+
+```{r student-table, echo=FALSE, results="asis"}
+df_info <- tibble(
+  `项目` = c("姓名 Name", "性别 Sex", "年龄 Age", "评估师 Examiner", "评估日期 Date", "年龄组 Age Group"),
+  `信息` = c(
+    params$student_name,
+    if (params$student_sex == "F") "女 Female" else "男 Male",
+    sprintf("%d岁 %d个月", params$age_years, params$age_months),
+    params$examiner_name %||% "—",
+    params$assessment_date,
+    params$age_group
+  )
+)
+flextable(df_info) |> autofit() |> bold(part = "header")
+```
+
+---
+
+# 整体评估结论 / Overall Assessment
+
+**总评 Summary：**
+
+`r params$overall_zh`
+
+**Overall (English):**
+
+`r params$overall_en`
+
+---
+
+# 各测试量表分 / Subtest Scaled Scores
+
+> 量表分以10为均值（Mean），标准差为3，范围1–19。8–12为平均范围，低于7提示存在困难。
+
+```{r subtest-table, echo=FALSE, results="asis"}
+subtest_names_cn <- c(
+  SC="句子理解", LC="语言概念", WS="词汇结构", WC="词汇语义",
+  FD="跟随指令", FS="造句", RS="句子复述", USP="段落理解",
+  PP="语用观察", WD="词汇定义", SA="句子重组", SR="语义关系",
+  RC="阅读理解", SW="命题写作"
+)
+
+if (nrow(df_ss) > 0) {
+  df_ss_disp <- df_ss %>%
+    mutate(
+      `子测试` = sapply(subtest, function(x) subtest_names_cn[[x]] %||% x),
+      `原始分` = raw_score,
+      `量表分` = scaled_score,
+      `范围` = Range_CN,
+      `评估说明` = Interpretation_CN
+    ) %>%
+    select(`子测试`=`子测试`, `缩写`=subtest, `原始分`, `量表分`, `范围`, `评估说明`)
+  ft <- flextable(df_ss_disp)
+  ft <- autofit(ft)
+  ft <- bold(ft, part = "header")
+  ft
+} else {
+  cat("\n尚无子测试数据。\n")
+}
+```
+
+---
+
+# 复合分数 / Composite Scores
+
+> 复合分数以100为均值，标准差为15。90–110为平均范围。
+
+```{r composite-table, echo=FALSE, results="asis"}
+if (nrow(df_idx) > 0) {
+  df_idx_disp <- df_idx %>%
+    mutate(
+      `标准分数` = ifelse(is.na(Score), "—", as.character(round(Score, 0))),
+      `百分位` = ifelse(is.na(Percentile), "—", sprintf("%.1f", Percentile))
+    ) %>%
+    select(`复合分数`=Index_CN, `标准分数`, `百分位`, `解读`=Interpretation_CN)
+  ft2 <- flextable(df_idx_disp)
+  ft2 <- autofit(ft2)
+  ft2 <- bold(ft2, part = "header")
+  ft2
+} else {
+  cat("\n尚无复合分数数据。\n")
+}
+```
+
+---
+
+# 建议 / Recommendations
+
+1. **进一步诊断性语言评估：** 对于语言能力低于平均范围的学生，建议进行更全面的诊断性语言评估，以确定语言障碍的性质和严重程度。
+
+2. **与家长/监护人沟通：** 建议与学生的家长或监护人沟通评估结果，并在学校环境中提供适当支持。
+
+3. **语言干预：** 如确认存在语言障碍，强烈建议转介至语言治疗师进行详细评估并制定个性化干预计划。
+
+4. **重新评估：** 建议6个月后进行重新评估，以监测进步情况并评估干预措施的有效性。
+
+---
+
+# 附录：子测试说明 / Appendix: Subtest Descriptions
+
+| 缩写 | 子测试名称 | 评估能力 |
+|------|----------|---------|
+| SC | 句子理解 / Sentence Comprehension | 理解不同句法复杂度的口语句子 |
+| LC | 语言概念 / Linguistic Concepts | 理解基本语言概念（比较、空间、时间关系） |
+| WS | 词汇结构 / Word Structure | 形态学词结构规则知识（复数、时态、比较级） |
+| WC | 词汇语义 / Word Classes | 识别词汇间的语义关系（同义词、反义词、层级关系） |
+| FD | 跟随指令 / Following Directions | 跟随多步骤口头指令 |
+| FS | 造句 / Formulated Sentences | 使用目标词汇造完整、语义和语法正确的句子 |
+| RS | 句子复述 / Recalling Sentences | 复述和准确再现不同长度和句法复杂度的句子 |
+| USP | 段落理解 / Understanding Spoken Paragraphs | 理解口语段落的主旨和细节 |
+| PP | 语用观察 / Pragmatics Profile | 社会交际情境中的语用语言技能观察 |
+| WD | 词汇定义 / Word Definitions | 通过描述语义特征来定义词汇 |
+| SA | 句子重组 / Sentence Assembly | 使用指定词类构建语法正确的句子 |
+| SR | 语义关系 / Semantic Relationships | 解释包含语义关系的句子（比较、位置、时间、顺序、被动语态） |
+| RC | 阅读理解 / Reading Comprehension | 理解书面段落并回答理解问题 |
+| SW | 命题写作 / Structured Writing | 按照结构规范进行有组织的叙事写作 |
+
+---
+
+*© 2013 NCS Pearson, Inc. All rights reserved. CELF-5 及其组成部分未经 Pearson 书面许可不得复制。*
+
+*CELF-5 评估系统生成 / Generated by CELF-5 Shiny Assessment System — `r Sys.Date()`*
