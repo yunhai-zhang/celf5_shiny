@@ -146,10 +146,10 @@ ui <- fluidPage(
             uiOutput("question_ui"),
             fluidRow(
               column(4, actionButton("btn_prev", "◀ 上一题 / Prev", style = "width:100%")),
-              column(4, actionButton("btn_save_score", "💾 保存打分 / Save",
+              column(4, actionButton("btn_save_score", "💾 保存并下一题 / Save & Next",
                           class = "btn-primary",
                           style = sprintf("width:100%%; background:%s;", celf5_blue))),
-              column(4, actionButton("btn_next", "下一题 ▶ / Next", style = "width:100%"))
+              column(4, actionButton("btn_next", "▶ 仅下一题 / Next Only", style = "width:100%"))
             ),
             hr(),
             fluidRow(column(12, h5("已打分 / Scored: "), textOutput("subtest_progress_text")))
@@ -592,6 +592,25 @@ server <- function(input, output, session) {
     save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
     check_discontinue(t)
     showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
+
+    # ── 导航：保存后自动前进到下一题 ───────────────────────────
+    max_i <- get_max_item(t)
+    if (rv$discontinue_triggered || i_n >= max_i) {
+      # 本测验结束，切换到下一个
+      rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
+      next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
+      if (!is.na(next_t)) {
+        updateSelectInput(session, "selected_subtest", selected = next_t)
+      }
+    } else {
+      # 清除当前打分控件，避免下一题残留
+      if (t == "RS") {
+        updateNumericInput(session, "input_score", value = NA_integer_)
+      } else {
+        updateRadioButtons(session, "input_score", selected = NA_integer_)
+      }
+      rv$current_item <- i_n + 1L
+    }
   })
 
   observeEvent(input$btn_prev, {
@@ -601,50 +620,18 @@ server <- function(input, output, session) {
   observeEvent(input$btn_next, {
     t <- rv$current_subtest
     i_n <- rv$current_item
-    sp <- rv$start_point
     max_i <- get_max_item(t)
 
-    # Capture input values at click-time (before any reactive flushes)
-    # so each observer instance saves the correct item's data
-    # Trial items (i_n < sp) have no score — skip save/navigate to next
-    if (i_n < sp) {
-      # Just navigate without saving
-      if (i_n < max_i) { rv$current_item <- i_n + 1L }
-      return()
-    }
-    captured_score <- input$input_score
-    captured_resp  <- input$response_text %||% ""
-
-    if (is.null(captured_score) || is.na(captured_score)) {
-      showNotification("请先打分 / Please score first", type = "warning"); return()
-    }
-
-    sv <- captured_score
-    if (t=="RS" && !is.na(sv)) sv <- score_rs(as.integer(sv))
-    rt <- captured_resp
-
-    # Save to previous item
-    rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
-      add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
-              score=as.integer(sv))
-    save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
-
-    # Clear input score so next item's renderUI is not confused by stale values
-    # (any late-arriving flush will write NA, which req() will catch)
-    if (t == "RS") {
-      updateNumericInput(session, "input_score", value = NA_integer_)
-    } else {
-      updateRadioButtons(session, "input_score", selected = NA_integer_)
-    }
-
-    # Navigate
-    if (!rv$discontinue_triggered) check_discontinue(t)
-    if (!rv$discontinue_triggered && i_n < max_i) {
+    # 仅导航：不自动保存（用户必须点"保存并下一题"）
+    if (i_n < max_i) {
       rv$current_item <- i_n + 1L
     } else {
+      # 已到最后一题，切换到下一测验
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
-      if (!is.na(next_t)) updateSelectInput(session, "selected_subtest", selected=next_t)
+      if (!is.na(next_t)) {
+        updateSelectInput(session, "selected_subtest", selected = next_t)
+      }
     }
   })
 
