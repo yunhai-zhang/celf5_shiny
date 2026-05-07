@@ -27,6 +27,18 @@ library(dplyr)
 library(flextable)
 library(officedown)
 library(tibble)
+
+# Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
+fmt_pct <- function(p) {
+  if (is.na(p) || is.null(p)) return("—")
+  suppressWarnings(num <- as.numeric(p))
+  if (is.na(num)) {
+    if (grepl("<", p, fixed = TRUE)) return("<0.1")
+    if (grepl(">", p, fixed = TRUE)) return(">99.9")
+    return(p)
+  }
+  sprintf("%.1f", num)
+}
 ```
 
 ```{r student-info, echo=FALSE, results="asis"}

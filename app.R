@@ -464,13 +464,14 @@ server <- function(input, output, session) {
       scores_b <- sub_resp %>% filter(item_number %in% last_two) %>%
         arrange(item_number) %>% pull(score)
       if (length(scores_b)==2 && all(scores_b==max_score_for_subtest(t))) {
-        for (i_n in items_before) {
-          if (!any(rv$responses$subtest==t & rv$responses$item_number==i_n)) {
+      items_before %>%
+        iwalk(function(.x, .y) {
+          if (!any(rv$responses$subtest==t & rv$responses$item_number==.x)) {
             rv$responses <- rv$responses %>% add_row(
-              subtest=t, item_number=i_n, response_text="Reversal满分",
+              subtest=t, item_number=.x, response_text="Reversal满分",
               score=max_score_for_subtest(t))
           }
-        }
+        }) %>% invisible()
         showNotification(glue("Reversal 触发！{sp}-{item_n-1}题记满分"), type="message")
       }
     }
@@ -806,47 +807,54 @@ server <- function(input, output, session) {
         LMI = "Language Memory Index (LMI) measures verbal memory and sentence recall. It includes Recalling Sentences, Sentence Assembly, and Understanding Spoken Paragraphs."
       )
 
+      pct_num  <- as.numeric(pct)
+      pct_disp <- if (is.na(pct_num)) {
+        if (grepl("<", pct, fixed = TRUE)) "<0.1" else if (grepl(">", pct, fixed = TRUE)) ">99.9" else pct
+      } else {
+        sprintf("%.1f", pct_num)
+      }
+
       int_en <- if (is.na(std)) {
         "No score available."
       } else if (std >= 130) {
-        paste0("Very Superior — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) indicates exceptional language ability well above age-level expectations.")
+        paste0("Very Superior — A score of ", std, " (", pct_disp, "th percentile) indicates exceptional language ability well above age-level expectations.")
       } else if (std >= 120) {
-        paste0("Superior — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is well above average, suggesting strong language skills.")
+        paste0("Superior — A score of ", std, " (", pct_disp, "th percentile) is well above average, suggesting strong language skills.")
       } else if (std >= 110) {
-        paste0("High Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is above average, within normal limits.")
+        paste0("High Average — A score of ", std, " (", pct_disp, "th percentile) is above average, within normal limits.")
       } else if (std >= 90) {
-        paste0("Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is within the average range, consistent with age-level expectations.")
+        paste0("Average — A score of ", std, " (", pct_disp, "th percentile) is within the average range, consistent with age-level expectations.")
       } else if (std >= 80) {
-        paste0("Low Average — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is slightly below average. The student may benefit from targeted language support.")
+        paste0("Low Average — A score of ", std, " (", pct_disp, "th percentile) is slightly below average. The student may benefit from targeted language support.")
       } else if (std >= 70) {
-        paste0("Borderline — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is significantly below average and suggests a language disorder. Intervention is strongly recommended.")
+        paste0("Borderline — A score of ", std, " (", pct_disp, "th percentile) is significantly below average and suggests a language disorder. Intervention is strongly recommended.")
       } else {
-        paste0("Extremely Low — A score of ", std, " (", sprintf("%.1f", pct), "th percentile) is far below average, indicating a significant language disorder requiring immediate intervention.")
+        paste0("Extremely Low — A score of ", std, " (", pct_disp, "th percentile) is far below average, indicating a significant language disorder requiring immediate intervention.")
       }
 
       int_zh <- if (is.na(std)) {
         "暂无分数。"
       } else if (std >= 130) {
-        sprintf("非常优秀 — 分数 %d（第 %.1f 百分位）表明语言能力远超同龄预期。", std, pct)
+        sprintf("非常优秀 — 分数 %d（第 %s 百分位）表明语言能力远超同龄预期。", std, pct_disp)
       } else if (std >= 120) {
-        sprintf("优秀 — 分数 %d（第 %.1f 百分位）表明语言能力明显高于平均水平。", std, pct)
+        sprintf("优秀 — 分数 %d（第 %s 百分位）表明语言能力明显高于平均水平。", std, pct_disp)
       } else if (std >= 110) {
-        sprintf("高于平均 — 分数 %d（第 %.1f 百分位）在正常范围内，显著高于平均。", std, pct)
+        sprintf("高于平均 — 分数 %d（第 %s 百分位）在正常范围内，显著高于平均。", std, pct_disp)
       } else if (std >= 90) {
-        sprintf("平均范围 — 分数 %d（第 %.1f 百分位）符合同龄预期，在正常范围内。", std, pct)
+        sprintf("平均范围 — 分数 %d（第 %s 百分位）符合同龄预期，在正常范围内。", std, pct_disp)
       } else if (std >= 80) {
-        sprintf("低于平均 — 分数 %d（第 %.1f 百分位）略低于平均水平，建议提供针对性语言支持。", std, pct)
+        sprintf("低于平均 — 分数 %d（第 %s 百分位）略低于平均水平，建议提供针对性语言支持。", std, pct_disp)
       } else if (std >= 70) {
-        sprintf("边缘/临界 — 分数 %d（第 %.1f 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", std, pct)
+        sprintf("边缘/临界 — 分数 %d（第 %s 百分位）显著低于平均水平，提示存在语言障碍，强烈建议干预。", std, pct_disp)
       } else {
-        sprintf("非常低 — 分数 %d（第 %.1f 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", std, pct)
+        sprintf("非常低 — 分数 %d（第 %s 百分位）远低于平均水平，提示显著语言障碍，需要立即干预。", std, pct_disp)
       }
 
       div(class = "card mb-3",
         div(class = "card-header d-flex justify-content-between align-items-center",
           strong(comp_names[[comp]] %||% comp),
           span(class = paste0("badge ", rng_css),
-               if (is.na(std)) "—" else paste0(std, " (", sprintf("%.1f", pct %||% 0), "%)"))
+               if (is.na(std)) "—" else paste0(std, " (", pct_disp, "%)"))
         ),
         div(class = "card-body",
           if (!is.na(ss_sum)) p(strong("量表分合计 Scaled Sum: "), ss_sum),
@@ -929,8 +937,9 @@ server <- function(input, output, session) {
       hr(),
       h3("下载报告 / Download Report"),
       fluidRow(
-        column(6, downloadButton("download_report_en", "Download Report (English)")),
-        column(6, downloadButton("download_report_zh", "下载中文报告 (Chinese)"))
+        column(4, downloadButton("download_report_en",  "📄 Download (English)")),
+        column(4, downloadButton("download_report_zh",  "📄 下载中文 (Chinese)")),
+        column(4, downloadButton("download_report_pdf", "📋 Download PDF"))
       ),
       hr(),
       p("© 2013 NCS Pearson, Inc. All rights reserved. CELF-5 may not be reproduced without written permission from Pearson.",
@@ -945,13 +954,22 @@ server <- function(input, output, session) {
       scaled_df <- full$subtest_scores
       ag <- rv$age_group
 
-      # Build indices list for params
-      idx_list <- list()
-      for (comp in c("CLS","RLI","ELI","LCI","LSI","LMI")) {
-        cs <- get_composite_score(scaled_df, comp, ag)
-        idx_list[[comp]] <- cs$standard_score[1]
-        idx_list[[paste0(comp, "_pct")]] <- cs$percentile[1]
-      }
+      # Build indices list for params (tidyverse)
+      comps <- c("CLS", "RLI", "ELI", "LCI", "LSI", "LMI")
+      idx_list <- setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          cs$standard_score[1]
+        }),
+        comps
+      )
+      idx_list <- c(idx_list, setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          fmt_pct(cs$percentile[1])
+        }),
+        paste0(comps, "_pct")
+      ))
 
       # Build raw_scores named list
       raw_list <- if (nrow(scaled_df) > 0) {
@@ -1001,12 +1019,21 @@ server <- function(input, output, session) {
       scaled_df <- full$subtest_scores
       ag <- rv$age_group
 
-      idx_list <- list()
-      for (comp in c("CLS","RLI","ELI","LCI","LSI","LMI")) {
-        cs <- get_composite_score(scaled_df, comp, ag)
-        idx_list[[comp]] <- cs$standard_score[1]
-        idx_list[[paste0(comp, "_pct")]] <- cs$percentile[1]
-      }
+      comps <- c("CLS", "RLI", "ELI", "LCI", "LSI", "LMI")
+      idx_list <- setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          cs$standard_score[1]
+        }),
+        comps
+      )
+      idx_list <- c(idx_list, setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          fmt_pct(cs$percentile[1])
+        }),
+        paste0(comps, "_pct")
+      ))
 
       raw_list <- if (nrow(scaled_df) > 0) {
         setNames(as.list(scaled_df$raw_score), scaled_df$subtest)
@@ -1043,6 +1070,70 @@ server <- function(input, output, session) {
       }, error = function(e) {
         showNotification(paste0("报告错误: ", e$message), type = "error")
         cat(file = stderr(), "download_report_zh error:", e$message, "\n")
+      })
+    }
+  )
+
+  # ── 下载处理器：PDF 报告 ───────────────────────────────
+  output$download_report_pdf <- downloadHandler(
+    filename = function() glue("CELF5_Report_{rv$assessment_id}_{Sys.Date()}.pdf"),
+    content = function(file) {
+      full <- get_assessment_full(rv$assessment_id)
+      scaled_df <- full$subtest_scores
+      ag <- rv$age_group
+
+      comps <- c("CLS", "RLI", "ELI", "LCI", "LSI", "LMI")
+      idx_list <- setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          cs$standard_score[1]
+        }),
+        comps
+      )
+      idx_list <- c(idx_list, setNames(
+        lapply(comps, function(comp) {
+          cs <- get_composite_score(scaled_df, comp, ag)
+          fmt_pct(cs$percentile[1])
+        }),
+        paste0(comps, "_pct")
+      ))
+
+      raw_list <- if (nrow(scaled_df) > 0) {
+        setNames(as.list(scaled_df$raw_score), scaled_df$subtest)
+      } else {
+        list()
+      }
+
+      showNotification("Generating PDF report...", type = "message", duration = 3)
+
+      tryCatch({
+        rmarkdown::render(
+          input = "report_celf5_en.Rmd",
+          output_format = "pdf_document",
+          output_file = file,
+          params = list(
+            assessment_id   = rv$assessment_id,
+            student_name     = full$assessment$patient_name,
+            student_sex      = full$assessment$gender,
+            age_years        = full$assessment$age_years,
+            age_months       = full$assessment$age_months,
+            age_days         = full$assessment$age_days,
+            age_group        = ag,
+            assessment_date  = as.character(full$assessment$assessment_date),
+            examiner_name    = full$assessment$examiner %||% NA,
+            scaled_scores    = scaled_df,
+            indices          = idx_list,
+            raw_scores       = raw_list,
+            overall_en       = isolate(rv$overall_en %||% "No assessment data available."),
+            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+          ),
+          envir = new.env(parent = globalenv()),
+          quiet = TRUE
+        )
+        showNotification("PDF report downloaded successfully!", type = "message")
+      }, error = function(e) {
+        showNotification(paste0("Report error: ", e$message), type = "error")
+        cat(file = stderr(), "download_report_pdf error:", e$message, "\n")
       })
     }
   )

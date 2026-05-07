@@ -362,6 +362,18 @@ get_composite_score <- function(scaled_df, composite, age_group) {
   )
 }
 
+# Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
+fmt_pct <- function(p) {
+  if (is.na(p) || is.null(p)) return(NA_character_)
+  suppressWarnings(num <- as.numeric(p))
+  if (is.na(num)) {
+    if (grepl("<", p, fixed = TRUE)) return("<0.1")
+    if (grepl(">", p, fixed = TRUE)) return(">99.9")
+    return(as.character(p))
+  }
+  sprintf("%.1f", num)
+}
+
 get_confidence_intervals <- function(standard_score, composite, age_group) {
   ci_row <- COMPOSITE_CI_TABLE %>%
     filter(.data$age_group  == !!age_group,
@@ -475,34 +487,34 @@ save_response <- function(assessment_id, subtest, item_number, response_text = N
 save_subtest_scores <- function(assessment_id, scores_df) {
   con <- get_con()
   on.exit(dbDisconnect(con))
-  for (i in seq_len(nrow(scores_df))) {
-    row <- scores_df[i,]
-    dbExecute(con,
-      "INSERT OR REPLACE INTO subtest_scores (assessment_id,subtest,raw_score,scaled_score) VALUES (?,?,?,?)",
-      params = list(assessment_id, row$subtest, row$raw_score, row$scaled_score))
-  }
+  scores_df %>%
+    iwalk(function(row, .i) {
+      dbExecute(con,
+        "INSERT OR REPLACE INTO subtest_scores (assessment_id,subtest,raw_score,scaled_score) VALUES (?,?,?,?)",
+        params = list(assessment_id, row$subtest, row$raw_score, row$scaled_score))
+    })
 }
 
 save_composite_scores <- function(assessment_id, indices_df) {
   con <- get_con()
   on.exit(dbDisconnect(con))
-  for (i in seq_len(nrow(indices_df))) {
-    row <- indices_df[i,]
-    ci  <- get_confidence_intervals(row$standard_score, row$composite,
-                                    indices_df$age_group[1])
-    if (nrow(ci) < 3) next
-    dbExecute(con,
-      "INSERT OR REPLACE INTO composite_scores
-       (assessment_id,composite,sum_scaled,standard_score,percentile_rank,
-        confidence_68_lo,confidence_68_hi,confidence_90_lo,confidence_90_hi,
-        confidence_95_lo,confidence_95_hi)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-      params = list(assessment_id, row$composite, row$sum_scaled,
-                    row$standard_score, row$percentile,
-                    ci$score_lo[1], ci$score_hi[1],
-                    ci$score_lo[2], ci$score_hi[2],
-                    ci$score_lo[3], ci$score_hi[3]))
-  }
+  indices_df %>%
+    iwalk(function(row, .i) {
+      ci  <- get_confidence_intervals(row$standard_score, row$composite,
+                                      indices_df$age_group[1])
+      if (nrow(ci) < 3) return()
+      dbExecute(con,
+        "INSERT OR REPLACE INTO composite_scores
+         (assessment_id,composite,sum_scaled,standard_score,percentile_rank,
+          confidence_68_lo,confidence_68_hi,confidence_90_lo,confidence_90_hi,
+          confidence_95_lo,confidence_95_hi)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        params = list(assessment_id, row$composite, row$sum_scaled,
+                      row$standard_score, row$percentile,
+                      ci$score_lo[1], ci$score_hi[1],
+                      ci$score_lo[2], ci$score_hi[2],
+                      ci$score_lo[3], ci$score_hi[3]))
+    })
 }
 
 # ─────────────────────────────────────────────────────────────

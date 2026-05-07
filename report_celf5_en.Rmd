@@ -27,6 +27,18 @@ library(dplyr)
 library(flextable)
 library(officedown)
 library(tibble)
+
+# Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
+fmt_pct <- function(p) {
+  if (is.na(p) || is.null(p)) return("—")
+  suppressWarnings(num <- as.numeric(p))
+  if (is.na(num)) {
+    if (grepl("<", p, fixed = TRUE)) return("<0.1")
+    if (grepl(">", p, fixed = TRUE)) return(">99.9")
+    return(p)
+  }
+  sprintf("%.1f", num)
+}
 ```
 
 ```{r student-info, echo=FALSE, results="asis"}
@@ -153,7 +165,7 @@ if (nrow(df_idx) > 0) {
   df_idx_disp <- df_idx %>%
     mutate(
       `Standard Score` = ifelse(is.na(Score), "—", as.character(round(Score, 0))),
-      `Percentile Rank` = ifelse(is.na(Percentile), "—", sprintf("%.1f", Percentile))
+      `Percentile Rank` = ifelse(is.na(Percentile), "—", fmt_pct(Percentile))
     ) %>%
     select(`Composite Score` = Index, `Standard Score`, `Percentile Rank`, Interpretation)
   ft2 <- flextable(df_idx_disp)
