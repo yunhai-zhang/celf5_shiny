@@ -220,6 +220,27 @@ get_discontinue_rule <- function(subtest) {
 }
 
 # ─────────────────────────────────────────────────────────────
+# 3b. 题目信息查询（来自 questions 表）
+# ─────────────────────────────────────────────────────────────
+get_question_info <- function(subtest, item_number) {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+  sql <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
+          FROM questions WHERE subtest = ? AND item_number = ? LIMIT 1"
+  q <- dbGetQuery(con, sql, params = list(subtest, item_number))
+  if (nrow(q) == 0) {
+    return(tibble(
+      question_en = NA_character_,
+      prompt_en   = NA_character_,
+      stimulus_en = NA_character_,
+      scoring_key = NA_character_,
+      max_score   = NA_integer_
+    ))
+  }
+  q
+}
+
+# ─────────────────────────────────────────────────────────────
 # 4. 查表函数 — raw → scaled（来自 NORMS_TABLE）
 # ─────────────────────────────────────────────────────────────
 raw_to_scaled <- function(subtest, raw_score, age_group) {
@@ -390,7 +411,8 @@ score_rs <- function(errors) {
   case_when(
     errors == 0 ~ 3L,
     errors == 1 ~ 2L,
-    errors <= 3 ~ 1L,
+    errors == 2 ~ 1L,
+    errors == 3 ~ 1L,
     TRUE ~ 0L
   )
 }

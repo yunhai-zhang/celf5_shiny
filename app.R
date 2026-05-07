@@ -10,6 +10,7 @@ library(lubridate)
 library(glue)
 library(rlang)
 library(DT)
+library(stringr)
 
 source("global.R")
 
@@ -27,8 +28,8 @@ ui <- fluidPage(
       // Clear dateInput browser-cache values on page load
       window.addEventListener('load', function() {
         setTimeout(function() {
-          var dob = document.querySelector('[data-datepicker-id=dob] input');
-          var ad  = document.querySelector('[data-datepicker-id=assessment_date] input');
+          var dob = document.querySelector('#dob input');
+          var ad  = document.querySelector('#assessment_date input');
           if (dob) { dob.value = ''; dob.dispatchEvent(new Event('change', {bubbles: true})); }
           if (ad)  { ad.value  = ''; ad.dispatchEvent(new Event('change',  {bubbles: true})); }
         }, 200);
@@ -416,10 +417,15 @@ server <- function(input, output, session) {
     rv$discontinue_triggered <- FALSE
   })
 
+  # 从 DB 查实际题目数（比 SUBTEST_DEFS 的硬编码更准确）
   get_max_item <- function(subtest) {
-    row <- SUBTEST_DEFS %>% filter(subtest==!!subtest)
-    if (nrow(row) == 0) return(1L)
-    row %>% pull(max_items) %>% .[[1]]
+    con <- get_con()
+    on.exit(dbDisconnect(con))
+    n <- dbGetQuery(con, sprintf(
+      "SELECT COUNT(*) FROM questions WHERE subtest = '%s' AND (question_en IS NOT NULL AND question_en != '')",
+      subtest))[[1]]
+    if (n == 0) return(1L)
+    as.integer(n)
   }
 
   # ── 题目 UI ─────────────────────────────────────────────
@@ -461,12 +467,42 @@ server <- function(input, output, session) {
     }
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
+    qi <- get_question_info(t, item_n)
+
+    # 题目文字优先用 question_en，其次 prompt_en
+    stimulus_txt <- if (!is.na(qi$question_en) && nzchar(qi$question_en)) qi$question_en[1] else ""
+    prompt_txt   <- if (!is.na(qi$prompt_en)   && nzchar(qi$prompt_en))   qi$prompt_en[1]   else ""
+    scoring_txt  <- if (!is.na(qi$scoring_key) && nzchar(qi$scoring_key)) qi$scoring_key[1] else ""
+
+    # Trial / Demo 提示（起始点前的引导题不显示题目卡片）
+    is_trial <- item_n < sp
 
     tagList(
       h3(glue("{box_title} — 第 {item_n} / {max_item} 题 / Item {item_n} of {max_item}")),
       if (item_n == sp) div(class="alert alert-info", "★ 起始点题号 / Start Point Item"),
+      if (is_trial) div(class="alert alert-secondary", "引导题（不记分）Trial Item (not scored)"),
       hr(),
-      uiOutput("score_input_ui")
+
+      # ── 题目/刺激物显示（trial 也显示题目，只是不打分）────────
+      if (nzchar(stimulus_txt)) {
+        div(class="card mb-3", style="background:#f8f9fa",
+          div(class="card-body",
+            p(strong("题目 Stimulus: "), HTML(stimulus_txt)),
+            if (nzchar(prompt_txt))
+              p(strong("施测说明 Prompt: "), HTML(prompt_txt)),
+            if (!is_trial && nzchar(scoring_txt))
+              p(strong("评分标准 Scoring: "), HTML(scoring_txt))
+          )
+        )
+      } else {
+        div(class="alert alert-secondary", "题目加载中 / Question not yet available for this item")
+      },
+
+      hr(),
+
+      # trial items 只展示题目，不渲染打分控件
+      if (!is_trial) uiOutput("score_input_ui"),
+      if (is_trial) div(class="alert alert-light", "← 引导题无需打分 / Trial — no score needed")
     )
   })
 
@@ -485,26 +521,24 @@ server <- function(input, output, session) {
     max_s <- max_score_for_subtest(t)
 
     if (t == "RS") {
-      err_val <- if (!is.na(cur_score)) max_s - cur_score else NA_integer_
+      # UI shows error count; stored score is scaled (3=0err, 2=1err, 1=2-3err, 0=4+err)
+      err_val <- if (!is.na(cur_score) && !is.null(cur_score)) max_s - as.integer(cur_score) else NA_integer_
       tagList(
         numericInput("input_score", "错误数量（0=3分, 1=2分, 2-3=1分, 4+=0分）",
-                     value=err_val, min=0, max=99, step=1),
-        textInput("response_text", "受试者回答", value=cur_resp$response_text%||%"")
+                     value=err_val, min=0, max=99, step=1)
       )
     } else if (max_s == 1L) {
       tagList(
         radioButtons("input_score", "得分",
                      choices=c("1分（正确）"=1L, "0分（错误）"=0L),
-                     selected=cur_score),
-        textInput("response_text", "受试者回答", value=cur_resp$response_text%||%"")
+                     selected=cur_score)
       )
     } else {
       opts <- setNames(as.character(2:0), c("2分", "1分", "0分"))
       tagList(
         radioButtons("input_score", "得分",
                      choices=list("2分"=2L, "1分"=1L, "0分"=0L),
-                     selected=cur_score),
-        textInput("response_text", "受试者回答", value=cur_resp$response_text%||%"")
+                     selected=cur_score)
       )
     }
   })
@@ -519,15 +553,22 @@ server <- function(input, output, session) {
   # ── 按钮交互（移到 tab 3 外部，点击事件始终有效）──────────
 
   observeEvent(input$btn_save_score, {
-    req(rv$current_subtest, rv$assessment_id)
-    if (is.null(input$input_score) || is.na(input$input_score)) {
-      showNotification("请先打分 / Please score first", type = "warning"); return()
-    }
     t <- rv$current_subtest
     i_n <- rv$current_item
-    sv <- input$input_score
+    sp <- rv$start_point
+
+    # Trial items have no score input — skip silently
+    if (i_n < sp) { showNotification("引导题无需保存 / Trial item — not saved", type="message"); return() }
+
+    captured_score <- input$input_score
+    captured_resp  <- input$response_text %||% ""
+
+    if (is.null(captured_score) || is.na(captured_score)) {
+      showNotification("请先打分 / Please score first", type = "warning"); return()
+    }
+    sv <- captured_score
     if (t=="RS" && !is.na(sv)) sv <- score_rs(as.integer(sv))
-    rt <- input$response_text %||% ""
+    rt <- captured_resp
 
     rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
       add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
@@ -542,26 +583,46 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$btn_next, {
-    req(rv$current_subtest, rv$assessment_id)
     t <- rv$current_subtest
     i_n <- rv$current_item
+    sp <- rv$start_point
     max_i <- get_max_item(t)
 
-    if (is.null(input$input_score) || is.na(input$input_score)) {
+    # Capture input values at click-time (before any reactive flushes)
+    # so each observer instance saves the correct item's data
+    # Trial items (i_n < sp) have no score — skip save/navigate to next
+    if (i_n < sp) {
+      # Just navigate without saving
+      if (i_n < max_i) { rv$current_item <- i_n + 1L }
+      return()
+    }
+    captured_score <- input$input_score
+    captured_resp  <- input$response_text %||% ""
+
+    if (is.null(captured_score) || is.na(captured_score)) {
       showNotification("请先打分 / Please score first", type = "warning"); return()
     }
 
-    sv <- input$input_score
+    sv <- captured_score
     if (t=="RS" && !is.na(sv)) sv <- score_rs(as.integer(sv))
-    rt <- input$response_text %||% ""
+    rt <- captured_resp
 
+    # Save to previous item
     rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
       add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
               score=as.integer(sv))
     save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
 
-    if (!rv$discontinue_triggered) check_discontinue(t)
+    # Clear input score so next item's renderUI is not confused by stale values
+    # (any late-arriving flush will write NA, which req() will catch)
+    if (t == "RS") {
+      updateNumericInput(session, "input_score", value = NA_integer_)
+    } else {
+      updateRadioButtons(session, "input_score", selected = NA_integer_)
+    }
 
+    # Navigate
+    if (!rv$discontinue_triggered) check_discontinue(t)
     if (!rv$discontinue_triggered && i_n < max_i) {
       rv$current_item <- i_n + 1L
     } else {
