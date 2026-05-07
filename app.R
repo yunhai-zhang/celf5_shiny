@@ -414,7 +414,7 @@ server <- function(input, output, session) {
   # 进度卡片点击 → 跳转到对应 subtest 的评分页面
   observeEvent(input$jump_to_subtest, {
     t <- input$jump_to_subtest
-    updateTabsetPanel(session, "main_tabs", selected = "items")
+    updateTabsetPanel(session, "main_tabs", selected = "测试题目 / Test Items")
     rv$current_subtest <- t
     sub_resp <- rv$responses %>% filter(subtest == t)
     sp <- get_start_point(t, rv$age_group)
