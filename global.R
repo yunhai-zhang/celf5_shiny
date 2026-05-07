@@ -101,11 +101,11 @@ format_age <- function(age) glue("{age$years}y {age$months}m {age$days}d")
 
 get_age_group <- function(age) {
   total_months <- age$years * 12 + age$months
-  case_when(
-    total_months <= 71  ~ "5:0-5:5",
-    total_months <= 77  ~ "5:6-5:11",
-    total_months <= 83  ~ "6:0-6:5",
-    total_months <= 89  ~ "6:6-6:11",
+  dplyr::case_when(
+    total_months <= 65  ~ "5:0-5:5",
+    total_months <= 71  ~ "5:6-5:11",
+    total_months <= 77  ~ "6:0-6:5",
+    total_months <= 83  ~ "6:6-6:11",
     total_months <= 95  ~ "7:0-7:11",
     total_months <= 107 ~ "8:0-8:11",
     total_months <= 119 ~ "9:0-9:11",
@@ -148,14 +148,14 @@ get_test_composition <- function(age_group) {
 # 3. SUBTEST_DEFS + start_points（Manual Chapter 3）
 # ─────────────────────────────────────────────────────────────
 SUBTEST_DEFS <- tibble(
-  subtest = c("SC","LC","WS","WC","FD","FS","RS","WD","SA","SR","RC","SW","USP"),
+  subtest = c("SC","LC","WS","WC","FD","FS","RS","WD","SA","SR","RC","SW","USP","PP"),
   full_name = c("Sentence Comprehension","Linguistic Concepts","Word Structure",
                 "Word Classes","Formulated Definitions","Formulated Sentences",
                 "Recalling Sentences","Word Definitions","Sentence Assembly",
                 "Semantic Relationships","Reading Comprehension","Spelling and Writing",
-                "Understanding Spoken Paragraphs"),
-  max_items = c(42L,36L,34L,40L,32L,48L,48L,21L,20L,20L,28L,44L,18L),
-  discontinue_rule = c(4L,4L,4L,4L,4L,4L,4L,4L,4L,4L,0L,0L,0L)
+                "Understanding Spoken Paragraphs","Pragmatic Protocol"),
+  max_items = c(42L,36L,34L,40L,32L,48L,48L,21L,20L,20L,28L,44L,18L,15L),
+  discontinue_rule = c(4L,4L,4L,4L,4L,4L,4L,4L,4L,4L,0L,0L,0L,0L)
 )
 
 SUBTEST_START_POINTS <- list(
@@ -401,6 +401,9 @@ score_rs <- function(errors) {
 upsert_patient <- function(name, dob, gender = NULL, examiner = NULL, notes = NULL) {
   con <- get_con()
   on.exit(dbDisconnect(con))
+  gender <- if (is.null(gender) || gender == "") NA_character_ else gender
+  examiner <- if (is.null(examiner) || examiner == "") NA_character_ else examiner
+  notes <- if (is.null(notes) || notes == "") NA_character_ else notes
   existing <- dbGetQuery(con,
     "SELECT id FROM patients WHERE name = ? AND dob = ?",
     params = list(name, dob))

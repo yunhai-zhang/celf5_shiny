@@ -9,6 +9,7 @@ library(purrr)
 library(lubridate)
 library(glue)
 library(rlang)
+library(DT)
 
 source("global.R")
 
@@ -22,6 +23,17 @@ celf5_white <- "#FFFFFF"
 
 ui <- fluidPage(
   tags$head(
+    tags$script(HTML("
+      // Clear dateInput browser-cache values on page load
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var dob = document.querySelector('[data-datepicker-id=dob] input');
+          var ad  = document.querySelector('[data-datepicker-id=assessment_date] input');
+          if (dob) { dob.value = ''; dob.dispatchEvent(new Event('change', {bubbles: true})); }
+          if (ad)  { ad.value  = ''; ad.dispatchEvent(new Event('change',  {bubbles: true})); }
+        }, 200);
+      });
+    ")),
     tags$style(HTML(sprintf("
       body { background: %s; font-family: 'Segoe UI', Arial, sans-serif; }
       .container-fluid { padding: 0; }
@@ -72,29 +84,30 @@ ui <- fluidPage(
   tabsetPanel(id = "main_tabs",
 
     # ── Tab 1: 受试者信息 ─────────────────────────────
-    tabPanel("受试者信息",
+    tabPanel("受试者信息 / Subject Info",
       fluidRow(
         column(4,
           div(class = "panel",
-            div(class = "panel-heading", "基本信息"),
+            div(class = "panel-heading", "基本信息 / Basic Info"),
             div(class = "panel-body",
-              textInput("patient_name", "姓名 *", placeholder = "受试者姓名"),
-              textInput("patient_gender", "性别", placeholder = "男 / 女"),
-              textInput("school_name", "学校", placeholder = "就读学校"),
-              textInput("grade_level", "年级", placeholder = "如：小一、初二、高一"),
-              textInput("examiner", "评估师", placeholder = "评估师姓名"),
-              dateInput("dob", "出生日期 *", format = "yyyy-mm-dd", startview = "decade"),
-              dateInput("assessment_date", "评估日期 *", format = "yyyy-mm-dd"),
-              actionButton("btn_start", "▶ 开始评估", class = "btn-primary",
+              textInput("patient_name", "姓名 * / Name *", placeholder = "受试者姓名"),
+              textInput("patient_gender", "性别 / Gender", placeholder = "男 M / 女 F"),
+              textInput("school_name", "学校 / School", placeholder = "就读学校"),
+              textInput("grade_level", "年级 / Grade", placeholder = "如：小一、初二、高一"),
+              textInput("examiner", "评估师 / Examiner", placeholder = "评估师姓名"),
+              dateInput("dob", "出生日期 * / Date of Birth *", format = "yyyy-mm-dd", value = character(0)),
+              dateInput("assessment_date", "评估日期 * / Assessment Date *", format = "yyyy-mm-dd", value = character(0)),
+              actionButton("btn_start", "▶ 开始评估 / Start Assessment", class = "btn-primary",
                            style = sprintf("width:100%%; background:%s; border-color:%s;", celf5_blue, celf5_blue))
             )
           )
         ),
         column(8,
           div(class = "panel",
-            div(class = "panel-heading", "历史评估记录"),
+            div(class = "panel-heading", "历史评估记录 / Assessment History"),
             div(class = "panel-body",
-              uiOutput("assessments_table_ui")
+              dataTableOutput("assessments_table"),
+              uiOutput("load_btn_ui")
             )
           )
         )
@@ -102,7 +115,7 @@ ui <- fluidPage(
     ),
 
     # ── Tab 2: 评估进度 ─────────────────────────────
-    tabPanel("评估进度",
+    tabPanel("评估进度 / Progress",
       fluidRow(
         column(12,
           h3(textOutput("current_patient")),
@@ -115,7 +128,7 @@ ui <- fluidPage(
     ),
 
     # ── Tab 3: 测试题目 ─────────────────────────────
-    tabPanel("测试题目",
+    tabPanel("测试题目 / Test Items",
       fluidRow(
         column(3,
           wellPanel(
@@ -127,21 +140,21 @@ ui <- fluidPage(
           wellPanel(
             uiOutput("question_ui"),
             fluidRow(
-              column(4, actionButton("btn_prev", "◀ 上一题", style = "width:100%")),
-              column(4, actionButton("btn_save_score", "💾 保存打分",
+              column(4, actionButton("btn_prev", "◀ 上一题 / Prev", style = "width:100%")),
+              column(4, actionButton("btn_save_score", "💾 保存打分 / Save",
                           class = "btn-primary",
                           style = sprintf("width:100%%; background:%s;", celf5_blue))),
-              column(4, actionButton("btn_next", "下一题 ▶", style = "width:100%"))
+              column(4, actionButton("btn_next", "下一题 ▶ / Next", style = "width:100%"))
             ),
             hr(),
-            fluidRow(column(12, h5("已打分: "), textOutput("subtest_progress_text")))
+            fluidRow(column(12, h5("已打分 / Scored: "), textOutput("subtest_progress_text")))
           )
         )
       )
     ),
 
     # ── Tab 4: 评分报告 ─────────────────────────────
-    tabPanel("评分报告",
+    tabPanel("评分报告 / Report",
       fluidRow(
         column(12, uiOutput("report_ui"))
       )
@@ -171,25 +184,31 @@ server <- function(input, output, session) {
     discontinue_triggered = FALSE
   )
 
-  # ── 历史评估列表（带错误处理）─────────────────────────
-  output$assessments_table_ui <- renderUI({
-    req(source("global.R", local = TRUE))
+  # ── 历史评估列表（renderDataTable 模式 — server=TRUE 启用 rows_selected）──
+  output$assessments_table <- renderDataTable({
     df <- tryCatch({
       list_assessments() %>%
         mutate(age_str = glue("{age_years}y {age_months}m"),
                date = as.character(assessment_date)) %>%
         select(姓名=patient_name, 评估日期=date, 年龄=age_str, 状态=status)
     }, error = function(e) {
-      NULL
+      data.frame(姓名=character(), 评估日期=character(), 年龄=character(), 状态=character())
     })
-    if (is.null(df) || nrow(df) == 0) {
-      return(p("暂无历史评估记录", style = "color:#888; padding:20px;"))
+    if (nrow(df) == 0) {
+      return(df)
     }
+    DT::datatable(df, selection = "single",
+                  options = list(pageLength = 10,
+                    language = list(emptyTable = "暂无历史评估记录")),
+                  rownames = FALSE)
+  }, server = FALSE)
+
+  # 加载按钮（独立 output，选中行后才显示）
+  output$load_btn_ui <- renderUI({
+    req(!is.null(input$assessments_table_rows_selected))
     tagList(
-      datatable(df, selection = "single", options = list(pageLength = 10,
-                language = list(emptyTable = "暂无数据"))),
-      p("", style = "margin-top:10px;"),
-      actionButton("btn_load_assessment", "加载选中评估",
+      hr(),
+      actionButton("btn_load_assessment", "加载选中评估 / Load Selected",
                    class = "btn-primary",
                    style = sprintf("background:%s;", celf5_blue))
     )
@@ -198,6 +217,18 @@ server <- function(input, output, session) {
   # ── 开始新评估 ─────────────────────────────────────────
   observeEvent(input$btn_start, {
     req(input$patient_name, input$dob, input$assessment_date)
+
+    dob_str <- as.character(input$dob)
+    assess_str <- as.character(input$assessment_date)
+
+    if (dob_str == "" || is.na(input$dob) || is.null(input$dob)) {
+      showNotification("请填写有效的出生日期 / Please enter a valid date of birth",
+                        type = "error"); return()
+    }
+    if (assess_str == "" || is.na(input$assessment_date) || is.null(input$assessment_date)) {
+      showNotification("请填写有效的评估日期 / Please enter a valid assessment date",
+                        type = "error"); return()
+    }
 
     age <- calculate_age(input$dob, input$assessment_date)
     age_group <- get_age_group(age)
@@ -227,8 +258,12 @@ server <- function(input, output, session) {
     rv$discontinue_triggered <- FALSE
     rv$responses <- tibble(subtest=character(), item_number=integer(),
                           response_text=character(), score=integer())
-
-    updateTabsetPanel(session, "main_tabs", selected = "评估进度")
+    # Auto-select first subtest to avoid NULL current_subtest on question tab
+    first_test <- rv$test_list[1]
+    rv$current_subtest <- first_test
+    rv$current_item <- 1L
+    rv$start_point <- get_start_point(first_test, age_group)
+    updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")
   })
 
   # ── 加载已有评估 ───────────────────────────────────────
@@ -254,6 +289,13 @@ server <- function(input, output, session) {
     rv$age <- calculate_age(rv$dob, rv$assessment_date)
     rv$age_group <- full$assessment$age_group
     rv$test_list <- get_test_composition(rv$age_group)
+    rv$completed_subtests <- character(0)
+    rv$discontinue_triggered <- FALSE
+    # Initialize current_subtest to avoid NULL on question tab
+    first_test <- rv$test_list[1]
+    rv$current_subtest <- first_test
+    rv$current_item <- 1L
+    rv$start_point <- get_start_point(first_test, rv$age_group)
 
     if (nrow(full$responses) > 0) {
       rv$responses <- full$responses %>%
@@ -263,7 +305,7 @@ server <- function(input, output, session) {
                score = as.integer(score))
     }
 
-    updateTabsetPanel(session, "main_tabs", selected = "评估进度")
+    updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")
   })
 
   # ── Header 信息 ─────────────────────────────────────────
@@ -303,7 +345,7 @@ server <- function(input, output, session) {
     opts <- setNames(rv$test_list, map(rv$test_list, ~{
       SUBTEST_DEFS %>% filter(subtest==.) %>% pull(full_name) %>% .[[1]]
     }))
-    selectInput("selected_subtest", "选择测试", choices = opts, selectize=FALSE)
+    selectInput("selected_subtest", "选择测试 / Select Subtest", choices = opts, selectize=FALSE)
   })
 
   observeEvent(input$selected_subtest, {
@@ -320,7 +362,9 @@ server <- function(input, output, session) {
   })
 
   get_max_item <- function(subtest) {
-    SUBTEST_DEFS %>% filter(subtest==!!subtest) %>% pull(max_items) %>% .[[1]]
+    row <- SUBTEST_DEFS %>% filter(subtest==!!subtest)
+    if (nrow(row) == 0) return(1L)
+    row %>% pull(max_items) %>% .[[1]]
   }
 
   # ── 题目 UI ─────────────────────────────────────────────
@@ -334,12 +378,12 @@ server <- function(input, output, session) {
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
-                 h3("⏹ Discontinue：连续4题0分，该测试结束")))
+                 h3("⏹ Discontinue: 连续4题0分，该测试结束 / 4 consecutive 0s — subtest ended")))
     }
 
     if (item_n > max_item) {
       return(div(class="alert alert-success", style="margin-top:20px",
-                 h3(glue("✓ {t} 完成（共 {max_item} 题）"))))
+                 h3(glue("✓ {t} 完成（共 {max_item} 题）/ Complete ({max_item} items)"))))
     }
 
     # Reversal 检查
@@ -364,8 +408,8 @@ server <- function(input, output, session) {
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
 
     tagList(
-      h3(glue("{box_title} — 第 {item_n} / {max_item} 题")),
-      if (item_n == sp) div(class="alert alert-info", "★ 起始点题号"),
+      h3(glue("{box_title} — 第 {item_n} / {max_item} 题 / Item {item_n} of {max_item}")),
+      if (item_n == sp) div(class="alert alert-info", "★ 起始点题号 / Start Point Item"),
       hr(),
       uiOutput("score_input_ui")
     )
@@ -413,14 +457,17 @@ server <- function(input, output, session) {
   output$subtest_progress_text <- renderText({
     req(rv$current_subtest)
     sub_r <- rv$responses %>% filter(subtest==!!rv$current_subtest) %>% arrange(item_number)
-    if (nrow(sub_r)==0) return("暂无")
+    if (nrow(sub_r)==0) return("暂无 / None")
     paste(tail(sub_r$score, 20), collapse=" ")
   })
 
   # ── 按钮交互（移到 tab 3 外部，点击事件始终有效）──────────
 
   observeEvent(input$btn_save_score, {
-    req(rv$current_subtest, rv$assessment_id, input$input_score)
+    req(rv$current_subtest, rv$assessment_id)
+    if (is.null(input$input_score) || is.na(input$input_score)) {
+      showNotification("请先打分 / Please score first", type = "warning"); return()
+    }
     t <- rv$current_subtest
     i_n <- rv$current_item
     sv <- input$input_score
@@ -432,7 +479,7 @@ server <- function(input, output, session) {
               score=as.integer(sv))
     save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
     check_discontinue(t)
-    showNotification(glue("已保存: {t} 第{i_n}题 = {sv}分"), type="message")
+    showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
   })
 
   observeEvent(input$btn_prev, {
@@ -440,12 +487,13 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$btn_next, {
+    req(rv$current_subtest, rv$assessment_id)
     t <- rv$current_subtest
     i_n <- rv$current_item
     max_i <- get_max_item(t)
 
-    if (is.na(input$input_score)) {
-      showNotification("请先打分", type="warning"); return()
+    if (is.null(input$input_score) || is.na(input$input_score)) {
+      showNotification("请先打分 / Please score first", type = "warning"); return()
     }
 
     sv <- input$input_score
