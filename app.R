@@ -3,6 +3,7 @@
 # 评估人员自带 Stimulus Books，本 app 仅录入分数、自动计算
 
 library(shiny)
+library(bslib)
 library(dplyr)
 library(tidyr)
 library(purrr)
@@ -586,9 +587,6 @@ server <- function(input, output, session) {
     i_n <- rv$current_item
     sp <- rv$start_point
 
-    # Trial items have no score input — skip silently
-    if (i_n < sp) { showNotification("引导题无需保存 / Trial item — not saved", type="message"); return() }
-
     captured_score <- input$input_score
     captured_resp  <- if (is.null(input$response_text) || is.na(input$response_text)) "" else input$response_text
 
@@ -887,7 +885,9 @@ server <- function(input, output, session) {
           div(class = paste0("card-header ", bg), strong(icon, " ", label)),
           div(class = "card-body text-center",
             h4(val_disp),
-            p(if (is.na(val) || is.null(val)) "未填写" else if (val >= 3.5) "⚠ 需关注" else if (val >= 3.0) "轻微关注" else "正常",
+            p(if (!is.na(val) && !is.null(val) && val >= 3.5) "⚠ 需关注"
+              else if (!is.na(val) && !is.null(val) && val >= 3.0) "轻微关注"
+              else "正常",
               class = "small")
           )
         )
@@ -1005,6 +1005,14 @@ server <- function(input, output, session) {
         div(class = "card-body",
           p(strong("原始分 Raw Score: "), as.character(if (is.null(raw) || is.na(raw)) "—" else raw)),
           p(strong("量表分 Scaled Score (M=10, SD=3): "), score_lbl),
+          {
+            ae  <- get_age_equiv(st, raw, ag)
+            gsv_val <- get_gsv(st, raw, ag)
+            tagList(
+              p(strong("语言年龄 Age Equivalent: "), if (is.na(ae)) "—" else ae),
+              p(strong("成长量表值 GSV: "), if (is.na(gsv_val)) "—" else as.character(gsv_val))
+            )
+          },
           hr(),
           p(strong("评估说明 Assessment: ")),
           p(interpretation$zh),
@@ -1195,7 +1203,7 @@ server <- function(input, output, session) {
       h3("基本信息 / Student Information"),
       fluidRow(
         column(6, p(strong("姓名 Name: "), full$assessment$patient_name)),
-        column(6, p(strong("性别 Sex: "), if (full$assessment$gender == "F") "女 / Female" else "男 / Male"))
+        column(6, p(strong("性别 Sex: "), if (is.na(full$assessment$gender) || full$assessment$gender == "F") "女 / Female" else "男 / Male"))
       ),
       fluidRow(
         column(6, p(strong("年龄 Age: "), glue("{full$assessment$age_years}y {full$assessment$age_months}m ({ag})"))),
@@ -1395,6 +1403,7 @@ server <- function(input, output, session) {
       showNotification("Generating PDF report...", type = "message", duration = 3)
 
       tryCatch({
+        Sys.setenv(PATH = paste("/home/yzhang/.TinyTeX/bin/x86_64-linux", Sys.getenv("PATH"), sep = ":"))
         rmarkdown::render(
           input = "report_celf5_en.Rmd",
           output_format = "pdf_document",
