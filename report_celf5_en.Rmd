@@ -28,6 +28,9 @@ library(flextable)
 library(officedown)
 library(tibble)
 
+# Load scoring helpers from global.R
+source("/home/yzhang/clawfiles/celf5_shiny/global.R", local = TRUE)
+
 # Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
 fmt_pct <- function(p) {
   if (is.null(p) && length(p) == 1) return("—")
@@ -70,10 +73,14 @@ df_ss <- if (is.data.frame(ss) && nrow(ss) > 0) {
         scaled_score >= 7               ~ "Performance slightly below expected range; mild difficulty possible; monitoring recommended.",
         scaled_score >= 5               ~ "Performance below expected range; language disorder likely; further assessment warranted.",
         TRUE                            ~ "Performance significantly below expected range; language disorder strongly indicated; immediate intervention recommended."
-      )
+      ),
+      `Age Equiv` = ifelse(is.na(raw_score), "—",
+        { ae <- get_age_equiv(subtest, raw_score, ag); ifelse(is.na(ae), "—", ae) }),
+      GSV = ifelse(is.na(raw_score), "—",
+        { g <- get_gsv(subtest, raw_score, ag); ifelse(is.na(g), "—", as.character(g)) })
     )
 } else {
-  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range = character(), Interpretation = character())
+  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range = character(), Interpretation = character(), `Age Equiv` = character(), GSV = character())
 }
 
 # Build composite table
@@ -122,10 +129,10 @@ df_info <- tibble(
   `Item` = c("Name", "Sex", "Age", "Grade / Year", "Examiner", "Assessment Date", "Age Group"),
   `Information` = c(
     params$student_name,
-    if (params$student_sex == "F") "Female" else "Male",
+    if (is.na(params$student_sex) || params$student_sex == "") "—" else if (params$student_sex == "F") "Female" else "Male",
     sprintf("%d years %d months", params$age_years, params$age_months),
     "—",
-    params$examiner_name %||% "—",
+    if (is.null(params$examiner_name) || is.na(params$examiner_name)) "—" else params$examiner_name,
     params$assessment_date,
     params$age_group
   )
@@ -150,7 +157,8 @@ flextable(df_info) |> autofit() |> bold(part = "header")
 ```{r subtest-table, echo=FALSE, results="asis"}
 if (nrow(df_ss) > 0) {
   ft <- flextable(df_ss %>% select(`Subtest` = subtest, `Raw Score` = raw_score,
-                                   `Scaled Score` = scaled_score, Range, Interpretation))
+                                   `Scaled Score` = scaled_score,
+                                   `Age Equiv` = `Age Equiv`, GSV, Range, Interpretation))
   ft <- autofit(ft)
   ft <- bold(ft, part = "header")
   ft

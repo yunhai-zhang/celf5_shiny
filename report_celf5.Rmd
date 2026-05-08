@@ -89,6 +89,18 @@ df_ss <- data.frame(
   Subtest = names(ss),
   `Raw Score` = sapply(ss, function(x) ifelse(is.na(x$raw), "—", as.character(x$raw))),
   `Scaled Score` = sapply(ss, function(x) ifelse(is.na(x$scaled), "—", as.character(x$scaled))),
+  `Age Equiv` = sapply(names(ss), function(sn) {
+    raw <- ss[[sn]]$raw
+    if (is.na(raw)) return("—")
+    ae <- get_age_equiv(sn, raw)
+    if (is.na(ae)) return("—") else ae
+  }),
+  GSV = sapply(names(ss), function(sn) {
+    raw <- ss[[sn]]$raw
+    if (is.na(raw)) return("—")
+    g <- get_gsv(sn, raw)
+    if (is.na(g)) return("—") else as.character(g)
+  }),
   Range = sapply(ss, function(x) {
     if (is.na(x$scaled)) return("—")
     sc <- x$scaled

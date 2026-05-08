@@ -195,7 +195,9 @@ server <- function(input, output, session) {
     responses = tibble(subtest=character(), item_number=integer(),
                        response_text=character(), score=integer()),
     completed_subtests = character(0),
-    discontinue_triggered = FALSE
+    discontinue_triggered = FALSE,
+    reversal_triggered = FALSE,
+    reversal_item = 0L
   )
 
   # ── 历史评估列表（renderDataTable 模式 — server=TRUE 启用 rows_selected）──
@@ -282,6 +284,8 @@ server <- function(input, output, session) {
     rv$test_list <- get_test_composition(age_group)
     rv$completed_subtests <- character(0)
     rv$discontinue_triggered <- FALSE
+    rv$reversal_triggered <- FALSE
+    rv$reversal_item <- 0L
     rv$responses <- tibble(subtest=character(), item_number=integer(),
                           response_text=character(), score=integer())
     # Auto-select first subtest to avoid NULL current_subtest on question tab
@@ -317,6 +321,8 @@ server <- function(input, output, session) {
     rv$test_list <- get_test_composition(rv$age_group)
     rv$completed_subtests <- character(0)
     rv$discontinue_triggered <- FALSE
+    rv$reversal_triggered <- FALSE
+    rv$reversal_item <- 0L
     # Initialize current_subtest to avoid NULL on question tab
     first_test <- rv$test_list[1]
     rv$current_subtest <- first_test
@@ -433,6 +439,8 @@ server <- function(input, output, session) {
     rv$current_item <- next_item
     rv$start_point <- sp
     rv$discontinue_triggered <- FALSE
+    rv$reversal_triggered <- FALSE
+    rv$reversal_item <- 0L
   })
 
   # ── Subtest 选择 ─────────────────────────────────────────
@@ -456,6 +464,8 @@ server <- function(input, output, session) {
     rv$current_item <- next_item
     rv$start_point <- sp
     rv$discontinue_triggered <- FALSE
+    rv$reversal_triggered <- FALSE
+    rv$reversal_item <- 0L
   })
 
   # ── 题目 UI ─────────────────────────────────────────────
@@ -477,25 +487,8 @@ server <- function(input, output, session) {
                  h3(glue("✓ {t} 完成（共 {max_item} 题）/ Complete ({max_item} items)"))))
     }
 
-    # Reversal 检查
-    sub_resp <- rv$responses %>% filter(subtest==t)
-    items_before <- (sp:(item_n-1)) %>% .[.>=1]
-    if (length(items_before) >= 2) {
-      last_two <- tail(items_before, 2)
-      scores_b <- sub_resp %>% filter(item_number %in% last_two) %>%
-        arrange(item_number) %>% pull(score)
-      if (length(scores_b)==2 && all(scores_b==max_score_for_subtest(t))) {
-      items_before %>%
-        iwalk(function(.x, .y) {
-          if (!any(rv$responses$subtest==t & rv$responses$item_number==.x)) {
-            rv$responses <- rv$responses %>% add_row(
-              subtest=t, item_number=.x, response_text="Reversal满分",
-              score=max_score_for_subtest(t))
-          }
-        }) %>% invisible()
-        showNotification(glue("Reversal 触发！{sp}-{item_n-1}题记满分"), type="message")
-      }
-    }
+    # Reversal 逻辑已移至 check_reversal() (btn_save_score 触发)
+    # 此处仅做完成检查
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
     qi <- get_question_info(t, item_n, rv$age_group)
@@ -531,24 +524,18 @@ server <- function(input, output, session) {
     )
   })
 
-  # Manual Chapter 3 评分类型（全部核实自原文）：
-  # FD/SA/SR/RC/SW: 1分制（1=正确, 0=错误）
-  # FS/WD/USP: 2分制（2=正确, 1=部分, 0=错误）
-  # RS: 3分制（3=0错误, 2=1错误, 1=2-3错误, 0=4+错误）
-  max_score_for_subtest <- function(t) {
-    case_when(t %in% c("SC","LC","WS","WC","FD","SA","SR","RC","SW") ~ 1L,
-              t %in% c("FS","WD","USP") ~ 2L,
-              t == "RS" ~ 3L,
-              TRUE ~ 1L)
-  }
-
   # ── 评分输入 UI ─────────────────────────────────────────
   output$score_input_ui <- renderUI({
-    req(rv$current_subtest, rv$current_item)
+    req(rv$current_subtest, rv$current_item, rv$assessment_id)
     t <- rv$current_subtest
-    cur_resp <- rv$responses %>% filter(subtest==!!t, item_number==!!rv$current_item)
+    i_n <- rv$current_item
+    cur_resp <- rv$responses %>% filter(subtest==!!t, item_number==!!i_n)
     cur_score <- if (nrow(cur_resp)>0) cur_resp$score[1] else NA_integer_
-    max_s <- max_score_for_subtest(t)
+
+    # Get actual max_score from DB for this specific item
+    q_info <- get_question_info(t, i_n, rv$age_group)
+    max_s <- as.integer(q_info$max_score[1])
+    if (is.na(max_s) || max_s < 1) max_s <- 1L
 
     if (t == "RS") {
       # UI shows error count; stored score is scaled (3=0err, 2=1err, 1=2-3err, 0=4+err)
@@ -563,12 +550,24 @@ server <- function(input, output, session) {
                      choices=c("1分（正确）"=1L, "0分（错误）"=0L),
                      selected=cur_score)
       )
-    } else {
-      opts <- setNames(as.character(2:0), c("2分", "1分", "0分"))
+    } else if (max_s == 2L) {
+      opts <- setNames(as.character(2:0), c("2分（完全正确）", "1分（部分正确）", "0分（错误）"))
       tagList(
         radioButtons("input_score", "得分",
-                     choices=list("2分"=2L, "1分"=1L, "0分"=0L),
+                     choices=list("2分（完全正确）"=2L, "1分（部分正确）"=1L, "0分（错误）"=0L),
                      selected=cur_score)
+      )
+    } else {
+      # max_s >= 3 (e.g. PP has max_score=4)
+      choice_vec <- setNames(as.integer(max_s:0), sapply(as.integer(max_s:0), function(s) {
+        if (s == 0) "0分（错误）"
+        else if (s == max_s) paste0(max_s, "分（完全正确）")
+        else paste0(s, "分")
+      }))
+      tagList(
+        radioButtons("input_score", "得分",
+                     choices = choice_vec,
+                     selected = cur_score)
       )
     }
   })
@@ -591,7 +590,7 @@ server <- function(input, output, session) {
     if (i_n < sp) { showNotification("引导题无需保存 / Trial item — not saved", type="message"); return() }
 
     captured_score <- input$input_score
-    captured_resp  <- input$response_text %||% ""
+    captured_resp  <- if (is.null(input$response_text) || is.na(input$response_text)) "" else input$response_text
 
     if (is.null(captured_score) || is.na(captured_score)) {
       showNotification("请先打分 / Please score first", type = "warning"); return()
@@ -605,6 +604,7 @@ server <- function(input, output, session) {
               score=as.integer(sv))
     save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
     check_discontinue(t)
+    check_reversal(t)
     showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
 
     # ── 导航：保存后自动前进到下一题 ───────────────────────────
@@ -623,7 +623,10 @@ server <- function(input, output, session) {
       } else {
         updateRadioButtons(session, "input_score", selected = NA_integer_)
       }
-      rv$current_item <- i_n + 1L
+      # Reversal 已由 check_reversal 设置了跳转目标题号，不再自动+1
+      if (!rv$reversal_triggered) {
+        rv$current_item <- i_n + 1L
+      }
     }
   })
 
@@ -664,6 +667,81 @@ server <- function(input, output, session) {
                        type="warning", duration=10)
     }
   }
+
+  # ── Reversal 检查（Manual Chapter 3 — WC/FS/WD/SA/SC）────────────
+  # 逻辑：连续2个满分（从 start_point 算起）→ 触发 reversal
+  # → backfill start_point 之前所有题为 1 分（满分）
+  # → 跳到 start_point + 8（或 max_item，取较小者）继续
+  check_reversal <- function(subtest) {
+    t <- subtest
+    sp <- rv$start_point
+    max_i <- get_max_item(t, rv$age_group)
+
+    # 只对有 reversal 规则的 subtest 检查
+    reversal_subs <- c("WC", "FS", "WD", "SA", "SC", "LC")
+    if (!(t %in% reversal_subs)) return()
+
+    sub_r <- rv$responses %>% filter(subtest==!!t) %>% arrange(item_number)
+    if (nrow(sub_r) < 2) return()
+
+    # 找从 start_point 开始的最后连续满分段
+    from_sp <- sub_r %>% filter(item_number >= sp)
+    if (nrow(from_sp) < 2) return()
+
+    # 从后往前扫：连续2个满分？
+    scores <- from_sp$score
+    n <- nrow(from_sp)
+    consec <- 0
+    consec_start <- n + 1
+    for (i in n:1) {
+      max_score_t <- max_score_for_subtest(t)
+      if (from_sp$score[i] == max_score_t) {
+        consec <- consec + 1
+        consec_start <- i
+        if (consec >= 2) break
+      } else {
+        consec <- 0
+        consec_start <- n + 1
+      }
+    }
+
+    if (consec < 2) return()  # 没触发 reversal
+
+    # 触发 reversal！记录触发位置
+    first_reversal_item <- from_sp$item_number[consec_start]
+    rv$reversal_triggered <- TRUE
+    rv$reversal_item <- first_reversal_item
+
+    # Backfill：start_point 之前未作答的题 → 补 1 分（满分）
+    already_done <- sub_r$item_number
+    to_backfill <- setdiff(seq(1, sp - 1), already_done)
+
+    for (i_n in to_backfill) {
+      # 写入 rv$responses（如果不存在）
+      if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
+        rv$responses <- rv$responses %>% add_row(
+          subtest = t, item_number = i_n,
+          response_text = "(backfill)", score = 1L
+        )
+        # 写入 DB
+        save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
+      }
+    }
+
+    # 跳到 start_point + 8（或 max_item）
+    jump_to <- min(sp + 8L, max_i)
+    rv$current_item <- jump_to
+
+    max_score_t <- max_score_for_subtest(t)
+    showNotification(glue("↩ Reversal 触发！{t} 连续满分 → 补 {length(to_backfill)} 题(1分) → 跳转第{jump_to}题"),
+                     type="warning", duration=15)
+  }
+
+  # ── 施测开始 / 切换 subtest 时重置 reversal 状态 ─────────────
+  observeEvent(rv$current_subtest, {
+    rv$reversal_triggered <- FALSE
+    rv$reversal_item <- 0L
+  }, ignoreInit = TRUE)
 
   # ── ORS: Observational Rating Scale ────────────────────────
   output$ors_ui <- renderUI({
@@ -755,7 +833,7 @@ server <- function(input, output, session) {
           column(3, div(style = "text-align: center;",
             radioButtons(radioId, label = NULL,
               choices = c("1" = "1", "2" = "2", "3" = "3", "4" = "4"),
-              selected = cur_val %||% character(0),
+              selected = if (is.null(cur_val) || is.na(cur_val)) character(0) else cur_val,
               inline = TRUE,
               width = "120px")
           )),
@@ -921,11 +999,11 @@ server <- function(input, output, session) {
 
       div(class = "card mb-3",
         div(class = "card-header d-flex justify-content-between align-items-center",
-          strong(subtest_names[[st]] %||% st),
+          strong(if (is.null(subtest_names[[st]])) st else subtest_names[[st]]),
           span(class = paste0("badge ", rng), score_lbl)
         ),
         div(class = "card-body",
-          p(strong("原始分 Raw Score: "), as.character(raw %||% "—")),
+          p(strong("原始分 Raw Score: "), as.character(if (is.null(raw) || is.na(raw)) "—" else raw)),
           p(strong("量表分 Scaled Score (M=10, SD=3): "), score_lbl),
           hr(),
           p(strong("评估说明 Assessment: ")),
@@ -1064,7 +1142,7 @@ server <- function(input, output, session) {
 
       div(class = "card mb-3",
         div(class = "card-header d-flex justify-content-between align-items-center",
-          strong(comp_names[[comp]] %||% comp),
+          strong(if (is.null(comp_names[[comp]])) comp else comp_names[[comp]]),
           span(class = paste0("badge ", rng_css),
                if (is.na(std)) "—" else paste0(std, " (", pct_disp, "%)"))
         ),
@@ -1124,7 +1202,7 @@ server <- function(input, output, session) {
         column(6, p(strong("评估日期 Date: "), full$assessment$assessment_date))
       ),
       fluidRow(
-        column(6, p(strong("评估师 Examiner: "), full$assessment$examiner %||% "—")),
+        column(6, p(strong("评估师 Examiner: "), if (is.null(full$assessment$examiner) || is.na(full$assessment$examiner)) "—" else full$assessment$examiner)),
         column(6, p(strong("评估编号 ID: "), rv$assessment_id))
       ),
       hr(),
@@ -1205,12 +1283,11 @@ server <- function(input, output, session) {
             age_days         = full$assessment$age_days,
             age_group        = ag,
             assessment_date  = as.character(full$assessment$assessment_date),
-            examiner_name    = full$assessment$examiner %||% NA,
+            examiner_name    = if (is.null(full$assessment$examiner) || is.na(full$assessment$examiner)) NA else full$assessment$examiner,
             scaled_scores    = scaled_df,
             indices          = idx_list,
-            raw_scores       = raw_list,
-            overall_en        = isolate(rv$overall_en %||% "No assessment data available."),
-            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+            overall_en        = isolate(if (is.null(rv$overall_en) || is.na(rv$overall_en)) "No assessment data available." else rv$overall_en),
+            overall_zh       = isolate(if (is.null(rv$overall_zh) || is.na(rv$overall_zh)) "无评估数据。" else rv$overall_zh)
           ),
           envir = new.env(parent = globalenv()),
           quiet = TRUE
@@ -1268,12 +1345,11 @@ server <- function(input, output, session) {
             age_days         = full$assessment$age_days,
             age_group        = ag,
             assessment_date  = as.character(full$assessment$assessment_date),
-            examiner_name    = full$assessment$examiner %||% NA,
+            examiner_name    = if (is.null(full$assessment$examiner) || is.na(full$assessment$examiner)) NA else full$assessment$examiner,
             scaled_scores    = scaled_df,
             indices          = idx_list,
-            raw_scores       = raw_list,
-            overall_en       = isolate(rv$overall_en %||% "No assessment data available."),
-            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+            overall_en        = isolate(if (is.null(rv$overall_en) || is.na(rv$overall_en)) "No assessment data available." else rv$overall_en),
+            overall_zh       = isolate(if (is.null(rv$overall_zh) || is.na(rv$overall_zh)) "无评估数据。" else rv$overall_zh)
           ),
           envir = new.env(parent = globalenv()),
           quiet = TRUE
@@ -1332,12 +1408,11 @@ server <- function(input, output, session) {
             age_days         = full$assessment$age_days,
             age_group        = ag,
             assessment_date  = as.character(full$assessment$assessment_date),
-            examiner_name    = full$assessment$examiner %||% NA,
+            examiner_name    = if (is.null(full$assessment$examiner) || is.na(full$assessment$examiner)) NA else full$assessment$examiner,
             scaled_scores    = scaled_df,
             indices          = idx_list,
-            raw_scores       = raw_list,
-            overall_en       = isolate(rv$overall_en %||% "No assessment data available."),
-            overall_zh       = isolate(rv$overall_zh %||% "无评估数据。")
+            overall_en        = isolate(if (is.null(rv$overall_en) || is.na(rv$overall_en)) "No assessment data available." else rv$overall_en),
+            overall_zh       = isolate(if (is.null(rv$overall_zh) || is.na(rv$overall_zh)) "无评估数据。" else rv$overall_zh)
           ),
           envir = new.env(parent = globalenv()),
           quiet = TRUE

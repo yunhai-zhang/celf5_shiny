@@ -28,6 +28,9 @@ library(flextable)
 library(officedown)
 library(tibble)
 
+# Load scoring helpers from global.R
+source("/home/yzhang/clawfiles/celf5_shiny/global.R", local = TRUE)
+
 # Safe percentile formatter — handles "<0.1" / ">99.9" strings from COMPOSITE_TABLE
 fmt_pct <- function(p) {
   if (is.null(p) && length(p) == 1) return("—")
@@ -70,10 +73,14 @@ df_ss <- if (is.data.frame(ss) && nrow(ss) > 0) {
         scaled_score >= 7               ~ "表现略低于预期范围，该技能领域可能存在轻度困难，建议持续监测或跟进。",
         scaled_score >= 5               ~ "表现低于同龄预期水平，提示存在语言障碍，需要进一步评估和干预。",
         TRUE                            ~ "表现显著低于预期水平，强烈提示存在语言障碍，需要立即进行干预。"
-      )
+      ),
+      `年龄等值` = ifelse(is.na(raw_score), "—",
+        { ae <- get_age_equiv(subtest, raw_score, ag); ifelse(is.na(ae), "—", ae) }),
+      GSV = ifelse(is.na(raw_score), "—",
+        { g <- get_gsv(subtest, raw_score, ag); ifelse(is.na(g), "—", as.character(g)) })
     )
 } else {
-  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range_CN = character(), Interpretation_CN = character())
+  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range_CN = character(), Interpretation_CN = character(), `年龄等值` = character(), GSV = character())
 }
 
 # 复合分数表
@@ -123,9 +130,9 @@ df_info <- tibble(
   `项目` = c("姓名 Name", "性别 Sex", "年龄 Age", "评估师 Examiner", "评估日期 Date", "年龄组 Age Group"),
   `信息` = c(
     params$student_name,
-    if (params$student_sex == "F") "女 Female" else "男 Male",
+    if (is.na(params$student_sex) || params$student_sex == "") "—" else if (params$student_sex == "F") "女 Female" else "男 Male",
     sprintf("%d岁 %d个月", params$age_years, params$age_months),
-    params$examiner_name %||% "—",
+    if (is.null(params$examiner_name) || is.na(params$examiner_name)) "—" else params$examiner_name,
     params$assessment_date,
     params$age_group
   )
@@ -162,13 +169,13 @@ subtest_names_cn <- c(
 if (nrow(df_ss) > 0) {
   df_ss_disp <- df_ss %>%
     mutate(
-      `子测试` = sapply(subtest, function(x) subtest_names_cn[[x]] %||% x),
+      `子测试` = sapply(subtest, function(x) if (is.null(subtest_names_cn[[x]])) x else subtest_names_cn[[x]]),
       `原始分` = raw_score,
       `量表分` = scaled_score,
       `范围` = Range_CN,
       `评估说明` = Interpretation_CN
     ) %>%
-    select(`子测试`=`子测试`, `缩写`=subtest, `原始分`, `量表分`, `范围`, `评估说明`)
+    select(`子测试`=`子测试`, `缩写`=subtest, `原始分`, `量表分`, `年龄等值`, GSV, `范围`, `评估说明`)
   ft <- flextable(df_ss_disp)
   ft <- autofit(ft)
   ft <- bold(ft, part = "header")
