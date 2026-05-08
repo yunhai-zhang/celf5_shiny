@@ -7,6 +7,7 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 library(lubridate)
+library(stringr)
 library(RSQLite)
 library(glue)
 
@@ -205,14 +206,14 @@ SUBTEST_DEFS <- tibble(
 # trial/demo items 不入库（不记分），start point 是施测起点，入库题目都是正式题
 SUBTEST_START_POINTS <- list(
   # Word Classes: MD lines 144-147
-  # Ages 9-10 → item 1; Ages 11-14 → item 13; Ages 15-21 → item 20
-  WC  = setNames(list(1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,13L,13L,13L,20L,20L),
+  # Ages 9-10 → Item 1; Ages 11-14 → Item 13; Ages 15-21 → Item 20 (MD: Word Classes)
+  WC  = setNames(list(1L,1L,1L,1L,1L,1L,1L,1L,13L,13L,13L,13L,20L,20L,20L),
                  c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11",
                    "9:0-9:11","10:0-10:11","11:0-11:11","12:0-12:11","13:0-13:11",
                    "14:0-14:11","15:0-15:11","16:0-16:11","17:0-21:11")),
 
-  # Following Directions: 无 start point，全部从 Item 1
-  FD  = setNames(list(1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,1L,1L),
+  # Following Directions: MD — Ages 5-8→Item1, Ages 9-11→Item 6, Ages 12-14→Item 10, Ages 15-21→Item 14
+  FD  = setNames(list(1L,1L,1L,1L,1L,1L,6L,6L,6L,10L,10L,10L,14L,14L,14L),
                  c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11",
                    "9:0-9:11","10:0-10:11","11:0-11:11","12:0-12:11","13:0-13:11",
                    "14:0-14:11","15:0-15:11","16:0-16:11","17:0-21:11")),
@@ -299,6 +300,21 @@ get_start_point <- function(subtest, age_group) {
 get_discontinue_rule <- function(subtest) {
   SUBTEST_DEFS %>% filter(subtest == !!subtest) %>%
     pull(discontinue_rule) %>% magrittr::extract2(1)
+}
+
+# ─────────────────────────────────────────────────────────────
+# max_score_for_subtest — 各 subtest 最高分（reversal 检测用）
+# ─────────────────────────────────────────────────────────────
+max_score_for_subtest <- function(subtest) {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+  # 先按 age_group 查，最大题目数覆盖所有 age_group
+  sql <- "SELECT MAX(max_score) FROM questions WHERE subtest = ? LIMIT 1"
+  q <- dbGetQuery(con, sql, params = list(subtest))
+  if (nrow(q) > 0 && !is.na(q$`MAX(max_score)`)) {
+    return(as.integer(q$`MAX(max_score)`[1]))
+  }
+  1L  # fallback
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -531,7 +547,7 @@ get_composite_score <- function(scaled_df, composite, age_group) {
     composite     = composite,
     sum_scaled    = sum_ss,
     standard_score = as.integer(entry$standard_score[1]),
-    percentile    = as.character(entry$percentile[1])
+    percentile    = as.character(entry$percentile[1])  # always character; NA→"NA"
   )
 }
 
@@ -585,12 +601,12 @@ calculate_index_scores <- function(scaled_df, age_group) {
       get_composite_score(scaled_df, comp, age_group),
       error = function(e) tibble(
         composite = comp, sum_scaled = NA_integer_,
-        standard_score = NA_integer_, percentile = NA_real_)
+        standard_score = NA_integer_, percentile = as.character(NA))
     )
     if (nrow(result) == 0 || is.na(result$standard_score[1])) {
       result <- tibble(
         composite = comp, sum_scaled = NA_integer_,
-        standard_score = NA_integer_, percentile = NA_real_)
+        standard_score = NA_integer_, percentile = as.character(NA))
     }
     result
   })
@@ -661,13 +677,18 @@ save_response <- function(assessment_id, subtest, item_number, response_text = N
                           organization = NULL, mechanics = NULL) {
   con <- get_con()
   on.exit(dbDisconnect(con))
+  # NULL → NA_integer_ (dbExecute 不接受 NULL 参数)
+  sc <- if (is.null(structure_complete)) NA_integer_ else structure_complete
+  gr <- if (is.null(grammar)) NA_integer_ else grammar
+  og <- if (is.null(organization)) NA_integer_ else organization
+  mc <- if (is.null(mechanics)) NA_integer_ else mechanics
   dbExecute(con,
     "INSERT OR REPLACE INTO responses
      (assessment_id,subtest,item_number,response_text,score,
       structure_complete,grammar,organization,mechanics)
      VALUES (?,?,?,?,?,?,?,?,?)",
     params = list(assessment_id, subtest, item_number, response_text, score,
-                  structure_complete, grammar, organization, mechanics))
+                  sc, gr, og, mc))
 }
 
 save_subtest_scores <- function(assessment_id, scores_df) {
@@ -1259,4 +1280,349 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   coalesce(as.numeric(gsv_tbl[as.character(raw_score)]), NA_real_)
 }
 
+# ─────────────────────────────────────────────────────────────
+# 9. AI 临床评估报告生成（MiniMax M2.7）
+# ─────────────────────────────────────────────────────────────
+.read_minimax_key <- function() {
+  key <- Sys.getenv("MINIMAX_CN_API_KEY")
+  if (nzchar(key)) return(key)
+  # Fallback: read from .env file directly
+  env_lines <- readLines(file.path(Sys.getenv("HOME"), ".hermes", ".env"), warn = FALSE)
+  pat <- regexpr("MINIMAX_CN_API_KEY=(.+)", env_lines, value = TRUE)
+  regmatches(env_lines, pat)[1]
+}
+
+.call_minimax <- function(prompt, max_tokens = 800L) {
+  readRenviron(file.path(Sys.getenv("HOME"), ".hermes", ".env"))
+  key <- .read_minimax_key()
+  if (!nzchar(key)) stop("MINIMAX_CN_API_KEY not found")
+
+  library(httr)
+  library(jsonlite)
+
+  body <- toJSON(list(
+    model      = "MiniMax-M2.7",
+    max_tokens = max_tokens,
+    messages   = list(list(role = "user", content = prompt))
+  ), auto_unbox = TRUE)
+
+  resp <- POST(
+    url  = "https://api.minimaxi.com/v1/chat/completions",
+    add_headers(Authorization = paste("Bearer", key)),
+    body     = body,
+    content_type_json()
+  )
+
+  txt <- content(resp, as = "text", encoding = "UTF-8")
+  parsed <- fromJSON(txt)
+  if (resp$status_code != 200) {
+    stop(sprintf("MiniMax API error %d: %s", resp$status_code, txt))
+  }
+  raw_content <- parsed$choices$message$content
+  # 去掉 <think>...</think> 思考块
+  # ── 去掉思考标签块 ─────────────────────────────────────────
+  # MiniMax M2.7 对中英文 prompt 都用 <think>...想知道
+  # 策略：直接删掉两个标签，不走 regex，保留标签之间的正文
+  tk_open  <- "<think>"
+  tk_close <- "想知道"
+
+  cleaned <- raw_content
+  cleaned <- stringr::str_replace_all(cleaned, tk_open, "")
+  cleaned <- stringr::str_replace_all(cleaned, tk_close, "")
+  cleaned
+}
+
+# ─────────────────────────────────────────────────────────────
+# generate_clinical_narrative — 主函数
+# 输入: assessment_id (integer)
+# 输出: 临床评估报告文字 (character)
+# ─────────────────────────────────────────────────────────────
+generate_clinical_narrative <- function(assessment_id) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+
+  # ── 基本信息 ───────────────────────────────────────────────
+  ass <- dbGetQuery(con, sprintf(
+    "SELECT *, strftime('%%Y-%%m-%%d', assessment_date) as date_str
+     FROM assessments WHERE id = %d", assessment_id
+  ))
+  pat <- dbGetQuery(con, sprintf(
+    "SELECT * FROM patients WHERE id = %d", ass$patient_id[1]
+  ))
+  ag  <- ass$age_group
+
+  # ── 评分数据 ───────────────────────────────────────────────
+  resp <- dbGetQuery(con, sprintf(
+    "SELECT subtest, item_number, score FROM responses
+     WHERE assessment_id = %d AND score IS NOT NULL
+     ORDER BY subtest, item_number",
+    assessment_id
+  ))
+
+  raw_scores <- resp %>%
+    group_by(subtest) %>%
+    summarise(
+      raw      = sum(score, na.rm = TRUE),
+      n_items  = n(),
+      max_item = max(item_number, na.rm = TRUE),
+      .groups  = "drop"
+    )
+
+  sdf <- calculate_scaled_scores(
+    setNames(as.list(raw_scores$raw), raw_scores$subtest),
+    ag
+  )
+
+  # ── 强项/弱项 ─────────────────────────────────────────────
+  available <- sdf$scaled_score
+  names(available) <- sdf$subtest
+  ss_sorted  <- sort(available, decreasing = TRUE)
+  strongest  <- names(ss_sorted)[1]
+  weakest    <- names(ss_sorted)[length(ss_sorted)]
+
+  # ── Discontinuation / Reversal ─────────────────────────────
+  rev_subs <- c("WC", "FS", "WD", "SA", "SC", "LC")
+  disc_subs <- character()
+  rev_info  <- character()
+
+  for (sub in raw_scores$subtest) {
+    dr <- get_discontinue_rule(sub)
+    sr <- resp %>% filter(subtest == !!sub) %>% arrange(item_number)
+    if (dr > 0 && nrow(sr) >= 4 && all(tail(sr$score, 4) == 0)) {
+      disc_subs <<- c(disc_subs, sub)
+    }
+    if (sub %in% rev_subs) {
+      ms <- max_score_for_subtest(sub)
+      scored <- which(sr$score == ms)
+      if (length(scored) >= 2 && any(diff(scored) == 1)) {
+        rev_info <<- c(rev_info, sub)
+      }
+    }
+  }
+
+  # ── Discontinuation / Reversal ─────────────────────────────
+  # subtest 描述行
+  subtest_lines <- map_chr(seq_len(nrow(raw_scores)), function(i) {
+    t   <- raw_scores$subtest[i]
+    raw <- raw_scores$raw[i]
+    ss_val <- available[t]
+    lvl <- if (ss_val >= 11) "above_average"
+      else if (ss_val >= 8)  "upper_normal"
+      else if (ss_val >= 4)  "average"
+      else if (ss_val >= 2)  "below_average"
+      else "significantly_below"
+    lvl_txt <- switch(lvl,
+      above_average       = "高于平均 (above average)",
+      upper_normal        = "正常偏高 (upper normal range)",
+      average             = "在正常范围内 (within average)",
+      below_average      = "低于平均 (below average)",
+      significantly_below = "显著低于平均 (significantly below average — clinical concern)"
+    )
+    sprintf("%s raw=%d SS=%d %s", t, raw, ss_val, lvl_txt)
+  })
+  subtest_details <- paste(subtest_lines, collapse = "; ")
+
+  disc_txt  <- if (length(disc_subs) > 0) paste0("Discontinuation triggered: ", paste(disc_subs, collapse=", ")) else "None"
+  rev_txt   <- if (length(rev_info)  > 0) paste0("Reversal triggered: ", paste(rev_info, collapse=", "))   else "None"
+
+  prompt <- sprintf(
+    "You are a clinical child psychologist specializing in language assessment.
+Generate a professional clinical assessment report in Chinese for the following CELF-5 results.
+Write in formal clinical language, 3rd person, as if signing an official report.
+
+PATIENT INFO:
+- Name: %s
+- Age: %d years %d months
+- Gender: %s
+- Assessment Date: %s
+- Age Group: %s
+
+SUBTEST RESULTS:
+%s
+
+ADMINISTRATIVE FLAGS:
+- %s
+- %s
+
+STRONGEST SUBTEST: %s (SS=%d)
+WEAKEST SUBTEST: %s (SS=%d)
+
+Write a comprehensive clinical narrative report with these sections (in Chinese):
+1. 总评（Overall Summary — 2-3 sentences of overall clinical impression）
+2. 各分测验结果分析（每项 2-3 句话，描述测量内容 + 临床发现 + 意义）
+3. 临床画像（Clinical Profile — 强项弱项总结，2-3句话）
+4. 建议（Recommendations — 3 bullet points, highest priority first）
+5. 注意事项与局限性（Limitations — 1-2 sentences）
+
+Requirements:
+- Write in Chinese (简体中文)
+- Clinical but compassionate tone
+- Each subtest section must include what the test measures, the finding, and clinical implication
+- The weakest subtest MUST be highlighted as requiring follow-up
+- The recommendations must be specific and actionable
+- Do NOT make up any additional data beyond what is provided above
+- End with: 报告生成时间: %s | 本报告需经主试评估师审核签字
+",
+    pat$name[1], ass$age_years[1], ass$age_months[1],
+    ifelse(is.na(pat$gender[1]), "未记录", pat$gender[1]),
+    ass$date_str[1], ag,
+    subtest_details,
+    disc_txt, rev_txt,
+    strongest, available[strongest],
+    weakest,   available[weakest],
+    ass$date_str[1]
+  )
+
+  # ── 调用 MiniMax ──────────────────────────────────────────
+  raw_narrative <- .call_minimax(prompt, max_tokens = 1200L)
+  # 去掉思考标记和 prompt 泄露（MiniMax 模型有时会在开头输出多余内容）
+  # 策略：找到第一个中文字符作为正文起点
+  narrative <- raw_narrative
+  # 去掉开头可能的 思考内容（英文描述）
+  narrative <- sub("^.*?\\n\\n(?=[\u4e00-\u9fff])", "", narrative, perl = TRUE)
+  # 如果仍有残留指令（如 "You are a..."），直接截断
+  if (grepl("^You are a", narrative, ignore.case = TRUE)) {
+    # 找到第一个真正中文段落的位置
+    chinese_start <- regexpr("[\u4e00-\u9fff]", narrative)[1]
+    if (chinese_start > 1) {
+      narrative <- substr(narrative, chinese_start, nchar(narrative))
+    }
+  }
+  narrative
+}
+
+
+
+# ─────────────────────────────────────────────────────────────
+# generate_clinical_narrative_en — 英文版临床报告
+# 输入: assessment_id (integer)
+# 输出: 临床评估报告文字 (character, English)
+# ─────────────────────────────────────────────────────────────
+generate_clinical_narrative_en <- function(assessment_id) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+
+  ass <- dbGetQuery(con, sprintf(
+    "SELECT *, strftime('%%Y-%%m-%%d', assessment_date) as date_str
+     FROM assessments WHERE id = %d", assessment_id
+  ))
+  pat <- dbGetQuery(con, sprintf(
+    "SELECT * FROM patients WHERE id = %d", ass$patient_id[1]
+  ))
+  ag  <- ass$age_group
+
+  resp <- dbGetQuery(con, sprintf(
+    "SELECT subtest, item_number, score FROM responses
+     WHERE assessment_id = %d AND score IS NOT NULL
+     ORDER BY subtest, item_number",
+    assessment_id
+  ))
+
+  raw_scores <- resp %>%
+    group_by(subtest) %>%
+    summarise(
+      raw     = sum(score, na.rm = TRUE),
+      n_items = n(),
+      max_item= max(item_number, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  sdf <- calculate_scaled_scores(
+    setNames(as.list(raw_scores$raw), raw_scores$subtest),
+    ag
+  )
+
+  available <- sdf$scaled_score
+  names(available) <- sdf$subtest
+  ss_sorted <- sort(available, decreasing = TRUE)
+  strongest <- names(ss_sorted)[1]
+  weakest   <- names(ss_sorted)[length(ss_sorted)]
+
+  rev_subs  <- c("WC", "FS", "WD", "SA", "SC", "LC")
+  disc_subs <- character()
+  rev_info  <- character()
+
+  for (sub in raw_scores$subtest) {
+    dr <- get_discontinue_rule(sub)
+    sr <- resp %>% filter(subtest == !!sub) %>% arrange(item_number)
+    if (dr > 0 && nrow(sr) >= 4 && all(tail(sr$score, 4) == 0)) {
+      disc_subs <<- c(disc_subs, sub)
+    }
+    if (sub %in% rev_subs) {
+      ms <- max_score_for_subtest(sub)
+      scored <- which(sr$score == ms)
+      if (length(scored) >= 2 && any(diff(scored) == 1)) {
+        rev_info <<- c(rev_info, sub)
+      }
+    }
+  }
+
+  subtest_lines <- map_chr(seq_len(nrow(raw_scores)), function(i) {
+    t    <- raw_scores$subtest[i]
+    raw  <- raw_scores$raw[i]
+    ss_val <- available[t]
+    lvl <- if (ss_val >= 11) "Above Average"
+      else if (ss_val >= 8)  "Average"
+      else if (ss_val >= 4)  "Average"
+      else if (ss_val >= 2)  "Below Average"
+      else "Significantly Below Average"
+    sprintf("%s raw=%d SS=%d (%s)", t, raw, ss_val, lvl)
+  })
+  subtest_details <- paste(subtest_lines, collapse = "; ")
+
+  disc_txt <- if (length(disc_subs) > 0) paste0("Discontinuation: ", paste(disc_subs, collapse=", ")) else "None"
+  rev_txt  <- if (length(rev_info)  > 0) paste0("Reversal: ", paste(rev_info, collapse=", "))       else "None"
+
+  prompt <- sprintf(
+    "You are a clinical child psychologist specializing in language assessment.
+Generate a professional clinical assessment report in English for the following CELF-5 results.
+Write in formal clinical language, 3rd person, as if signing an official report.
+
+PATIENT INFO:
+- Name: %s
+- Age: %d years %d months
+- Gender: %s
+- Assessment Date: %s
+- Age Group: %s
+
+SUBTEST RESULTS:
+%s
+
+ADMINISTRATIVE FLAGS:
+- %s
+- %s
+
+STRONGEST SUBTEST: %s (SS=%d)
+WEAKEST SUBTEST: %s (SS=%d)
+
+Write a comprehensive clinical narrative report with these sections (in English):
+1. Overall Summary (2-3 sentences of overall clinical impression)
+2. Subtest Results Analysis (each subtest: what it measures + clinical finding + implication, 2-3 sentences)
+3. Clinical Profile (strengths/weaknesses summary, 2-3 sentences)
+4. Recommendations (3 bullet points, highest priority first)
+5. Limitations and Cautions (1-2 sentences)
+
+Requirements:
+- Write in English
+- Clinical but compassionate tone
+- Each subtest section must include what the test measures, the finding, and clinical implication
+- The weakest subtest MUST be highlighted as requiring follow-up
+- Recommendations must be specific and actionable
+- Do NOT make up any additional data beyond what is provided above
+- End with: Report generated: %s | This report must be reviewed and signed by the examining clinician.
+",
+    pat$name[1], ass$age_years[1], ass$age_months[1],
+    ifelse(is.na(pat$gender[1]), "Not recorded", pat$gender[1]),
+    ass$date_str[1], ag,
+    subtest_details,
+    disc_txt, rev_txt,
+    strongest, available[strongest],
+    weakest,   available[weakest],
+    ass$date_str[1]
+  )
+  # 思考标签已在 .call_minimax() 里统一清理掉，这里无需额外处理
+  .call_minimax(prompt, max_tokens = 1200L)
+}
+
 # END OF FILE
+

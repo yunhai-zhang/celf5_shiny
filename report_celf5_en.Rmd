@@ -75,12 +75,10 @@ df_ss <- if (is.data.frame(ss) && nrow(ss) > 0) {
         TRUE                            ~ "Performance significantly below expected range; language disorder strongly indicated; immediate intervention recommended."
       ),
       `Age Equiv` = ifelse(is.na(raw_score), "—",
-        { ae <- get_age_equiv(subtest, raw_score, ag); ifelse(is.na(ae), "—", ae) }),
-      GSV = ifelse(is.na(raw_score), "—",
-        { g <- get_gsv(subtest, raw_score, ag); ifelse(is.na(g), "—", as.character(g)) })
+        { ae <- get_age_equiv(subtest, raw_score, ag); ifelse(is.na(ae), "—", ae) })
     )
 } else {
-  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range = character(), Interpretation = character(), `Age Equiv` = character(), GSV = character())
+  tibble(subtest = character(), raw_score = integer(), scaled_score = integer(), Range = character(), Interpretation = character(), `Age Equiv` = character())
 }
 
 # Build composite table
@@ -158,7 +156,7 @@ flextable(df_info) |> autofit() |> bold(part = "header")
 if (nrow(df_ss) > 0) {
   ft <- flextable(df_ss %>% select(`Subtest` = subtest, `Raw Score` = raw_score,
                                    `Scaled Score` = scaled_score,
-                                   `Age Equiv` = `Age Equiv`, GSV, Range, Interpretation))
+                                   `Age Equiv` = `Age Equiv`, Range, Interpretation))
   ft <- autofit(ft)
   ft <- bold(ft, part = "header")
   ft

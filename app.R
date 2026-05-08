@@ -541,10 +541,17 @@ server <- function(input, output, session) {
 
     if (t == "SW") {
       # ── SW 多维评分 Rubric UI ──────────────────────────────
-      ag <- rv$age_group
-      rubric <- SW_SCORING_RUBRIC[[ag]]
+      # rv$age_group 格式 "9:0-9:11" → rubric key "age_9_10"
+      ag_raw <- rv$age_group
+      rubric_key <- dplyr::case_when(
+        ag_raw %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_8",
+        ag_raw %in% c("9:0-9:11","10:0-10:11")                                                   ~ "age_9_10",
+        ag_raw %in% c("11:0-11:11","12:0-12:11")                                                 ~ "age_11_12",
+        TRUE                                                                                      ~ "age_13_21"
+      )
+      rubric <- SW_SCORING_RUBRIC[[rubric_key]]
       if (is.null(rubric)) {
-        return(div(class="alert alert-warning", "未知 age_group: ", ag))
+        return(div(class="alert alert-warning", "未知 age_group: ", ag_raw, " (rubric_key: ", rubric_key, ")"))
       }
 
       # 读取当前维度分数（如有）
@@ -597,10 +604,10 @@ server <- function(input, output, session) {
                      selected=cur_score)
       )
     } else {
-      # max_s >= 3
-      choice_vec <- setNames(as.integer(max_s:0), sapply(as.integer(max_s:0), function(s) {
-        if (s == 0) "0分（错误）"
-        else if (s == max_s) paste0(max_s, "分（完全正确）")
+      # max_s >= 3: 从 max_s 到 1（不是到 0！）
+      choice_vec <- setNames(as.integer(max_s:1), sapply(as.integer(max_s:1), function(s) {
+        if (s == max_s) paste0(s, "分（最高）")
+        else if (s == 1L) paste0(s, "分（最低）")
         else paste0(s, "分")
       }))
       tagList(
@@ -671,29 +678,30 @@ server <- function(input, output, session) {
     check_discontinue(t)
     check_reversal(t)
 
-    # ── 导航：保存后自动前进到下一题 ───────────────────────────
+    # ── 导航：保存后前进到下一题 ───────────────────────────
     max_i <- get_max_item(t, rv$age_group)
     if (rv$discontinue_triggered || i_n >= max_i) {
+      # 结束当前 subtest，跳到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
       }
     } else {
-      # 清除当前打分控件
+      # 通用前进逻辑：非 discontinue 且未到达末尾 → 前进一题
+      if (i_n < max_i) {
+        rv$current_item <- i_n + 1L
+      }
+      # 清除打分控件
       if (t == "RS") {
         updateNumericInput(session, "input_score", value = NA_integer_)
       } else if (t == "SW") {
-        # SW 四维度清除
-        updateRadioButtons(session, "sw_struct", selected = NA_integer_)
+        updateRadioButtons(session, "sw_struct",  selected = NA_integer_)
         updateRadioButtons(session, "sw_grammar", selected = NA_integer_)
-        updateRadioButtons(session, "sw_org", selected = NA_integer_)
-        updateRadioButtons(session, "sw_mech", selected = NA_integer_)
+        updateRadioButtons(session, "sw_org",     selected = NA_integer_)
+        updateRadioButtons(session, "sw_mech",   selected = NA_integer_)
       } else {
         updateRadioButtons(session, "input_score", selected = NA_integer_)
-      }
-      if (!rv$reversal_triggered) {
-        rv$current_item <- i_n + 1L
       }
     }
   })
@@ -773,7 +781,22 @@ server <- function(input, output, session) {
       }
     }
 
-    if (consec < 2) return()  # 没触发 reversal
+    if (consec < 2) {
+      # reversal 未触发 → 正常前进一题
+      if (!rv$discontinue_triggered && i_n < max_i) {
+        rv$current_item <- i_n + 1L
+      }
+      return()
+    }
+
+    # ── reversal 触发！─────────────────────────────────────────
+    # 已在 reversal 状态 → 正常继续前进，不再重复触发
+    if (rv$reversal_triggered) {
+      if (!rv$discontinue_triggered && i_n < max_i) {
+        rv$current_item <- i_n + 1L
+      }
+      return()
+    }
 
     # 触发 reversal！记录触发位置
     first_reversal_item <- from_sp$item_number[consec_start]
@@ -917,10 +940,8 @@ server <- function(input, output, session) {
           p(strong("量表分 Scaled Score (M=10, SD=3): "), score_lbl),
           {
             ae  <- get_age_equiv(st, raw, ag)
-            gsv_val <- get_gsv(st, raw, ag)
             tagList(
-              p(strong("语言年龄 Age Equivalent: "), if (is.na(ae)) "—" else ae),
-              p(strong("成长量表值 GSV: "), if (is.na(gsv_val)) "—" else as.character(gsv_val))
+              p(strong("语言年龄 Age Equivalent: "), if (is.na(ae)) "—" else ae)
             )
           },
           hr(),
@@ -1143,6 +1164,26 @@ server <- function(input, output, session) {
         class = "small text-muted"),
       comp_display,
       hr(),
+      h3("🤖 AI 临床叙事报告 / AI Clinical Narrative"),
+      p("由 MiniMax M2.7 生成临床评估报告文字，正式使用前须经主试评估师审核。",
+        class = "small text-muted"),
+      fluidRow(
+        column(3,
+          selectInput("report_lang", "语言 / Language",
+            choices = c("中文" = "zh", "English" = "en"),
+            selected = "zh", width = "100%")
+        ),
+        column(3,
+          actionButton("btn_gen_narrative", "生成报告 / Generate",
+            icon = icon("brain"), class = "btn btn-primary",
+            style = "margin-top: 18px;", width = "100%")
+        ),
+        column(6,
+          uiOutput("narrative_status", style = "padding-top: 22px;")
+        )
+      ),
+      uiOutput("narrative_preview"),
+      hr(),
       h3("下载报告 / Download Report"),
       fluidRow(
         column(4, downloadButton("download_report_en",  "📄 Download (English)")),
@@ -1343,6 +1384,202 @@ server <- function(input, output, session) {
       })
     }
   )
-}
 
+  # ── AI 临床叙事报告 ─────────────────────────────────────────
+  output$narrative_status <- renderUI({
+    NULL
+  })
+
+  narrative_text <- reactiveVal(NULL)
+
+  observeEvent(input$btn_gen_narrative, {
+    req(rv$assessment_id)
+
+    lang <- input$report_lang
+
+    # Loading 状态：显示 spinner（inline CSS，Shiny 标准写法）
+    output$narrative_status <- renderUI({
+      tags$div(
+        tags$style(HTML("
+          @keyframes ai-spin { to { transform: rotate(360deg); } }
+          .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
+                     border-top:2px solid #1B3A6B; border-radius:50%;
+                     display:inline-block; animation:ai-spin 0.7s linear infinite; }
+          .ai-msg { display:inline; margin-left:8px; color:#6c757d; }
+        ")),
+        tags$div(style="margin-top:6px",
+          tags$span(class="ai-spin"),
+          tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
+        )
+      )
+    })
+    # 清空旧预览
+    output$narrative_preview <- renderUI({ NULL })
+
+    tryCatch({
+      narrative <- if (lang == "zh") {
+        generate_clinical_narrative(rv$assessment_id)
+      } else {
+        generate_clinical_narrative_en(rv$assessment_id)
+      }
+
+      # ── 清理 think tags + 残余 prompt 前缀 ──────────────────
+      tk_pairs <- list(
+        c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),  # 想知道
+        c("<think>", "</think>")                             # English think tags
+      )
+      for (pair in tk_pairs) {
+        pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
+        narrative <- stringr::str_remove_all(narrative, pattern)
+      }
+      # 清理残余 prompt 指令
+      narrative <- stringr::str_remove(narrative,
+        "^[\u0020-\u007e\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\n\n|\n)")
+      narrative <- stringr::str_remove(narrative,
+        "^[\u0020-\u007e\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\n\n|\n)")
+
+      narrative_text(narrative)
+
+      # 成功状态
+      output$narrative_status <- renderUI({
+        div(class = "alert alert-success mb-0", role = "alert",
+          icon("check-circle"),
+          if (lang == "zh") "中文报告已生成！" else "English report generated!",
+          " ",
+          actionLink("btn_regen_narrative",
+            if (lang == "zh") " 重新生成" else " Regenerate",
+            icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
+      })
+
+      # Markdown 渲染（不用 pre() 可复制框，直接渲染 markdown）
+      md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
+      output$narrative_preview <- renderUI({
+        tags$div(
+          tags$style(HTML("
+            .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
+                             border-radius:8px; padding:20px 24px; margin-top:12px;
+                             font-size:14px; line-height:1.75; max-height:600px;
+                             overflow-y:auto; }
+            .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
+            .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
+            .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
+            .ai-report-card li { margin-bottom:5px; }
+            .ai-report-card strong { color:#1B3A6B; }
+            .ai-report-card em { color:#666; font-style:italic; }
+            .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
+          ")),
+          div(class = "card mb-3",
+            div(class = "card-header d-flex justify-content-between align-items-center",
+              strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
+              span(class = "badge bg-secondary", "AI")
+            ),
+            div(class = "card-body p-0",
+              div(class = "ai-report-card", HTML(md_html))
+            )
+          )
+        )
+      })
+    }, error = function(e) {
+      output$narrative_status <- renderUI({
+        div(class = "alert alert-danger mb-0", role = "alert",
+          icon("exclamation-triangle"),
+          if (lang == "zh") "生成失败: " else "Generation failed: ",
+          e$message)
+      })
+      cat(file = stderr(), "[narrative error]", e$message, "\n")
+    })
+  })
+
+  # 重新生成按钮 → 直接调生成逻辑
+  observeEvent(input$btn_regen_narrative, {
+    lang <- input$report_lang
+
+    output$narrative_status <- renderUI({
+      tags$div(
+        tags$style(HTML("
+          @keyframes ai-spin { to { transform: rotate(360deg); } }
+          .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
+                     border-top:2px solid #1B3A6B; border-radius:50%;
+                     display:inline-block; animation:ai-spin 0.7s linear infinite; }
+          .ai-msg { display:inline; margin-left:8px; color:#6c757d; }
+        ")),
+        tags$div(style="margin-top:6px",
+          tags$span(class="ai-spin"),
+          tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
+        )
+      )
+    })
+    output$narrative_preview <- renderUI({ NULL })
+
+    tryCatch({
+      narrative <- if (lang == "zh") {
+        generate_clinical_narrative(rv$assessment_id)
+      } else {
+        generate_clinical_narrative_en(rv$assessment_id)
+      }
+
+      tk_pairs <- list(
+        c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),
+        c("<think>", "</think>")
+      )
+      for (pair in tk_pairs) {
+        pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
+        narrative <- stringr::str_remove_all(narrative, pattern)
+      }
+      narrative <- stringr::str_remove(narrative,
+        "^[\u0020-\u007e\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\n\n|\n)")
+      narrative <- stringr::str_remove(narrative,
+        "^[\u0020-\u007e\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\n\n|\n)")
+
+      narrative_text(narrative)
+
+      output$narrative_status <- renderUI({
+        div(class = "alert alert-success mb-0", role = "alert",
+          icon("check-circle"),
+          if (lang == "zh") "中文报告已生成！" else "English report generated!",
+          " ",
+          actionLink("btn_regen_narrative",
+            if (lang == "zh") " 重新生成" else " Regenerate",
+            icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
+      })
+
+      md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
+      output$narrative_preview <- renderUI({
+        tags$div(
+          tags$style(HTML("
+            .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
+                             border-radius:8px; padding:20px 24px; margin-top:12px;
+                             font-size:14px; line-height:1.75; max-height:600px;
+                             overflow-y:auto; }
+            .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
+            .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
+            .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
+            .ai-report-card li { margin-bottom:5px; }
+            .ai-report-card strong { color:#1B3A6B; }
+            .ai-report-card em { color:#666; font-style:italic; }
+            .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
+          ")),
+          div(class = "card mb-3",
+            div(class = "card-header d-flex justify-content-between align-items-center",
+              strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
+              span(class = "badge bg-secondary", "AI")
+            ),
+            div(class = "card-body p-0",
+              div(class = "ai-report-card", HTML(md_html))
+            )
+          )
+        )
+      })
+    }, error = function(e) {
+      output$narrative_status <- renderUI({
+        div(class = "alert alert-danger mb-0", role = "alert",
+          icon("exclamation-triangle"),
+          if (lang == "zh") "生成失败: " else "Generation failed: ",
+          e$message)
+      })
+      cat(file = stderr(), "[narrative error]", e$message, "\n")
+    })
+  })
+
+}
 shinyApp(ui, server)
