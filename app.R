@@ -673,8 +673,11 @@ server <- function(input, output, session) {
 
   # ── ORS: Observational Rating Scale ────────────────────────
   output$ors_ui <- renderUI({
-    req(rv$assessment_id)
-
+    if (is.null(rv$assessment_id)) {
+      return(div(class = "alert alert-info", style = "margin: 40px;",
+                 h3("请先加载或创建评估 / Load or create an assessment first"),
+                 p('在左侧表格选择一行，点击"📂 加载"按钮加载评估记录。')))
+    }
     tagList(
       div(class = "page-header", style = "margin-bottom: 24px;",
         h2("行为观察评分量表 / Observational Rating Scale (ORS)", style = "color: #003A6C;"),
@@ -709,7 +712,11 @@ server <- function(input, output, session) {
 
     role <- "teacher"
     existing <- get_ors_responses(rv$assessment_id, role)
-    existing_vec <- setNames(existing$score, paste0(existing$section, "_", existing$item_number))
+    existing_vec <- if (nrow(existing) == 0) {
+      character(0)
+    } else {
+      setNames(existing$score, paste0(existing$section, "_", existing$item_number))
+    }
 
     tabBox(width = 12,
       tabPanel("📖 Listening (1-9)",
@@ -784,11 +791,14 @@ server <- function(input, output, session) {
 
   output$ors_summary_cards <- renderUI({
     req(rv$assessment_id)
-    sumry <- get_ors_summary(rv$assessment_id, "teacher")
+    sumry <- tryCatch(get_ors_summary(rv$assessment_id, "teacher"), error = function(e) NULL)
+    if (is.null(sumry)) {
+      return(div(class = "alert alert-warning", style = "margin: 20px;", "无法加载 ORS 数据"))
+    }
 
     make_card <- function(sec, label, icon) {
       val <- sumry[[paste0(sec, "_score")]]
-      if (is.na(val) || is.null(val)) {
+      if (is.null(val) || length(val) == 0 || is.na(val)) {
         bg <- "bg-secondary"; val_disp <- "—"
       } else if (val >= 3.5) {
         bg <- "bg-danger text-white"; val_disp <- sprintf("%.2f / 4.0", val)
@@ -822,8 +832,16 @@ server <- function(input, output, session) {
 
   # ── 评分报告 ─────────────────────────────────────────────
   output$report_ui <- renderUI({
-    req(rv$assessment_id)
-    full <- get_assessment_full(rv$assessment_id)
+    if (is.null(rv$assessment_id)) {
+      return(div(class = "alert alert-info", style = "margin: 40px;",
+                 h3("请先加载或创建评估 / Load or create an assessment first"),
+                 p('在左侧表格选择一行，点击"📂 加载"按钮加载评估记录。')))
+    }
+    full <- tryCatch(get_assessment_full(rv$assessment_id), error = function(e) NULL)
+    if (is.null(full)) {
+      return(div(class = "alert alert-danger", style = "margin: 40px;",
+                 "加载评估数据失败 / Failed to load assessment data"))
+    }
     scaled_df <- full$subtest_scores
 
     if (nrow(scaled_df) == 0) {
@@ -1072,9 +1090,9 @@ server <- function(input, output, session) {
     # ── 语言能力总评 ─────────────────────────────────────
     cls_score <- {
       cs <- get_composite_score(scaled_df, "CLS", ag)
-      cs$standard_score[1]
+      if (nrow(cs) == 0) NA else cs$standard_score[1]
     }
-    overall_en <- if (is.na(cls_score)) {
+    overall_en <- if (is.null(cls_score) || length(cls_score) == 0 || is.na(cls_score)) {
       "Overall language ability could not be determined due to insufficient subtest data."
     } else if (cls_score >= 90) {
       "Overall, the student's language abilities are within the average range for their age. No significant language disorder was identified on the CELF-5."
@@ -1084,7 +1102,7 @@ server <- function(input, output, session) {
       "Overall, the student's performance on the CELF-5 suggests the presence of a language disorder. Results should be interpreted in the context of all available information. Comprehensive intervention is recommended."
     }
 
-    overall_zh <- if (is.na(cls_score)) {
+    overall_zh <- if (is.null(cls_score) || length(cls_score) == 0 || is.na(cls_score)) {
       "由于子测试数据不足，无法确定整体语言能力水平。"
     } else if (cls_score >= 90) {
       "整体而言，该学生的语言能力处于同龄正常（平均）范围内。CELF-5 未发现显著语言障碍。"

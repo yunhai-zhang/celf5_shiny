@@ -270,7 +270,7 @@ get_question_info <- function(subtest, item_number, age_group) {
           FROM questions WHERE subtest = ? AND age_group = ? AND item_number = ? LIMIT 1"
   q <- dbGetQuery(con, sql, params = list(subtest, q_ag, item_number))
   if (nrow(q) == 0) {
-    # fallback: try without age_group filter (e.g. PP has age_group='A')
+    # fallback: try without age_group filter (e.g. PP has age_group='A', USP has age_group='A')
     sql2 <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
              FROM questions WHERE subtest = ? AND item_number = ? LIMIT 1"
     q <- dbGetQuery(con, sql2, params = list(subtest, item_number))
@@ -296,7 +296,7 @@ get_max_item <- function(subtest, age_group) {
     "SELECT COUNT(*) FROM questions WHERE subtest = ? AND age_group = ? AND (question_en IS NOT NULL AND question_en != '')",
     params = list(subtest, q_ag))[[1]]
   if (n > 0) return(as.integer(n))
-  # Fallback for PP (age_group='A') or generic subtests
+  # Fallback for PP (age_group='A') or generic subtests, or USP (age_group='A')
   n2 <- dbGetQuery(con,
     "SELECT COUNT(*) FROM questions WHERE subtest = ? AND (question_en IS NOT NULL AND question_en != '')",
     params = list(subtest))[[1]]
