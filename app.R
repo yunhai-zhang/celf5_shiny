@@ -505,9 +505,10 @@ server <- function(input, output, session) {
     prompt_txt   <- if (!is.na(qi$prompt_en)   && nzchar(qi$prompt_en))   qi$prompt_en[1]   else ""
     scoring_txt  <- if (!is.na(qi$scoring_key) && nzchar(qi$scoring_key)) qi$scoring_key[1] else ""
 
-    # 2026-05-07: trial 机制已移除，所有题都可打分
+    # 2026-05-07: trial 机制移除；保留 start point 提示（标记施测起点）
     tagList(
       h3(glue("{box_title} — 第 {item_n} / {max_item} 题 / Item {item_n} of {max_item}")),
+      if (item_n == sp) div(class="alert alert-info", "★ 起始点题号 / Start Point — 从此题开始施测"),
 
       # ── 题目/刺激物显示 ─────────────────────────────────────
       if (nzchar(stimulus_txt)) {
