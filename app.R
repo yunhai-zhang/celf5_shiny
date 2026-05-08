@@ -186,7 +186,9 @@ server <- function(input, output, session) {
     current_item = 1L,
     start_point = 1L,
     responses = tibble(subtest=character(), item_number=integer(),
-                       response_text=character(), score=integer()),
+                       response_text=character(), score=integer(),
+                       structure_complete=integer(), grammar=integer(),
+                       organization=integer(), mechanics=integer()),
     completed_subtests = character(0),
     discontinue_triggered = FALSE,
     reversal_triggered = FALSE,
@@ -280,7 +282,9 @@ server <- function(input, output, session) {
     rv$reversal_triggered <- FALSE
     rv$reversal_item <- 0L
     rv$responses <- tibble(subtest=character(), item_number=integer(),
-                          response_text=character(), score=integer())
+                          response_text=character(), score=integer(),
+                          structure_complete=integer(), grammar=integer(),
+                          organization=integer(), mechanics=integer())
     # Auto-select first subtest to avoid NULL current_subtest on question tab
     first_test <- rv$test_list[1]
     rv$current_subtest <- first_test
@@ -324,10 +328,15 @@ server <- function(input, output, session) {
 
     if (nrow(full$responses) > 0) {
       rv$responses <- full$responses %>%
-        select(subtest, item_number, response_text, score) %>%
+        select(subtest, item_number, response_text, score,
+               structure_complete, grammar, organization, mechanics) %>%
         mutate(across(everything(), ~replace_na(as.character(.), ""))) %>%
         mutate(item_number = as.integer(item_number),
-               score = as.integer(score))
+               score = as.integer(score),
+               structure_complete = as.integer(structure_complete),
+               grammar = as.integer(grammar),
+               organization = as.integer(organization),
+               mechanics = as.integer(mechanics))
     }
 
     updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")

@@ -733,7 +733,8 @@ get_assessment_full <- function(assessment_id) {
   if (nrow(ass) == 0) return(NULL)
 
   resp <- dbGetQuery(con,
-    "SELECT subtest, item_number, response_text, score
+    "SELECT subtest, item_number, response_text, score,
+            structure_complete, grammar, organization, mechanics
      FROM responses WHERE assessment_id = ? ORDER BY subtest, item_number",
     params = list(assessment_id))
 
