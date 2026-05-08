@@ -530,7 +530,45 @@ server <- function(input, output, session) {
     max_s <- as.integer(q_info$max_score[1])
     if (is.na(max_s) || max_s < 1) max_s <- 1L
 
-    if (t == "RS") {
+    if (t == "SW") {
+      # ── SW 多维评分 Rubric UI ──────────────────────────────
+      ag <- rv$age_group
+      rubric <- SW_SCORING_RUBRIC[[ag]]
+      if (is.null(rubric)) {
+        return(div(class="alert alert-warning", "未知 age_group: ", ag))
+      }
+
+      # 读取当前维度分数（如有）
+      cur_sc <- if (nrow(cur_resp)>0) cur_resp$structure_complete[1] else NA_integer_
+      cur_gr <- if (nrow(cur_resp)>0) cur_resp$grammar[1] else NA_integer_
+      cur_or <- if (nrow(cur_resp)>0) cur_resp$organization[1] else NA_integer_
+      cur_me <- if (nrow(cur_resp)>0) cur_resp$mechanics[1] else NA_integer_
+
+      tagList(
+        h5("结构完整性 Structure（每个句子）"),
+        radioButtons("sw_struct", "句子是否完整写出？",
+                     choices = rubric$struct_scale,
+                     selected = cur_sc),
+        hr(),
+        h5("语法准确性 Grammar"),
+        p(em("对应当前句子语法正确性")),
+        radioButtons("sw_grammar", "语法评分",
+                     choices = rubric$grammar_scale,
+                     selected = cur_gr),
+        hr(),
+        h5("组织 Organization（每篇作文）"),
+        p(em("整体逻辑与衔接")),
+        radioButtons("sw_org", "组织评分",
+                     choices = rubric$org_scale,
+                     selected = cur_or),
+        hr(),
+        h5("写作机械 Writing Mechanics"),
+        p(em("拼写/大小写/标点")),
+        radioButtons("sw_mech", "机械评分",
+                     choices = rubric$mech_scale,
+                     selected = cur_me)
+      )
+    } else if (t == "RS") {
       # UI shows error count; stored score is scaled (3=0err, 2=1err, 1=2-3err, 0=4+err)
       err_val <- if (!is.na(cur_score) && !is.null(cur_score)) max_s - as.integer(cur_score) else NA_integer_
       tagList(
@@ -544,14 +582,13 @@ server <- function(input, output, session) {
                      selected=cur_score)
       )
     } else if (max_s == 2L) {
-      opts <- setNames(as.character(2:0), c("2分（完全正确）", "1分（部分正确）", "0分（错误）"))
       tagList(
         radioButtons("input_score", "得分",
                      choices=list("2分（完全正确）"=2L, "1分（部分正确）"=1L, "0分（错误）"=0L),
                      selected=cur_score)
       )
     } else {
-      # max_s >= 3 (e.g. PP has max_score=4)
+      # max_s >= 3
       choice_vec <- setNames(as.integer(max_s:0), sapply(as.integer(max_s:0), function(s) {
         if (s == 0) "0分（错误）"
         else if (s == max_s) paste0(max_s, "分（完全正确）")
@@ -578,42 +615,74 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     i_n <- rv$current_item
     sp <- rv$start_point
+    rt <- if (is.null(input$response_text) || is.na(input$response_text)) "" else input$response_text
 
-    captured_score <- input$input_score
-    captured_resp  <- if (is.null(input$response_text) || is.na(input$response_text)) "" else input$response_text
+    if (t == "SW") {
+      # ── SW 多维评分保存 ──────────────────────────────────
+      sw_struct  <- input$sw_struct
+      sw_grammar <- input$sw_grammar
+      sw_org     <- input$sw_org
+      sw_mech    <- input$sw_mech
+      if (is.null(sw_struct) || is.null(sw_grammar) || is.null(sw_org) || is.null(sw_mech)) {
+        showNotification("请完成所有维度评分 / Please complete all dimension scores", type = "warning"); return()
+      }
+      # Total score = sum of all dimensions
+      total_score <- as.integer(sw_struct) + as.integer(sw_grammar) + as.integer(sw_org) + as.integer(sw_mech)
 
-    if (is.null(captured_score) || is.na(captured_score)) {
-      showNotification("请先打分 / Please score first", type = "warning"); return()
+      rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
+        add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
+                score=total_score,
+                structure_complete=as.integer(sw_struct),
+                grammar=as.integer(sw_grammar),
+                organization=as.integer(sw_org),
+                mechanics=as.integer(sw_mech))
+      save_response(rv$assessment_id, t, i_n, as.character(rt), total_score,
+                    structure_complete=as.integer(sw_struct),
+                    grammar=as.integer(sw_grammar),
+                    organization=as.integer(sw_org),
+                    mechanics=as.integer(sw_mech))
+      showNotification(glue("已保存 / Saved: SW 第{i_n}题 = {total_score}分",
+                            " (S={sw_struct} G={sw_grammar} O={sw_org} M={sw_mech})"), type="message")
+
+    } else {
+      captured_score <- input$input_score
+      if (is.null(captured_score) || is.na(captured_score)) {
+        showNotification("请先打分 / Please score first", type = "warning"); return()
+      }
+      sv <- captured_score
+      if (t=="RS" && !is.na(sv)) sv <- score_rs(as.integer(sv))
+
+      rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
+        add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
+                score=as.integer(sv))
+      save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
+      showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
     }
-    sv <- captured_score
-    if (t=="RS" && !is.na(sv)) sv <- score_rs(as.integer(sv))
-    rt <- captured_resp
 
-    rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
-      add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
-              score=as.integer(sv))
-    save_response(rv$assessment_id, t, i_n, as.character(rt), as.integer(sv))
     check_discontinue(t)
     check_reversal(t)
-    showNotification(glue("已保存 / Saved: {t} 第{i_n}题 = {sv}分"), type="message")
 
     # ── 导航：保存后自动前进到下一题 ───────────────────────────
     max_i <- get_max_item(t, rv$age_group)
     if (rv$discontinue_triggered || i_n >= max_i) {
-      # 本测验结束，切换到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
       }
     } else {
-      # 清除当前打分控件，避免下一题残留
+      # 清除当前打分控件
       if (t == "RS") {
         updateNumericInput(session, "input_score", value = NA_integer_)
+      } else if (t == "SW") {
+        # SW 四维度清除
+        updateRadioButtons(session, "sw_struct", selected = NA_integer_)
+        updateRadioButtons(session, "sw_grammar", selected = NA_integer_)
+        updateRadioButtons(session, "sw_org", selected = NA_integer_)
+        updateRadioButtons(session, "sw_mech", selected = NA_integer_)
       } else {
         updateRadioButtons(session, "input_score", selected = NA_integer_)
       }
-      # Reversal 已由 check_reversal 设置了跳转目标题号，不再自动+1
       if (!rv$reversal_triggered) {
         rv$current_item <- i_n + 1L
       }

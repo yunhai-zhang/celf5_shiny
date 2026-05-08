@@ -33,6 +33,46 @@ COMPOSITE_TABLE  <- .normas$composite
 COMPOSITE_CI_TABLE <- .normas$composite_ci
 
 # ─────────────────────────────────────────────────────────────
+# 0c. SW 多维评分 Rubric（按 age_group 分维度打分）
+# ─────────────────────────────────────────────────────────────
+# 每个 entry: list(max_struct=结构满分, struct_scale=结构选项向量,
+#                  grammar_scale=语规格式, org_scale=组织格式, mech_scale=机械格式)
+# structure_complete: 1=句子完整, 0=句子不完整
+# grammar: 按 age_group 最高3/2/1分
+# organization: 按 age_group 最高3/4/5分
+# mechanics: 按 age_group 最高3/2/1/0分（实际0也是选项）
+SW_SCORING_RUBRIC <- list(
+  age_8 = list(
+    struct_scale = c("1（完整）" = 1L, "0（不完整）" = 0L),
+    grammar_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    org_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    mech_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    sentence_items = 2L    # 2个句子（S1 + S+）
+  ),
+  age_9_10 = list(
+    struct_scale = c("1分（完整）" = 1L, "0分（不完整）" = 0L),
+    grammar_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    org_scale = c("3分" = 3L, "2分" = 2L, "0分" = 0L),
+    mech_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    sentence_items = 3L    # 3个句子（S1 + S2 + S+）
+  ),
+  age_11_12 = list(
+    struct_scale = c("1分（完整）" = 1L, "0分（不完整）" = 0L),
+    grammar_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    org_scale = c("4分" = 4L, "3分" = 3L, "0分" = 0L),
+    mech_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    sentence_items = 3L
+  ),
+  age_13_21 = list(
+    struct_scale = c("1分（完整）" = 1L, "0分（不完整）" = 0L),
+    grammar_scale = c("1分" = 1L, "0分" = 0L),
+    org_scale = c("5分" = 5L, "4分" = 4L, "0分" = 0L),
+    mech_scale = c("3分" = 3L, "2分" = 2L, "1分" = 1L, "0分" = 0L),
+    sentence_items = 5L    # S1+S2+S3+S4+S+
+  )
+)
+
+# ─────────────────────────────────────────────────────────────
 # 0b. 业务数据库
 # ─────────────────────────────────────────────────────────────
 DB_PATH <- "/home/yzhang/clawfiles/celf5_shiny/celf5_assessments.db"
@@ -388,6 +428,33 @@ raw_to_scaled <- function(subtest, raw_score, age_group) {
 # ─────────────────────────────────────────────────────────────
 # 5. 计算原始分和量表分
 # ─────────────────────────────────────────────────────────────
+# 计算 SW 多维原始分（汇总所有维度和句子）
+# responses_df: 含 structure_complete/grammar/organization/mechanics 列
+# age_group: age_8 | age_9_10 | age_11_12 | age_13_21
+# ─────────────────────────────────────────────────────────────
+calculate_sw_raw_score <- function(responses_df, age_group) {
+  sw_responses <- responses_df %>% filter(subtest == "SW", !is.na(score))
+  if (nrow(sw_responses) == 0) return(NA_integer_)
+
+  rubric <- SW_SCORING_RUBRIC[[age_group]]
+  if (is.null(rubric)) return(NA_integer_)
+
+  # Structure: 每句子满分1分，累加
+  struct_score <- sum(sw_responses$structure_complete, na.rm = TRUE)
+
+  # Grammar: 累加所有句子
+  grammar_score <- sum(sw_responses$grammar, na.rm = TRUE)
+
+  # Organization: 每篇作文1个组织分
+  org_score <- sum(sw_responses$organization, na.rm = TRUE)
+
+  # Mechanics: 每篇作文1个机械分
+  mech_score <- sum(sw_responses$mechanics, na.rm = TRUE)
+
+  as.integer(struct_score + grammar_score + org_score + mech_score)
+}
+
+# ─────────────────────────────────────────────────────────────
 calculate_raw_scores <- function(responses_df) {
   responses_df %>%
     filter(!is.na(.data$score)) %>%
@@ -589,12 +656,18 @@ upsert_assessment <- function(patient_id, assessment_date, age_years,
   }
 }
 
-save_response <- function(assessment_id, subtest, item_number, response_text = NULL, score) {
+save_response <- function(assessment_id, subtest, item_number, response_text = NULL, score,
+                          structure_complete = NULL, grammar = NULL,
+                          organization = NULL, mechanics = NULL) {
   con <- get_con()
   on.exit(dbDisconnect(con))
   dbExecute(con,
-    "INSERT OR REPLACE INTO responses (assessment_id,subtest,item_number,response_text,score) VALUES (?,?,?,?,?)",
-    params = list(assessment_id, subtest, item_number, response_text, score))
+    "INSERT OR REPLACE INTO responses
+     (assessment_id,subtest,item_number,response_text,score,
+      structure_complete,grammar,organization,mechanics)
+     VALUES (?,?,?,?,?,?,?,?,?)",
+    params = list(assessment_id, subtest, item_number, response_text, score,
+                  structure_complete, grammar, organization, mechanics))
 }
 
 save_subtest_scores <- function(assessment_id, scores_df) {
