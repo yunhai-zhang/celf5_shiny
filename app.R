@@ -505,23 +505,18 @@ server <- function(input, output, session) {
     prompt_txt   <- if (!is.na(qi$prompt_en)   && nzchar(qi$prompt_en))   qi$prompt_en[1]   else ""
     scoring_txt  <- if (!is.na(qi$scoring_key) && nzchar(qi$scoring_key)) qi$scoring_key[1] else ""
 
-    # Trial / Demo 提示（起始点前的引导题不显示题目卡片）
-    is_trial <- item_n < sp
-
+    # 2026-05-07: trial 机制已移除，所有题都可打分
     tagList(
       h3(glue("{box_title} — 第 {item_n} / {max_item} 题 / Item {item_n} of {max_item}")),
-      if (item_n == sp) div(class="alert alert-info", "★ 起始点题号 / Start Point Item"),
-      if (is_trial) div(class="alert alert-secondary", "引导题（不记分）Trial Item (not scored)"),
-      hr(),
 
-      # ── 题目/刺激物显示（trial 也显示题目，只是不打分）────────
+      # ── 题目/刺激物显示 ─────────────────────────────────────
       if (nzchar(stimulus_txt)) {
         div(class="card mb-3", style="background:#f8f9fa",
           div(class="card-body",
             p(strong("题目 Stimulus: "), HTML(stimulus_txt)),
             if (nzchar(prompt_txt))
               p(strong("施测说明 Prompt: "), HTML(prompt_txt)),
-            if (!is_trial && nzchar(scoring_txt))
+            if (nzchar(scoring_txt))
               p(strong("评分标准 Scoring: "), HTML(scoring_txt))
           )
         )
@@ -531,9 +526,7 @@ server <- function(input, output, session) {
 
       hr(),
 
-      # trial items 只展示题目，不渲染打分控件
-      if (!is_trial) uiOutput("score_input_ui"),
-      if (is_trial) div(class="alert alert-light", "← 引导题无需打分 / Trial — no score needed")
+      uiOutput("score_input_ui")
     )
   })
 
