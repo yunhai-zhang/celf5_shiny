@@ -174,8 +174,6 @@ ui <- fluidPage(
       fluidRow(
         column(12,
           h3("🤖 AI 临床叙事报告 / AI Clinical Narrative"),
-          p("由 MiniMax M2.7 生成临床评估报告文字，正式使用前须经主试评估师审核。",
-            class = "small text-muted"),
           fluidRow(
             column(3,
               selectInput("report_lang", "语言 / Language",
@@ -1275,10 +1273,7 @@ server <- function(input, output, session) {
         column(4, downloadButton("download_report_en",  "📄 Download (English)")),
         column(4, downloadButton("download_report_zh",  "📄 下载中文 (Chinese)")),
         column(4, downloadButton("download_report_pdf", "📋 Download PDF"))
-      ),
-      hr(),
-      p("© 2013 NCS Pearson, Inc. All rights reserved. CELF-5 may not be reproduced without written permission from Pearson.",
-        class = "small text-muted text-center")
+      )
     )
   })
   # ── 下载处理器：英文报告 ───────────────────────────────
@@ -1529,11 +1524,20 @@ narrative_phase <- narrative_phase()
         pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
         narrative <- stringr::str_remove_all(narrative, pattern)
       }
-      # 清理残余 prompt 指令
-      narrative <- stringr::str_remove(narrative,
-        "^[\u0020-\u007e\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\n\n|\n)")
-      narrative <- stringr::str_remove(narrative,
-        "^[\\u0020-\\u007e\\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\\n\\n|\\n)")
+      # 清理残余 prompt 指令（仅匹配响应开头部分的 prompt，避免误删正文中的相同词汇）
+      # 第一个块：开头到 subtest results 前
+      narrative <- str_remove(narrative,
+        "^[\\s\\S]*?(?=PATIENT INFO[\\s\\S]*?SUBTEST RESULTS)")
+      # 第二个块：SUBTEST RESULTS 到 ADMINISTRATIVE FLAGS 前
+      narrative <- str_remove(narrative,
+        "^[\\s\\S]*?(?=ADMINISTRATIVE FLAGS)")
+      # 清理任何残留的 prompt 指令行（仅当行首包含已知 prompt 关键词时）
+      narrative <- str_remove(narrative,
+        "^(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\\n\\n)")
+      narrative <- str_remove(narrative,
+        "^(Write in Chinese|Write in English|PATIENT INFO|SUBTEST RESULTS|ADMINISTRATIVE|STRONGEST|WEAKEST)[\\s\\S]*?(?=\\n\\n)")
+      # 清理开头可能残留的空白
+      narrative <- str_trim(narrative)
 
       # 成功 → 切换 phase 为 done，observe 会自动渲染报告
       narrative_phase("done")
