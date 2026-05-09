@@ -1474,6 +1474,7 @@ server <- function(input, output, session) {
   # ── AI 临床叙事报告 ─────────────────────────────────────────
   # Phase: "idle" | "generating" | "done" | "error"
   narrative_phase <- reactiveVal("idle")
+  narrative_text <- reactiveVal(NULL)
 
   output$narrative_status <- renderUI({ NULL })
   output$narrative_preview <- renderUI({ NULL })
