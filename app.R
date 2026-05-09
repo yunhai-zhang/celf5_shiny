@@ -228,7 +228,8 @@ server <- function(input, output, session) {
     completed_subtests = character(0),
     discontinue_triggered = FALSE,
     reversal_triggered = FALSE,
-    reversal_item = 0L
+    reversal_item = 0L,
+    status_version = 0L
   )
 
   # ── 历史评估列表（bindEvent filter，下拉切换时自动刷新）──
@@ -452,10 +453,12 @@ server <- function(input, output, session) {
   # ── 当前状态徽章 + 更改状态按钮 ───────────────────────
   output$assessment_status_ui <- renderUI({
     req(rv$assessment_id)
+    # Depend on status_version so this re-renders when status changes
+    invisible(rv$status_version)
     status <- tryCatch({
       con <- get_con(); on.exit(dbDisconnect(con))
       dbGetQuery(con, "SELECT status FROM assessments WHERE id=?",
-                 params = list(rv$assessment_id))$status[1]
+                 params = rv$assessment_id)$status[1]
     }, error = function(e) "in_progress")
     badge <- if (status == "complete") {
       span(class = "badge bg-success", style = "font-size:14px; padding:6px 14px;",
@@ -479,17 +482,20 @@ server <- function(input, output, session) {
   output$mark_complete_ui <- renderUI({
     req(input$toggle_status_edit)
     req(rv$assessment_id)
+    invisible(rv$status_version)  # re-render when status changes
     status <- tryCatch({
       con <- get_con(); on.exit(dbDisconnect(con))
       dbGetQuery(con, "SELECT status FROM assessments WHERE id=?",
-                 params = list(rv$assessment_id))$status[1]
+                 params = rv$assessment_id)$status[1]
     }, error = function(e) "in_progress")
+    # Always show BOTH options so user can switch either way
     tagList(
       selectInput("new_status", NULL,
         choices = c(
-          if (status != "in_progress") "进行中 / In Progress" = "in_progress",
-          if (status != "complete")   "已完成 / Complete"   = "complete"
+          "进行中 / In Progress" = "in_progress",
+          "已完成 / Complete"     = "complete"
         ),
+        selected = status,
         width = "200px"),
       actionButton("btn_save_status", "\u2702 保存",
         class = "btn btn-primary btn-sm", style = "margin-top:4px;")
@@ -499,7 +505,9 @@ server <- function(input, output, session) {
   observeEvent(input$btn_save_status, {
     req(rv$assessment_id, input$new_status)
     update_assessment_status(rv$assessment_id, input$new_status)
-    showNotification("\u72b6\u6001\u5df2\u66f4\u65b0 / Status updated", type = "message")
+    showNotification("状态已更新 / Status updated", type = "message")
+    # Force the status UI reactive to re-run by toggling a dummy reactive value
+    rv$status_version <- (rv$status_version %||% 0) + 1
   })
 
   # ── 测试进度（可点击卡片） ──────────────────────────────
