@@ -252,10 +252,33 @@ server <- function(input, output, session) {
   output$assessments_table <- renderDataTable({
     df <- assessments_df()
     if (nrow(df) == 0) return(df)
-    DT::datatable(df, selection = "single",
-                  options = list(pageLength = 10,
-                    language = list(emptyTable = "暂无历史评估记录")),
-                  rownames = FALSE)
+    # 去掉 emoji（DT 里 emoji 显示丑），改用 HTML 彩色标签
+    df$状态 <- ifelse(grepl("进行中", df$状态),
+                      '<span style="color:#e67e22;font-weight:600;">● 进行中</span>',
+                      '<span style="color:#27ae60;font-weight:600;">● 已完成</span>')
+    DT::datatable(df, selection = "single", escape = FALSE,
+                  options = list(
+                    pageLength = 10,
+                    lengthMenu = c(10, 25, 50),
+                    dom = 'frtip',
+                    language = list(
+                      emptyTable = "暂无历史评估记录",
+                      search = "搜索：",
+                      lengthMenu = "每页 _MENU_ 条",
+                      info = "显示第 _START_ 至 _END_ 条，共 _TOTAL_ 条"
+                    ),
+                    columnDefs = list(
+                      list(className = 'dt-center', targets = c(1, 2, 3))
+                    ),
+                    initComplete = htmlwidgets::JS(
+                      "function(settings, json) {",
+                      "  $(this.api().table().body()).css('font-size','13px');",
+                      "  $(this.api().table().header()).css('background','#f8f9fa');",
+                      "  $(this.api().table().header()).css('font-weight','600');",
+                      "}")
+                  ),
+                  rownames = FALSE,
+                  class = "stripe hover compact")
   }, server = FALSE)
 
   # dataTableProxy 用于 server=FALSE 模式下刷新表格
