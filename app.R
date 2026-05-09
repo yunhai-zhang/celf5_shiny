@@ -626,7 +626,10 @@ server <- function(input, output, session) {
     scoring_txt  <- if (!is.na(qi$scoring_key) && nzchar(qi$scoring_key)) qi$scoring_key[1] else ""
 
     tagList(
-      h3(glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {real_max} 题 total)")),
+      h3(
+        glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {real_max} 题 total)"),
+        if (item_n == sp) span(class = "badge bg-danger", style = "margin-left:10px;vertical-align:middle;font-size:16px;padding:4px 10px;", "★ 起始题 Start")
+      ),
 
       # ── 题目/刺激物显示 ─────────────────────────────────────
       if (nzchar(stimulus_txt)) {
