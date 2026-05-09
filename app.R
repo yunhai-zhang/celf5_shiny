@@ -112,6 +112,11 @@ ui <- fluidPage(
           div(class = "panel",
             div(class = "panel-heading", "历史评估记录 / Assessment History"),
             div(class = "panel-body",
+              selectInput("filter_status", "筛选状态 / Filter Status",
+                choices = c("全部 / All" = "all",
+                            "进行中 / In Progress" = "in_progress",
+                            "已完成 / Complete" = "complete"),
+                selected = "all", width = "40%"),
               dataTableOutput("assessments_table"),
               uiOutput("load_btn_ui")
             )
@@ -123,9 +128,13 @@ ui <- fluidPage(
     # ── Tab 2: 评估进度 ─────────────────────────────
     tabPanel("评估进度 / Progress",
       fluidRow(
-        column(12,
+        column(8,
           h3(textOutput("current_patient")),
           h4(textOutput("current_age"))
+        ),
+        column(4,
+          uiOutput("assessment_status_ui"),
+          uiOutput("mark_complete_ui")
         )
       ),
       fluidRow(
@@ -160,7 +169,34 @@ ui <- fluidPage(
     ),
 
 
-    # ── Tab 4: 评分报告 ─────────────────────────────
+    # ── Tab 4: AI 报告 ────────────────────────────────────
+    tabPanel("AI 报告 / AI Report",
+      fluidRow(
+        column(12,
+          h3("🤖 AI 临床叙事报告 / AI Clinical Narrative"),
+          p("由 MiniMax M2.7 生成临床评估报告文字，正式使用前须经主试评估师审核。",
+            class = "small text-muted"),
+          fluidRow(
+            column(3,
+              selectInput("report_lang", "语言 / Language",
+                choices = c("中文" = "zh", "English" = "en"),
+                selected = "zh", width = "100%")
+            ),
+            column(3,
+              actionButton("btn_gen_narrative", "生成报告 / Generate",
+                icon = icon("brain"), class = "btn btn-primary",
+                style = "margin-top: 18px;", width = "100%")
+            ),
+            column(6,
+              uiOutput("narrative_status", style = "padding-top: 22px;")
+            )
+          ),
+          uiOutput("narrative_preview")
+        )
+      )
+    ),
+
+    # ── Tab 5: 评分报告 ─────────────────────────────
     tabPanel("评分报告 / Report",
       fluidRow(
         column(12, uiOutput("report_ui"))
@@ -195,19 +231,28 @@ server <- function(input, output, session) {
     reversal_item = 0L
   )
 
-  # ── 历史评估列表（renderDataTable 模式 — server=TRUE 启用 rows_selected）──
-  output$assessments_table <- renderDataTable({
+  # ── 历史评估列表（bindEvent filter，下拉切换时自动刷新）──
+  assessments_df <- reactive({
     df <- tryCatch({
       list_assessments() %>%
         mutate(age_str = glue("{age_years}y {age_months}m"),
-               date = as.character(assessment_date)) %>%
-        select(姓名=patient_name, 评估日期=date, 年龄=age_str, 状态=status)
+               date = as.character(assessment_date),
+               状态 = ifelse(status == "in_progress", "🔄 进行中 / In Progress",
+                             "✅ 已完成 / Complete")) %>%
+        select(姓名=patient_name, 评估日期=date, 年龄=age_str, 状态=状态)
     }, error = function(e) {
       data.frame(姓名=character(), 评估日期=character(), 年龄=character(), 状态=character())
     })
-    if (nrow(df) == 0) {
-      return(df)
+    fs <- input$filter_status
+    if (!is.null(fs) && fs != "all") {
+      df <- df[grepl(if (fs == "in_progress") "进行中" else "已完成", df$状态), ]
     }
+    df
+  }) %>% bindEvent(input$filter_status, input$btn_mark_complete)
+
+  output$assessments_table <- renderDataTable({
+    df <- assessments_df()
+    if (nrow(df) == 0) return(df)
     DT::datatable(df, selection = "single",
                   options = list(pageLength = 10,
                     language = list(emptyTable = "暂无历史评估记录")),
@@ -402,6 +447,59 @@ server <- function(input, output, session) {
   output$current_age <- renderText({
     req(rv$age)
     glue("年龄: {format_age(rv$age)} ({rv$age_group})  |  测试组合: {paste(rv$test_list, collapse=', ')}")
+  })
+
+  # ── 当前状态徽章 + 更改状态按钮 ───────────────────────
+  output$assessment_status_ui <- renderUI({
+    req(rv$assessment_id)
+    status <- tryCatch({
+      con <- get_con(); on.exit(dbDisconnect(con))
+      dbGetQuery(con, "SELECT status FROM assessments WHERE id=?",
+                 params = list(rv$assessment_id))$status[1]
+    }, error = function(e) "in_progress")
+    badge <- if (status == "complete") {
+      span(class = "badge bg-success", style = "font-size:14px; padding:6px 14px;",
+           "✅ 已完成 / Complete")
+    } else {
+      span(class = "badge bg-warning text-dark", style = "font-size:14px; padding:6px 14px;",
+           "🔄 进行中 / In Progress")
+    }
+    tagList(
+      badge,
+      tags$button(
+        type = "button", class = "btn btn-sm btn-outline-secondary",
+        style = "margin-left:8px;",
+        onclick = "Shiny.setInputValue('toggle_status_edit', Math.random());",
+        "更改状态 \u00bb"
+      )
+    )
+  })
+
+  # 更改状态面板（点击按钮才出现）
+  output$mark_complete_ui <- renderUI({
+    req(input$toggle_status_edit)
+    req(rv$assessment_id)
+    status <- tryCatch({
+      con <- get_con(); on.exit(dbDisconnect(con))
+      dbGetQuery(con, "SELECT status FROM assessments WHERE id=?",
+                 params = list(rv$assessment_id))$status[1]
+    }, error = function(e) "in_progress")
+    tagList(
+      selectInput("new_status", NULL,
+        choices = c(
+          if (status != "in_progress") "进行中 / In Progress" = "in_progress",
+          if (status != "complete")   "已完成 / Complete"   = "complete"
+        ),
+        width = "200px"),
+      actionButton("btn_save_status", "\u2702 保存",
+        class = "btn btn-primary btn-sm", style = "margin-top:4px;")
+    )
+  })
+
+  observeEvent(input$btn_save_status, {
+    req(rv$assessment_id, input$new_status)
+    update_assessment_status(rv$assessment_id, input$new_status)
+    showNotification("\u72b6\u6001\u5df2\u66f4\u65b0 / Status updated", type = "message")
   })
 
   # ── 测试进度（可点击卡片） ──────────────────────────────
@@ -1164,26 +1262,6 @@ server <- function(input, output, session) {
         class = "small text-muted"),
       comp_display,
       hr(),
-      h3("🤖 AI 临床叙事报告 / AI Clinical Narrative"),
-      p("由 MiniMax M2.7 生成临床评估报告文字，正式使用前须经主试评估师审核。",
-        class = "small text-muted"),
-      fluidRow(
-        column(3,
-          selectInput("report_lang", "语言 / Language",
-            choices = c("中文" = "zh", "English" = "en"),
-            selected = "zh", width = "100%")
-        ),
-        column(3,
-          actionButton("btn_gen_narrative", "生成报告 / Generate",
-            icon = icon("brain"), class = "btn btn-primary",
-            style = "margin-top: 18px;", width = "100%")
-        ),
-        column(6,
-          uiOutput("narrative_status", style = "padding-top: 22px;")
-        )
-      ),
-      uiOutput("narrative_preview"),
-      hr(),
       h3("下载报告 / Download Report"),
       fluidRow(
         column(4, downloadButton("download_report_en",  "📄 Download (English)")),
@@ -1386,41 +1464,51 @@ server <- function(input, output, session) {
   )
 
   # ── AI 临床叙事报告 ─────────────────────────────────────────
-  output$narrative_status <- renderUI({
-    NULL
-  })
+  # Phase: "idle" | "generating" | "done" | "error"
+  narrative_phase <- reactiveVal("idle")
 
-  narrative_text <- reactiveVal(NULL)
+  output$narrative_status <- renderUI({ NULL })
+  output$narrative_preview <- renderUI({ NULL })
+
+  # observe 驱动 UI：phase 一切换，spinner/报告立刻画出来
+  observe({
+narrative_phase <- narrative_phase()
+    if (narrative_phase == "generating") {
+      output$narrative_status <- renderUI({
+        tags$div(
+          tags$style(HTML("
+            @keyframes ai-spin { to { transform: rotate(360deg); } }
+            .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
+                       border-top:2px solid #1B3A6B; border-radius:50%;
+                       display:inline-block; animation:ai-spin 0.7s linear infinite; }
+            .ai-msg  { display:inline; margin-left:8px; color:#6c757d; }
+          ")),
+          tags$div(style="margin-top:6px",
+            tags$span(class="ai-spin"),
+            tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
+          )
+        )
+      })
+      output$narrative_preview <- renderUI({ NULL })
+    }
+  })
 
   observeEvent(input$btn_gen_narrative, {
     req(rv$assessment_id)
-
     lang <- input$report_lang
+    aid <- rv$assessment_id  # capture before later::later()
 
-    # Loading 状态：显示 spinner（inline CSS，Shiny 标准写法）
-    output$narrative_status <- renderUI({
-      tags$div(
-        tags$style(HTML("
-          @keyframes ai-spin { to { transform: rotate(360deg); } }
-          .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
-                     border-top:2px solid #1B3A6B; border-radius:50%;
-                     display:inline-block; animation:ai-spin 0.7s linear infinite; }
-          .ai-msg { display:inline; margin-left:8px; color:#6c757d; }
-        ")),
-        tags$div(style="margin-top:6px",
-          tags$span(class="ai-spin"),
-          tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
-        )
-      )
-    })
-    # 清空旧预览
-    output$narrative_preview <- renderUI({ NULL })
+    # 第一步：立刻切换 phase → 触发上面的 observe 立即画 spinner
+    narrative_phase("generating")
+
+    # 第二步：推迟 API 调用到下一个 tick，让 reactive flush 先跑完
+    later::later(function() {
 
     tryCatch({
       narrative <- if (lang == "zh") {
-        generate_clinical_narrative(rv$assessment_id)
+        generate_clinical_narrative(aid)
       } else {
-        generate_clinical_narrative_en(rv$assessment_id)
+        generate_clinical_narrative_en(aid)
       }
 
       # ── 清理 think tags + 残余 prompt 前缀 ──────────────────
@@ -1436,11 +1524,12 @@ server <- function(input, output, session) {
       narrative <- stringr::str_remove(narrative,
         "^[\u0020-\u007e\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\n\n|\n)")
       narrative <- stringr::str_remove(narrative,
-        "^[\u0020-\u007e\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\n\n|\n)")
+        "^[\\u0020-\\u007e\\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\\n\\n|\\n)")
 
+      # 成功 → 切换 phase 为 done，observe 会自动渲染报告
+      narrative_phase("done")
       narrative_text(narrative)
 
-      # 成功状态
       output$narrative_status <- renderUI({
         div(class = "alert alert-success mb-0", role = "alert",
           icon("check-circle"),
@@ -1451,7 +1540,6 @@ server <- function(input, output, session) {
             icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
       })
 
-      # Markdown 渲染（不用 pre() 可复制框，直接渲染 markdown）
       md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
       output$narrative_preview <- renderUI({
         tags$div(
@@ -1480,6 +1568,8 @@ server <- function(input, output, session) {
         )
       })
     }, error = function(e) {
+      # 失败 → 切换 phase 为 error
+      narrative_phase("error")
       output$narrative_status <- renderUI({
         div(class = "alert alert-danger mb-0", role = "alert",
           icon("exclamation-triangle"),
@@ -1487,99 +1577,93 @@ server <- function(input, output, session) {
           e$message)
       })
       cat(file = stderr(), "[narrative error]", e$message, "\n")
-    })
-  })
+    })  # closes tryCatch
+  })  # closes later::later
+  })  # closes observeEvent(input$btn_gen_narrative, ...)
 
-  # 重新生成按钮 → 直接调生成逻辑
+  # 重新生成按钮
   observeEvent(input$btn_regen_narrative, {
+    req(rv$assessment_id)
     lang <- input$report_lang
+    aid <- rv$assessment_id  # capture before later::later()
 
-    output$narrative_status <- renderUI({
-      tags$div(
-        tags$style(HTML("
-          @keyframes ai-spin { to { transform: rotate(360deg); } }
-          .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
-                     border-top:2px solid #1B3A6B; border-radius:50%;
-                     display:inline-block; animation:ai-spin 0.7s linear infinite; }
-          .ai-msg { display:inline; margin-left:8px; color:#6c757d; }
-        ")),
-        tags$div(style="margin-top:6px",
-          tags$span(class="ai-spin"),
-          tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
+    narrative_phase("generating")
+
+    later::later(function() {
+      tryCatch({
+        narrative <- if (lang == "zh") {
+          generate_clinical_narrative(aid)
+        } else {
+          generate_clinical_narrative_en(aid)
+        }
+
+        tk_pairs <- list(
+          c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),
+          c("<think>", "
+</think>
+
+")                             # English think tags
         )
-      )
-    })
-    output$narrative_preview <- renderUI({ NULL })
+        for (pair in tk_pairs) {
+          pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
+          narrative <- stringr::str_remove_all(narrative, pattern)
+        }
+        narrative <- stringr::str_remove(narrative,
+          "^[\\u0020-\\u007e\\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\\n\\n|\\n)")
+        narrative <- stringr::str_remove(narrative,
+          "^[\\u0020-\\u007e\\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\\n\\n|\\n)")
 
-    tryCatch({
-      narrative <- if (lang == "zh") {
-        generate_clinical_narrative(rv$assessment_id)
-      } else {
-        generate_clinical_narrative_en(rv$assessment_id)
-      }
+        narrative_phase("done")
+        narrative_text(narrative)
 
-      tk_pairs <- list(
-        c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),
-        c("<think>", "</think>")
-      )
-      for (pair in tk_pairs) {
-        pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
-        narrative <- stringr::str_remove_all(narrative, pattern)
-      }
-      narrative <- stringr::str_remove(narrative,
-        "^[\u0020-\u007e\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\n\n|\n)")
-      narrative <- stringr::str_remove(narrative,
-        "^[\u0020-\u007e\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\n\n|\n)")
+        output$narrative_status <- renderUI({
+          div(class = "alert alert-success mb-0", role = "alert",
+            icon("check-circle"),
+            if (lang == "zh") "中文报告已生成！" else "English report generated!",
+            " ",
+            actionLink("btn_regen_narrative",
+              if (lang == "zh") " 重新生成" else " Regenerate",
+              icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
+        })
 
-      narrative_text(narrative)
-
-      output$narrative_status <- renderUI({
-        div(class = "alert alert-success mb-0", role = "alert",
-          icon("check-circle"),
-          if (lang == "zh") "中文报告已生成！" else "English report generated!",
-          " ",
-          actionLink("btn_regen_narrative",
-            if (lang == "zh") " 重新生成" else " Regenerate",
-            icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
-      })
-
-      md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
-      output$narrative_preview <- renderUI({
-        tags$div(
-          tags$style(HTML("
-            .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
-                             border-radius:8px; padding:20px 24px; margin-top:12px;
-                             font-size:14px; line-height:1.75; max-height:600px;
-                             overflow-y:auto; }
-            .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
-            .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
-            .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
-            .ai-report-card li { margin-bottom:5px; }
-            .ai-report-card strong { color:#1B3A6B; }
-            .ai-report-card em { color:#666; font-style:italic; }
-            .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
-          ")),
-          div(class = "card mb-3",
-            div(class = "card-header d-flex justify-content-between align-items-center",
-              strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
-              span(class = "badge bg-secondary", "AI")
-            ),
-            div(class = "card-body p-0",
-              div(class = "ai-report-card", HTML(md_html))
+        md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
+        output$narrative_preview <- renderUI({
+          tags$div(
+            tags$style(HTML("
+              .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
+                               border-radius:8px; padding:20px 24px; margin-top:12px;
+                               font-size:14px; line-height:1.75; max-height:600px;
+                               overflow-y:auto; }
+              .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
+              .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
+              .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
+              .ai-report-card li { margin-bottom:5px; }
+              .ai-report-card strong { color:#1B3A6B; }
+              .ai-report-card em { color:#666; font-style:italic; }
+              .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
+            ")),
+            div(class = "card mb-3",
+              div(class = "card-header d-flex justify-content-between align-items-center",
+                strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
+                span(class = "badge bg-secondary", "AI")
+              ),
+              div(class = "card-body p-0",
+                div(class = "ai-report-card", HTML(md_html))
+              )
             )
           )
-        )
+        })
+      }, error = function(e) {
+        narrative_phase("error")
+        output$narrative_status <- renderUI({
+          div(class = "alert alert-danger mb-0", role = "alert",
+            icon("exclamation-triangle"),
+            if (lang == "zh") "生成失败: " else "Generation failed: ",
+            e$message)
+        })
+        cat(file = stderr(), "[narrative error]", e$message, "\n")
       })
-    }, error = function(e) {
-      output$narrative_status <- renderUI({
-        div(class = "alert alert-danger mb-0", role = "alert",
-          icon("exclamation-triangle"),
-          if (lang == "zh") "生成失败: " else "Generation failed: ",
-          e$message)
-      })
-      cat(file = stderr(), "[narrative error]", e$message, "\n")
-    })
-  })
-
-}
+    })  # closes later::later
+  })    # closes observeEvent(input$btn_regen_narrative, ...)
+}      # closes server
 shinyApp(ui, server)

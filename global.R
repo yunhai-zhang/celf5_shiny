@@ -727,6 +727,14 @@ save_composite_scores <- function(assessment_id, indices_df) {
 # ─────────────────────────────────────────────────────────────
 # 9. 缺失的数据库查询函数
 # ─────────────────────────────────────────────────────────────
+update_assessment_status <- function(assessment_id, status) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  dbExecute(con,
+    "UPDATE assessments SET status = ? WHERE id = ?",
+    params = list(status, assessment_id))
+}
+
 list_assessments <- function(limit = 100L) {
   con <- get_con()
   on.exit(dbDisconnect(con))
@@ -1314,21 +1322,35 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   )
 
   txt <- content(resp, as = "text", encoding = "UTF-8")
-  parsed <- fromJSON(txt)
   if (resp$status_code != 200) {
     stop(sprintf("MiniMax API error %d: %s", resp$status_code, txt))
   }
-  raw_content <- parsed$choices$message$content
-  # 去掉 <think>...</think> 思考块
-  # ── 去掉思考标签块 ─────────────────────────────────────────
-  # MiniMax M2.7 对中英文 prompt 都用 <think>...想知道
-  # 策略：直接删掉两个标签，不走 regex，保留标签之间的正文
-  tk_open  <- "<think>"
-  tk_close <- "想知道"
+  # 用 simplifyVector=FALSE 保证 choices 是 list，不是原子向量
+  parsed <- fromJSON(txt, simplifyVector = FALSE)
+  raw_content <- parsed$choices[[1]]$message$content
+
+  # ── 去掉所有思考标签块（中文+英文+M2.7所有变体）────────────
+  # 用 regex 删掉 【知道...】、【想知道...】整块内容
+  # 策略：先删标签对之间的正文，再删残余标签
+  tk_patterns <- list(
+    "\\u3010\\u77e5\\u9053[\\s\\S]*?\\u3011",
+    "\\u3010\\u60f3\\u77e5\\u9053[\\s\\S]*?\\u3011",
+    "<think>[\\s\\S]*?想知道",
+    "\\[知道\\][\\s\\S]*?\\[/知道\\]",
+    "\\[想知道\\][\\s\\S]*?\\[/想知道\\]"
+  )
 
   cleaned <- raw_content
-  cleaned <- stringr::str_replace_all(cleaned, tk_open, "")
-  cleaned <- stringr::str_replace_all(cleaned, tk_close, "")
+  for (pat in tk_patterns) {
+    cleaned <- stringr::str_remove_all(cleaned, pat)
+  }
+  # 清理 prompt 指令残留行
+  cleaned <- stringr::str_remove(cleaned,
+    "^[\\s]*?(You are a clinical|Generate a professional|This report|Writing in)[\\s\\S]*?$")
+  cleaned <- stringr::str_remove(cleaned,
+    "^[\\s]*?(Write in Chinese|Write in English|Please generate)[\\s\\S]*?$")
+  # trim
+  cleaned <- stringr::str_trim(cleaned)
   cleaned
 }
 
@@ -1474,7 +1496,7 @@ Requirements:
   )
 
   # ── 调用 MiniMax ──────────────────────────────────────────
-  raw_narrative <- .call_minimax(prompt, max_tokens = 1200L)
+  raw_narrative <- .call_minimax(prompt, max_tokens = 4000L)
   # 去掉思考标记和 prompt 泄露（MiniMax 模型有时会在开头输出多余内容）
   # 策略：找到第一个中文字符作为正文起点
   narrative <- raw_narrative
@@ -1621,7 +1643,7 @@ Requirements:
     ass$date_str[1]
   )
   # 思考标签已在 .call_minimax() 里统一清理掉，这里无需额外处理
-  .call_minimax(prompt, max_tokens = 1200L)
+  .call_minimax(prompt, max_tokens = 4000L)
 }
 
 # END OF FILE
