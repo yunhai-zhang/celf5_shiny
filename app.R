@@ -528,7 +528,7 @@ server <- function(input, output, session) {
     update_assessment_status(rv$assessment_id, input$new_status)
     showNotification("状态已更新 / Status updated", type = "message")
     # Force the status UI reactive to re-run by toggling a dummy reactive value
-    rv$status_version <- (rv$status_version %||% 0) + 1
+    rv$status_version <- rv$status_version + 1L
   })
 
   # ── 测试进度（可点击卡片） ──────────────────────────────
@@ -934,17 +934,15 @@ server <- function(input, output, session) {
     already_done <- sub_r$item_number
     to_backfill <- setdiff(seq(1, sp - 1), already_done)
 
-    for (i_n in to_backfill) {
-      # 写入 rv$responses（如果不存在）
+    purrr::walk(to_backfill, function(i_n) {
       if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
         rv$responses <- rv$responses %>% add_row(
           subtest = t, item_number = i_n,
           response_text = "(backfill)", score = 1L
         )
-        # 写入 DB
         save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
       }
-    }
+    })
 
     # 跳到 start_point + 8（或 max_item）
     jump_to <- min(sp + 8L, max_i)
@@ -1163,12 +1161,7 @@ server <- function(input, output, session) {
         LMI = "Language Memory Index (LMI) measures verbal memory and sentence recall. It includes Recalling Sentences, Sentence Assembly, and Understanding Spoken Paragraphs."
       )
 
-      pct_num  <- as.numeric(pct)
-      pct_disp <- if (is.na(pct_num)) {
-        if (grepl("<", pct, fixed = TRUE)) "<0.1" else if (grepl(">", pct, fixed = TRUE)) ">99.9" else pct
-      } else {
-        sprintf("%.1f", pct_num)
-      }
+      pct_disp <- fmt_pct(pct)
 
       int_en <- if (is.na(std)) {
         "No score available."
@@ -1492,7 +1485,7 @@ server <- function(input, output, session) {
   # ── AI 临床叙事报告 ─────────────────────────────────────────
   # Phase: "idle" | "generating" | "done" | "error"
   narrative_phase <- reactiveVal("idle")
-  narrative_text <- reactiveVal(NULL)
+  # narrative_text removed — was dead state (never read in UI)
 
   output$narrative_status <- renderUI({ NULL })
   output$narrative_preview <- renderUI({ NULL })
@@ -1539,32 +1532,9 @@ narrative_phase <- narrative_phase()
       }
 
       # ── 清理 think tags + 残余 prompt 前缀 ──────────────────
-      tk_pairs <- list(
-        c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),  # 想知道
-        c("<think>", "</think>")                             # English think tags
-      )
-      for (pair in tk_pairs) {
-        pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
-        narrative <- stringr::str_remove_all(narrative, pattern)
-      }
-      # 清理残余 prompt 指令（仅匹配响应开头部分的 prompt，避免误删正文中的相同词汇）
-      # 第一个块：开头到 subtest results 前
-      narrative <- str_remove(narrative,
-        "^[\\s\\S]*?(?=PATIENT INFO[\\s\\S]*?SUBTEST RESULTS)")
-      # 第二个块：SUBTEST RESULTS 到 ADMINISTRATIVE FLAGS 前
-      narrative <- str_remove(narrative,
-        "^[\\s\\S]*?(?=ADMINISTRATIVE FLAGS)")
-      # 清理任何残留的 prompt 指令行（仅当行首包含已知 prompt 关键词时）
-      narrative <- str_remove(narrative,
-        "^(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\\n\\n)")
-      narrative <- str_remove(narrative,
-        "^(Write in Chinese|Write in English|PATIENT INFO|SUBTEST RESULTS|ADMINISTRATIVE|STRONGEST|WEAKEST)[\\s\\S]*?(?=\\n\\n)")
-      # 清理开头可能残留的空白
-      narrative <- str_trim(narrative)
+              narrative <- .clean_narrative_tags(narrative)
 
-      # 成功 → 切换 phase 为 done，observe 会自动渲染报告
-      narrative_phase("done")
-      narrative_text(narrative)
+narrative_phase("done")
 
       output$narrative_status <- renderUI({
         div(class = "alert alert-success mb-0", role = "alert",
@@ -1633,24 +1603,9 @@ narrative_phase <- narrative_phase()
           generate_clinical_narrative_en(aid)
         }
 
-        tk_pairs <- list(
-          c("\u3010\u77e5\u9053", "\u60f3\u77e5\u9053"),
-          c("<think>", "
-</think>
+                narrative <- .clean_narrative_tags(narrative)
 
-")                             # English think tags
-        )
-        for (pair in tk_pairs) {
-          pattern <- sprintf("%s[\\s\\S]*?%s", pair[1], pair[2])
-          narrative <- stringr::str_remove_all(narrative, pattern)
-        }
-        narrative <- stringr::str_remove(narrative,
-          "^[\\u0020-\\u007e\\n]*?(You are a clinical|Generate a professional|This report)[\\s\\S]*?(?=\\n\\n|\\n)")
-        narrative <- stringr::str_remove(narrative,
-          "^[\\u0020-\\u007e\\n]*?(Write in Chinese|Write in English)[\\s\\S]*?(?=\\n\\n|\\n)")
-
-        narrative_phase("done")
-        narrative_text(narrative)
+narrative_phase("done")
 
         output$narrative_status <- renderUI({
           div(class = "alert alert-success mb-0", role = "alert",

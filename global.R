@@ -1300,52 +1300,22 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   regmatches(env_lines, pat)[1]
 }
 
-.call_minimax <- function(prompt, max_tokens = 800L) {
-  readRenviron(file.path(Sys.getenv("HOME"), ".hermes", ".env"))
-  key <- .read_minimax_key()
-  if (!nzchar(key)) stop("MINIMAX_CN_API_KEY not found")
 
-  library(httr)
-  library(jsonlite)
-
-  body <- toJSON(list(
-    model      = "MiniMax-M2.7",
-    max_tokens = max_tokens,
-    messages   = list(list(role = "user", content = prompt))
-  ), auto_unbox = TRUE)
-
-  resp <- POST(
-    url  = "https://api.minimaxi.com/v1/chat/completions",
-    add_headers(Authorization = paste("Bearer", key)),
-    body     = body,
-    content_type_json()
-  )
-
-  txt <- content(resp, as = "text", encoding = "UTF-8")
-  if (resp$status_code != 200) {
-    stop(sprintf("MiniMax API error %d: %s", resp$status_code, txt))
-  }
-  # 用 simplifyVector=FALSE 保证 choices 是 list，不是原子向量
-  parsed <- fromJSON(txt, simplifyVector = FALSE)
-  raw_content <- parsed$choices[[1]]$message$content
-
-  # ── 去掉所有思考标签块（中文+英文+M2.7所有变体）────────────
-  # 用 regex 删掉 【知道...】、【想知道...】整块内容
-  # 策略：先删标签对之间的正文，再删残余标签
+# ─────────────────────────────────────────────────────────────────
+# .clean_narrative_tags — 清除 MiniMax 返回中的思考标签和 prompt 残留
+# 统一 .call_minimax / btn_gen_narrative / btn_regen_narrative 三处重复逻辑
+# ─────────────────────────────────────────────────────────────────
+.clean_narrative_tags <- function(raw_text) {
   tk_patterns <- list(
-    # 中文
-    "\\u3010\\u77e5\\u9053[\\s\\S]*?\\u3011",
-    "\\u3010\\u60f3\\u77e5\\u9053[\\s\\S]*?\\u3011",
-    "\\[知道\\][\\s\\S]*?\\[/知道\\]",
-    "\\[想知道\\][\\s\\S]*?\\[/想知道\\]",
-    # 英文（MiniMax M2.7 主要输出格式）
-    "<thought>[\\s\\S]*?</thought>",
-    "<think>[\\s\\S]*?</think>",
-    "\\[think\\][\\s\\S]*?\\[/think\\]"
+    "\u3010\u77e5\u9053[\\s\\S]*?\u3010\u60f3\u77e5\u9053",   # 中文【知道...想知道】
+    "\u3010\u60f3\u77e5\u9053[\\s\\S]*?\u3010\u77e5\u9053",
+    "<thought>[\\s\\S]*?</thought>",                              # English think tags
+    "< THOUGHT >[\\s\\S]*?</THOUGHT>",
+    "<think>[\\s\\S]*?</planning>",
+    "<think>[\\s\\S]*?</thinking>",
+    "\[think\][\\s\\S]*?\[/think\]"
   )
-  )
-
-  cleaned <- raw_content
+  cleaned <- raw_text
   for (pat in tk_patterns) {
     cleaned <- stringr::str_remove_all(cleaned, pat)
   }
@@ -1354,9 +1324,30 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
     "^[\\s]*?(You are a clinical|Generate a professional|This report|Writing in)[\\s\\S]*?$")
   cleaned <- stringr::str_remove(cleaned,
     "^[\\s]*?(Write in Chinese|Write in English|Please generate)[\\s\\S]*?$")
-  # trim
-  cleaned <- stringr::str_trim(cleaned)
-  cleaned
+  stringr::str_trim(cleaned)
+}
+
+.call_minimax <- function(prompt, max_tokens = 800L) {
+  api_key  <- .read_minimax_key()
+  url      <- "https://api.minimaxi.com/v1/chat/completions"
+  body     <- list(
+    model    = "MiniMax/M2.7",
+    messages = list(list(role = "user", content = prompt)),
+    max_tokens = max_tokens,
+    temperature = 0.7
+  )
+  resp     <- httr::POST(
+    url,
+    httr::add_headers(`Content-Type` = "application/json", `Authorization` = paste0("Bearer ", api_key)),
+    body     = body,
+    httr::content_type_json()
+  )
+  txt      <- content(resp, as = "text", encoding = "UTF-8")
+  if (resp$status_code != 200) {
+    stop(sprintf("MiniMax API error %d: %s", resp$status_code, txt))
+  }
+  parsed   <- fromJSON(txt, simplifyVector = FALSE)
+  .clean_narrative_tags(parsed$choices[[1]]$message$content)
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -1412,9 +1403,8 @@ generate_clinical_narrative <- function(assessment_id) {
   disc_subs <- character()
   rev_info  <- character()
 
-  for (sub in raw_scores$subtest) {
+  purrr::iwalk(split(raw_scores, raw_scores$subtest), function(sr, sub) {
     dr <- get_discontinue_rule(sub)
-    sr <- resp %>% filter(subtest == !!sub) %>% arrange(item_number)
     if (dr > 0 && nrow(sr) >= 4 && all(tail(sr$score, 4) == 0)) {
       disc_subs <<- c(disc_subs, sub)
     }
@@ -1425,7 +1415,7 @@ generate_clinical_narrative <- function(assessment_id) {
         rev_info <<- c(rev_info, sub)
       }
     }
-  }
+  })
 
   # ── Discontinuation / Reversal ─────────────────────────────
   # subtest 描述行
@@ -1569,9 +1559,8 @@ generate_clinical_narrative_en <- function(assessment_id) {
   disc_subs <- character()
   rev_info  <- character()
 
-  for (sub in raw_scores$subtest) {
+  purrr::iwalk(split(raw_scores, raw_scores$subtest), function(sr, sub) {
     dr <- get_discontinue_rule(sub)
-    sr <- resp %>% filter(subtest == !!sub) %>% arrange(item_number)
     if (dr > 0 && nrow(sr) >= 4 && all(tail(sr$score, 4) == 0)) {
       disc_subs <<- c(disc_subs, sub)
     }
@@ -1582,7 +1571,7 @@ generate_clinical_narrative_en <- function(assessment_id) {
         rev_info <<- c(rev_info, sub)
       }
     }
-  }
+  })
 
   subtest_lines <- map_chr(seq_len(nrow(raw_scores)), function(i) {
     t    <- raw_scores$subtest[i]
