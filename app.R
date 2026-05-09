@@ -227,6 +227,7 @@ server <- function(input, output, session) {
     discontinue_triggered = FALSE,
     reversal_triggered = FALSE,
     reversal_item = 0L,
+    wc_reversal_depth = 0L,  # WC 两级 Reversal 状态追踪
     status_version = 0L
   )
 
@@ -348,6 +349,7 @@ server <- function(input, output, session) {
     rv$discontinue_triggered <- FALSE
     rv$reversal_triggered <- FALSE
     rv$reversal_item <- 0L
+    rv$wc_reversal_depth <- 0L
     rv$responses <- tibble(subtest=character(), item_number=integer(),
                           response_text=character(), score=integer(),
                           structure_complete=integer(), grammar=integer(),
@@ -355,8 +357,9 @@ server <- function(input, output, session) {
     # Auto-select first subtest to avoid NULL current_subtest on question tab
     first_test <- rv$test_list[1]
     rv$current_subtest <- first_test
-    rv$current_item <- 1L
     rv$start_point <- get_start_point(first_test, age_group)
+    rv$current_item <- rv$start_point  # ✅ 从 start_point 开始，不是第1题
+    updateSelectInput(session, "selected_subtest", selected = first_test)
     updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")
   })
 
@@ -387,11 +390,12 @@ server <- function(input, output, session) {
     rv$discontinue_triggered <- FALSE
     rv$reversal_triggered <- FALSE
     rv$reversal_item <- 0L
+    rv$wc_reversal_depth <- 0L
     # Initialize current_subtest to avoid NULL on question tab
     first_test <- rv$test_list[1]
     rv$current_subtest <- first_test
-    rv$current_item <- 1L
     rv$start_point <- get_start_point(first_test, rv$age_group)
+    rv$current_item <- rv$start_point  # ✅ 从 start_point 开始
 
     if (nrow(full$responses) > 0) {
       rv$responses <- full$responses %>%
@@ -406,6 +410,7 @@ server <- function(input, output, session) {
                mechanics = as.integer(mechanics))
     }
 
+    updateSelectInput(session, "selected_subtest", selected = first_test)
     updateTabsetPanel(session, "main_tabs", selected = "评估进度 / Progress")
   })
 
@@ -560,16 +565,7 @@ server <- function(input, output, session) {
     t <- input$jump_to_subtest
     updateTabsetPanel(session, "main_tabs", selected = "测试题目 / Test Items")
     rv$current_subtest <- t
-    sub_resp <- rv$responses %>% filter(subtest == t)
-    sp <- get_start_point(t, rv$age_group)
-    all_items <- seq_len(get_max_item(t, rv$age_group))
-    done_items <- sub_resp$item_number
-    next_item <- min(setdiff(all_items, done_items), na.rm = TRUE)
-    rv$current_item <- next_item
-    rv$start_point <- sp
-    rv$discontinue_triggered <- FALSE
-    rv$reversal_triggered <- FALSE
-    rv$reversal_item <- 0L
+    updateSelectInput(session, "selected_subtest", selected = t)
   })
 
   # ── Subtest 选择 ─────────────────────────────────────────
@@ -584,17 +580,27 @@ server <- function(input, output, session) {
 
   observeEvent(input$selected_subtest, {
     rv$current_subtest <- input$selected_subtest
-    sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
-    max_done <- if (nrow(sub_resp) > 0) max(sub_resp$item_number) else 0L
     sp <- get_start_point(rv$current_subtest, rv$age_group)
-    all_items <- seq_len(get_max_item(rv$current_subtest, rv$age_group))
-    done_items <- sub_resp$item_number
-    next_item <- min(setdiff(all_items, done_items), na.rm=TRUE)
-    rv$current_item <- next_item
-    rv$start_point <- sp
-    rv$discontinue_triggered <- FALSE
-    rv$reversal_triggered <- FALSE
-    rv$reversal_item <- 0L
+    sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
+    # 找下一个未打分的题（允许从 Item 1 导航到 max_item，全部题目都可见）
+    # 注意：start_point 之前的题（1~sp-1）在 reversal 触发时已被 backfill 为满分，
+    #       但施测流程中仍可通过 btn_prev 回退查看（打过分但不参与正常施测流程）
+    max_item <- get_max_item(rv$current_subtest, rv$age_group)
+    scored_items <- sub_resp$item_number
+    candidates <- setdiff(seq(1, max_item), scored_items)
+    next_item <- if (length(candidates) > 0) min(candidates) else (max_item + 1L)
+    # 避免 btn_start/init 时覆盖 current_item（btn_start 在此之前已正确设置）
+    if (length(scored_items) > 0 || next_item >= sp) {
+      rv$current_item <- next_item
+    }
+    # 仅在真正切换 subtest 时才重置状态标志（不在 btn_start 初始化阶段）
+    if (!isTRUE(get0("._initializing_."))) {
+      rv$start_point <- sp
+      rv$discontinue_triggered <- FALSE
+      rv$reversal_triggered <- FALSE
+      rv$reversal_item <- 0L
+      rv$wc_reversal_depth <- 0L
+    }
   })
 
   # ── 题目 UI ─────────────────────────────────────────────
@@ -835,6 +841,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$btn_prev, {
     if (rv$current_item > 1) rv$current_item <- rv$current_item - 1L
+    if (rv$current_item < 1) rv$current_item <- 1L
   })
 
   observeEvent(input$btn_next, {
@@ -871,86 +878,155 @@ server <- function(input, output, session) {
     }
   }
 
-  # ── Reversal 检查（Manual Chapter 3 — WC/FS/WD/SA/SC）────────────
-  # 逻辑：连续2个满分（从 start_point 算起）→ 触发 reversal
-  # → backfill start_point 之前所有题为 1 分（满分）
-  # → 跳到 start_point + 8（或 max_item，取较小者）继续
-  check_reversal <- function(subtest) {
-    t <- subtest
-    sp <- rv$start_point
-    max_i <- get_max_item(t, rv$age_group)
+    # ── Reversal 检查（Manual Chapter 3 原文）──────────────────
+    # 有 reversal: SC / LC / WC / FS / RS / WD / SA
+    # 无 reversal: FD / WS / SR / RC / SW / USP / PP
+    #
+    # Continue Rule（所有 subtest 通用）：
+    #   start_point 只是施测起点，不是题库上限。
+    #   学生做对就一路往下做到 max_item 或 discontinue。
+    #   绝对不能在到达 max_item 之前提前停止。
+    #
+    # WC 特殊 Reversal 规则（Manual P46-48）：
+    #   Ages 5-10:   start_point=1 → Reversal 不适用
+    #   Ages 11-14:  前两题(sp=13, sp+1=14) 未满分 → 回到 Demo+Trials → Item 1
+    #                 (我们无 Trial Items → 直接跳 Item 1)
+    #   Ages 15-21:  两级检查：
+    #     第一级：前两题(sp=20, sp+1=21) 未满分 → 跳回 Item 13
+    #     第二级：在 Item 13 检测 items 13+14：
+    #       - 都满分 → 继续从 Item 15 往下做
+    #       - 未满分 → 回到 Demo+Trials → Item 1（我们无 Trial → 直接 Item 1）
+    check_reversal <- function(subtest) {
+      t <- subtest
+      sp <- rv$start_point
 
-    # 只对有 reversal 规则的 subtest 检查
-    reversal_subs <- c("WC", "FS", "WD", "SA", "SC", "LC")
-    if (!(t %in% reversal_subs)) return()
+      reversal_subs <- c("SC", "LC", "WC", "FS", "RS", "WD", "SA")
+      if (!(t %in% reversal_subs)) return()
 
-    sub_r <- rv$responses %>% filter(subtest==!!t) %>% arrange(item_number)
-    if (nrow(sub_r) < 2) return()
+      if (sp <= 1L) return()              # start_point=1 → 不适用
+      if (rv$reversal_triggered) return()   # 已触发过 → 不重复
 
-    # 找从 start_point 开始的最后连续满分段
-    from_sp <- sub_r %>% filter(item_number >= sp)
-    if (nrow(from_sp) < 2) return()
+      sub_r <- rv$responses %>% filter(subtest==!!t) %>% arrange(item_number)
 
-    # 从后往前扫：连续2个满分？
-    scores <- from_sp$score
-    n <- nrow(from_sp)
-    consec <- 0
-    consec_start <- n + 1
-    for (i in n:1) {
       max_score_t <- max_score_for_subtest(t)
-      if (from_sp$score[i] == max_score_t) {
-        consec <- consec + 1
-        consec_start <- i
-        if (consec >= 2) break
-      } else {
-        consec <- 0
-        consec_start <- n + 1
-      }
-    }
 
-    if (consec < 2) {
-      # reversal 未触发 → 正常前进一题
-      if (!rv$discontinue_triggered && i_n < max_i) {
-        rv$current_item <- i_n + 1L
+    wc_reversal_depth <- rv$wc_reversal_depth
+    # ── WC 15-21 岁两级 Reversal ──────────────────────────────
+    if (t == "WC" && sp == 20L) {
+      first_two <- sub_r %>% filter(item_number >= 20L) %>% slice(1:2)
+      if (nrow(first_two) < 2) return()
+      if (first_two$score[1] == max_score_t && first_two$score[2] == max_score_t) {
+        rv$wc_reversal_depth <- 0L; return()  # 两题都满分，不触发
       }
+      # level 1 触发（items 20+21 未满分）→ 跳 Item 13 做 level 2
+      rv$wc_reversal_depth <- 1L
+      rv$reversal_triggered <- TRUE   # ← Bug 1 fix: 阻止 generic reversal 继续乱触发
+      to_backfill <- setdiff(seq(1, 19), sub_r$item_number)
+      purrr::walk(to_backfill, function(i_n) {
+        if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
+          rv$responses <- rv$responses %>% add_row(
+            subtest = t, item_number = i_n,
+            response_text = "(backfill)", score = 1L,
+            structure_complete = NA_integer_, grammar = NA_integer_,
+            organization = NA_integer_, mechanics = NA_integer_
+          )
+          save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
+        }
+      })
+      rv$current_item <- 13L
+      showNotification(
+        glue("↩ Reversal Level 1！WC 15-21：items 20+21 未满分 → 跳回 Item 13 做 level 2"),
+        type = "warning", duration = 15
+      )
       return()
     }
 
-    # ── reversal 触发！─────────────────────────────────────────
-    # 已在 reversal 状态 → 正常继续前进，不再重复触发
-    if (rv$reversal_triggered) {
-      if (!rv$discontinue_triggered && i_n < max_i) {
-        rv$current_item <- i_n + 1L
+    # ── WC 15-21 level 2：items 13+14 检查 ─────────────────
+    if (t == "WC" && sp == 20L && rv$wc_reversal_depth == 1L) {
+      first_two <- sub_r %>% filter(item_number >= 13L) %>% slice(1:2)
+      if (nrow(first_two) < 2) return()
+      if (first_two$score[1] == max_score_t && first_two$score[2] == max_score_t) {
+        # items 13+14 都满分 → level 2 不触发，level 1 继续正常做
+        rv$wc_reversal_depth <- 2L; return()
       }
+      # level 2 触发（items 13+14 未满分）→ 跳 Item 1
+      rv$wc_reversal_depth <- 2L
+      rv$reversal_triggered <- TRUE   # ← Bug 1 fix: 阻止 generic reversal 继续乱触发
+      # Backfill items 1-12（items 13-19 已在 level 1 做过且满分）
+      to_backfill <- setdiff(seq(1, 12), sub_r$item_number)
+      purrr::walk(to_backfill, function(i_n) {
+        if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
+          rv$responses <- rv$responses %>% add_row(
+            subtest = t, item_number = i_n,
+            response_text = "(backfill)", score = 1L,
+            structure_complete = NA_integer_, grammar = NA_integer_,
+            organization = NA_integer_, mechanics = NA_integer_
+          )
+          save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
+        }
+      })
+      rv$current_item <- 1L
+      showNotification(
+        glue("↩ Reversal Level 2！WC 15-21：items 13+14 未满分 → 回到 Item 1"),
+        type = "warning", duration = 15
+      )
       return()
     }
 
-    # 触发 reversal！记录触发位置
-    first_reversal_item <- from_sp$item_number[consec_start]
+    # ── WC 11-14 岁特殊 Reversal（跳 Item 1）─────────────────
+    if (t == "WC" && sp == 13L) {
+      first_two <- sub_r %>% filter(item_number >= 13L) %>% slice(1:2)
+      if (nrow(first_two) < 2) return()
+      if (first_two$score[1] == max_score_t && first_two$score[2] == max_score_t) {
+        return()
+      }
+      rv$wc_reversal_depth <- 2L
+      rv$reversal_triggered <- TRUE   # ← Bug 1 fix: 阻止 generic reversal 继续乱触发
+      to_backfill <- setdiff(seq(1, 12), sub_r$item_number)
+      purrr::walk(to_backfill, function(i_n) {
+        if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
+          rv$responses <- rv$responses %>% add_row(
+            subtest = t, item_number = i_n,
+            response_text = "(backfill)", score = 1L,
+            structure_complete = NA_integer_, grammar = NA_integer_,
+            organization = NA_integer_, mechanics = NA_integer_
+          )
+          save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
+        }
+      })
+      rv$current_item <- 1L
+      showNotification(
+        glue("↩ Reversal！WC 11-14：items 13+14 未满分 → 回到 Item 1"),
+        type = "warning", duration = 15
+      )
+      return()
+    }
+
+    # ── 通用 Reversal（SC/LC/FS/RS/WD/SA）───────────────────
+    first_two <- sub_r %>% filter(item_number >= sp) %>% slice(1:2)
+    if (nrow(first_two) < 2) return()
+    if (first_two$score[1] == max_score_t && first_two$score[2] == max_score_t) {
+      return()  # 前两题都满分 → 不触发
+    }
     rv$reversal_triggered <- TRUE
-    rv$reversal_item <- first_reversal_item
-
-    # Backfill：start_point 之前未作答的题 → 补 1 分（满分）
-    already_done <- sub_r$item_number
-    to_backfill <- setdiff(seq(1, sp - 1), already_done)
-
+    rv$reversal_item <- sp
+    to_backfill <- setdiff(seq(1, sp - 1), sub_r$item_number)
     purrr::walk(to_backfill, function(i_n) {
       if (!any(rv$responses$subtest == t & rv$responses$item_number == i_n)) {
         rv$responses <- rv$responses %>% add_row(
           subtest = t, item_number = i_n,
-          response_text = "(backfill)", score = 1L
+          response_text = "(backfill)", score = 1L,
+          structure_complete = NA_integer_, grammar = NA_integer_,
+          organization = NA_integer_, mechanics = NA_integer_
         )
         save_response(rv$assessment_id, t, i_n, "(backfill)", 1L)
       }
     })
-
-    # 跳到 start_point + 8（或 max_item）
-    jump_to <- min(sp + 8L, max_i)
-    rv$current_item <- jump_to
-
-    max_score_t <- max_score_for_subtest(t)
-    showNotification(glue("↩ Reversal 触发！{t} 连续满分 → 补 {length(to_backfill)} 题(1分) → 跳转第{jump_to}题"),
-                     type="warning", duration=15)
+    rv$current_item <- 1L
+    showNotification(
+      glue("↩ Reversal！{t} items {sp},{sp+1} 未满分 → 回到 Item 1（补 {length(to_backfill)} 题满分）"),
+      type = "warning", duration = 15
+    )
   }
 
   # ── 施测开始 / 切换 subtest 时重置 reversal 状态 ─────────────
