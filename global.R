@@ -1313,7 +1313,7 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
     "< THOUGHT >[\\s\\S]*?</THOUGHT>",
     "<think>[\\s\\S]*?</planning>",
     "<think>[\\s\\S]*?</thinking>",
-    "\[think\][\\s\\S]*?\[/think\]"
+    "\\[think\\][\\s\\S]*?\\[/think\\]"
   )
   cleaned <- raw_text
   for (pat in tk_patterns) {
