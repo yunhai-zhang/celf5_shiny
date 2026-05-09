@@ -1333,11 +1333,16 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   # 用 regex 删掉 【知道...】、【想知道...】整块内容
   # 策略：先删标签对之间的正文，再删残余标签
   tk_patterns <- list(
+    # 中文
     "\\u3010\\u77e5\\u9053[\\s\\S]*?\\u3011",
     "\\u3010\\u60f3\\u77e5\\u9053[\\s\\S]*?\\u3011",
-    "<think>[\\s\\S]*?想知道",
     "\\[知道\\][\\s\\S]*?\\[/知道\\]",
-    "\\[想知道\\][\\s\\S]*?\\[/想知道\\]"
+    "\\[想知道\\][\\s\\S]*?\\[/想知道\\]",
+    # 英文（MiniMax M2.7 主要输出格式）
+    "<thought>[\\s\\S]*?</thought>",
+    "<think>[\\s\\S]*?</think>",
+    "\\[think\\][\\s\\S]*?\\[/think\\]"
+  )
   )
 
   cleaned <- raw_content
