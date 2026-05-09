@@ -541,9 +541,8 @@ server <- function(input, output, session) {
     req(rv$test_list)
     map(rv$test_list, function(t) {
       is_done <- t %in% rv$completed_subtests
-      max_i <- get_max_item(t, rv$age_group)
       n_done <- sum(rv$responses$subtest == t, na.rm = TRUE)
-      badge <- if (is_done) "✓ 完成" else glue("{n_done}/{max_i} 题")
+      badge <- if (is_done) "✓ 完成" else glue("{n_done} 题已评")
       bg <- if (is_done) "#d4edda" else "#f8f9fa"
       col <- if (is_done) "#155724" else "#1B3A6B"
       box <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
@@ -582,13 +581,13 @@ server <- function(input, output, session) {
     rv$current_subtest <- input$selected_subtest
     sp <- get_start_point(rv$current_subtest, rv$age_group)
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
-    # 找下一个未打分的题（允许从 Item 1 导航到 max_item，全部题目都可见）
+    # 找下一个未打分的题（允许从 Item 1 导航到全部题目，没有 end point）
     # 注意：start_point 之前的题（1~sp-1）在 reversal 触发时已被 backfill 为满分，
     #       但施测流程中仍可通过 btn_prev 回退查看（打过分但不参与正常施测流程）
-    max_item <- get_max_item(rv$current_subtest, rv$age_group)
+    real_max <- SUBTEST_DEFS %>% filter(subtest==rv$current_subtest) %>% pull(max_items) %>% .[[1]]
     scored_items <- sub_resp$item_number
-    candidates <- setdiff(seq(1, max_item), scored_items)
-    next_item <- if (length(candidates) > 0) min(candidates) else (max_item + 1L)
+    candidates <- setdiff(seq(1, real_max), scored_items)
+    next_item <- if (length(candidates) > 0) min(candidates) else (real_max + 1L)
     # 避免 btn_start/init 时覆盖 current_item（btn_start 在此之前已正确设置）
     if (length(scored_items) > 0 || next_item >= sp) {
       rv$current_item <- next_item
@@ -610,20 +609,13 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     item_n <- rv$current_item
     sp <- rv$start_point
-    max_item <- get_max_item(t, rv$age_group)
+    # 使用 SUBTEST_DEFS 的固定最大题数（没有 end point，按 start_point 施测，做完或触发 discontinue 为止）
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
                  h3("⏹ Discontinue: 连续4题0分，该测试结束 / 4 consecutive 0s — subtest ended")))
     }
-
-    if (item_n > max_item) {
-      return(div(class="alert alert-success", style="margin-top:20px",
-                 h3(glue("✓ {t} 完成（共 {max_item} 题）/ Complete ({max_item} items)"))))
-    }
-
-    # Reversal 逻辑已移至 check_reversal() (btn_save_score 触发)
-    # 此处仅做完成检查
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
     qi <- get_question_info(t, item_n, rv$age_group)
@@ -633,10 +625,8 @@ server <- function(input, output, session) {
     prompt_txt   <- if (!is.na(qi$prompt_en)   && nzchar(qi$prompt_en))   qi$prompt_en[1]   else ""
     scoring_txt  <- if (!is.na(qi$scoring_key) && nzchar(qi$scoring_key)) qi$scoring_key[1] else ""
 
-    # 2026-05-07: trial 机制移除；保留 start point 提示（标记施测起点）
     tagList(
-      h3(glue("{box_title} — 第 {item_n} / {max_item} 题 / Item {item_n} of {max_item}")),
-      if (item_n == sp) div(class="alert alert-info", "★ 起始点题号 / Start Point — 从此题开始施测"),
+      h3(glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {real_max} 题 total)")),
 
       # ── 题目/刺激物显示 ─────────────────────────────────────
       if (nzchar(stimulus_txt)) {
@@ -812,19 +802,18 @@ server <- function(input, output, session) {
     check_reversal(t)
 
     # ── 导航：保存后前进到下一题 ───────────────────────────
-    max_i <- get_max_item(t, rv$age_group)
-    if (rv$discontinue_triggered || i_n >= max_i) {
-      # 结束当前 subtest，跳到下一个
+    # 没有 end point：只有 discontinue 才会结束 subtest；否则一直做到题目库最后
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
+    if (rv$discontinue_triggered) {
+      # 连续4×0 → 结束当前 subtest，跳到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
       }
     } else {
-      # 通用前进逻辑：非 discontinue 且未到达末尾 → 前进一题
-      if (i_n < max_i) {
-        rv$current_item <- i_n + 1L
-      }
+      # 继续前进：没有 end point，永远前进一题
+      rv$current_item <- i_n + 1L
       # 清除打分控件
       if (t == "RS") {
         updateNumericInput(session, "input_score", value = NA_integer_)
@@ -847,19 +836,8 @@ server <- function(input, output, session) {
   observeEvent(input$btn_next, {
     t <- rv$current_subtest
     i_n <- rv$current_item
-    max_i <- get_max_item(t, rv$age_group)
-
-    # 仅导航：不自动保存（用户必须点"保存并下一题"）
-    if (i_n < max_i) {
-      rv$current_item <- i_n + 1L
-    } else {
-      # 已到最后一题，切换到下一测验
-      rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
-      next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
-      if (!is.na(next_t)) {
-        updateSelectInput(session, "selected_subtest", selected = next_t)
-      }
-    }
+    # 没有 end point：仅 discontinue 触发时才切换 subtest；否则永远前进一题
+    rv$current_item <- i_n + 1L
   })
 
   # ── Discontinue 检查 ─────────────────────────────────────
