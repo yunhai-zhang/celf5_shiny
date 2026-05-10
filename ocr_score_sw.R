@@ -197,7 +197,7 @@ ocr_and_score <- function(image_path, age_group = "age_9_10") {
 
   # Step 2: Build prompt + call LLM
   prompt    <- build_sw_scoring_prompt(ocr_text, age_group, rubric)
-  raw_json  <- .call_minimax(prompt, max_tokens = 2000L)
+  raw_json  <- .call_minimax(prompt, max_tokens = 4000L)
 
   # Step 3: Parse JSON — the actual JSON is always at the END of the response
   # (after all <think>...思考 thinking). Strategy: scan RIGHT-TO-LEFT from the end,
@@ -208,7 +208,20 @@ ocr_and_score <- function(image_path, age_group = "age_9_10") {
   for (i in n:1) {
     if (substr(raw_json, i, i) == "}") { last_close <- i; break }
   }
-  if (is.na(last_close)) stop("No } found in response")
+  if (is.na(last_close)) {
+    # No closing brace found — return graceful fallback with raw response for debugging
+    return(list(
+      ocr_text     = ocr_text,
+      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
+      grammar      = list(score = NA_integer_, comment = ""),
+      organization = list(score = NA_integer_, comment = ""),
+      mechanics    = list(score = NA_integer_, comment = ""),
+      total_score  = NA_integer_,
+      summary      = paste0("LLM返回无有效JSON，已识别文本：", substr(ocr_text, 1, 100)),
+      raw_json     = raw_json,
+      error        = "No } found in response - LLM returned non-JSON text"
+    ))
+  }
 
   # Walk backward from last_close to find matching "{"
   depth <- 0; json_end <- last_close
@@ -220,7 +233,19 @@ ocr_and_score <- function(image_path, age_group = "age_9_10") {
       if (depth == 0) { json_start <- i; break }
     }
   }
-  if (is.na(json_start)) stop("No matching { found for JSON")
+  if (is.na(json_start)) {
+    return(list(
+      ocr_text     = ocr_text,
+      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
+      grammar      = list(score = NA_integer_, comment = ""),
+      organization = list(score = NA_integer_, comment = ""),
+      mechanics    = list(score = NA_integer_, comment = ""),
+      total_score  = NA_integer_,
+      summary      = paste0("LLM返回JSON无有效开始括号，已识别文本：", substr(ocr_text, 1, 100)),
+      raw_json     = raw_json,
+      error        = "No matching { found for JSON"
+    ))
+  }
   json_str <- substr(raw_json, json_start, json_end)
 
   parsed <- tryCatch(
@@ -229,10 +254,9 @@ ocr_and_score <- function(image_path, age_group = "age_9_10") {
   )
 
   if (is.null(parsed)) {
-    # Fallback: try to extract numbers via regex
     return(list(
       ocr_text     = ocr_text,
-      structure    = list(score = NA_integer_, comment = "解析失败，请手动评分"),
+      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
       grammar      = list(score = NA_integer_, comment = ""),
       organization = list(score = NA_integer_, comment = ""),
       mechanics    = list(score = NA_integer_, comment = ""),

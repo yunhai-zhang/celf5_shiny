@@ -169,6 +169,12 @@ ui <- fluidPage(
       )
     ),
 
+    # ── Tab 3b: Structured Writing（SW）──────────────────────
+    # Standalone topic-based flow — NOT part of the normal item-by-item navigation
+    tabPanel("📝 写作任务 / Writing",
+      uiOutput("sw_standalone_ui")
+    ),
+
 
     # ── Tab 4: AI 报告 ────────────────────────────────────
     tabPanel("AI 报告 / AI Report",
@@ -229,6 +235,8 @@ server <- function(input, output, session) {
     reversal_triggered = FALSE,
     reversal_item = 0L,
     wc_reversal_depth = 0L,  # WC 两级 Reversal 状态追踪
+    sw_current_topic = NULL,  # 当前选中的 SW topic (item_number)
+    sw_completed_topics = integer(0),  # 已完成的 topic 列表
     status_version = 0L
   )
 
@@ -351,6 +359,7 @@ server <- function(input, output, session) {
     rv$reversal_triggered <- FALSE
     rv$reversal_item <- 0L
     rv$wc_reversal_depth <- 0L
+    rv$sw_completed_topics <- integer(0)
     rv$responses <- tibble(subtest=character(), item_number=integer(),
                           response_text=character(), score=integer(),
                           structure_complete=integer(), grammar=integer(),
@@ -392,6 +401,7 @@ server <- function(input, output, session) {
     rv$reversal_triggered <- FALSE
     rv$reversal_item <- 0L
     rv$wc_reversal_depth <- 0L
+    rv$sw_completed_topics <- integer(0)
     # Initialize current_subtest to avoid NULL on question tab
     first_test <- rv$test_list[1]
     rv$current_subtest <- first_test
@@ -563,9 +573,13 @@ server <- function(input, output, session) {
   # 进度卡片点击 → 跳转到对应 subtest 的评分页面
   observeEvent(input$jump_to_subtest, {
     t <- input$jump_to_subtest
-    updateTabsetPanel(session, "main_tabs", selected = "测试题目 / Test Items")
-    rv$current_subtest <- t
-    updateSelectInput(session, "selected_subtest", selected = t)
+    if (t == "SW") {
+      updateTabsetPanel(session, "main_tabs", selected = "📝 写作任务 / Writing")
+    } else {
+      updateTabsetPanel(session, "main_tabs", selected = "测试题目 / Test Items")
+      rv$current_subtest <- t
+      updateSelectInput(session, "selected_subtest", selected = t)
+    }
   })
 
   # ── Subtest 选择 ─────────────────────────────────────────
@@ -662,6 +676,18 @@ server <- function(input, output, session) {
   output$score_input_ui <- renderUI({
     req(rv$current_subtest, rv$current_item, rv$assessment_id)
     t <- rv$current_subtest
+
+    # SW uses standalone tab — redirect if user navigates to SW via Test Items
+    if (t == "SW") {
+      return(tagList(
+        div(class="alert alert-info", style="margin-top:20px",
+          h4("📝 Structured Writing 使用独立标签页"),
+          p("请点击上方「📝 写作任务 / Writing」标签页进入写作评分。"),
+          p("Structured Writing uses its own standalone tab above.")
+        ),
+        updateTabsetPanel(session, "main_tabs", selected = "📝 写作任务 / Writing")
+      ))
+    }
     i_n <- rv$current_item
     cur_resp <- rv$responses %>% filter(subtest==!!t, item_number==!!i_n)
     cur_score <- if (nrow(cur_resp)>0) cur_resp$score[1] else NA_integer_
@@ -671,66 +697,7 @@ server <- function(input, output, session) {
     max_s <- as.integer(q_info$max_score[1])
     if (is.na(max_s) || max_s < 1) max_s <- 1L
 
-    if (t == "SW") {
-      # ── SW 多维评分 Rubric UI ──────────────────────────────
-      # rv$age_group 格式 "9:0-9:11" → rubric key "age_9_10"
-      ag_raw <- rv$age_group
-      rubric_key <- dplyr::case_when(
-        ag_raw %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_8",
-        ag_raw %in% c("9:0-9:11","10:0-10:11")                                                   ~ "age_9_10",
-        ag_raw %in% c("11:0-11:11","12:0-12:11")                                                 ~ "age_11_12",
-        TRUE                                                                                      ~ "age_13_21"
-      )
-      rubric <- SW_SCORING_RUBRIC[[rubric_key]]
-      if (is.null(rubric)) {
-        return(div(class="alert alert-warning", "未知 age_group: ", ag_raw, " (rubric_key: ", rubric_key, ")"))
-      }
-
-      # 读取当前维度分数（如有）
-      cur_sc <- if (nrow(cur_resp)>0) cur_resp$structure_complete[1] else NA_integer_
-      cur_gr <- if (nrow(cur_resp)>0) cur_resp$grammar[1] else NA_integer_
-      cur_or <- if (nrow(cur_resp)>0) cur_resp$organization[1] else NA_integer_
-      cur_me <- if (nrow(cur_resp)>0) cur_resp$mechanics[1] else NA_integer_
-
-      tagList(
-        h5("结构完整性 Structure（每个句子）"),
-        radioButtons("sw_struct", "句子是否完整写出？",
-                     choices = rubric$struct_scale,
-                     selected = cur_sc),
-        hr(),
-        h5("语法准确性 Grammar"),
-        p(em("对应当前句子语法正确性")),
-        radioButtons("sw_grammar", "语法评分",
-                     choices = rubric$grammar_scale,
-                     selected = cur_gr),
-        hr(),
-        h5("组织 Organization（每篇作文）"),
-        p(em("整体逻辑与衔接")),
-        radioButtons("sw_org", "组织评分",
-                     choices = rubric$org_scale,
-                     selected = cur_or),
-        hr(),
-        h5("写作机械 Writing Mechanics"),
-        p(em("拼写/大小写/标点")),
-        radioButtons("sw_mech", "机械评分",
-                     choices = rubric$mech_scale,
-                     selected = cur_me),
-        hr(),
-        # ── AI 辅助评分区 ────────────────────────────────────
-        h5("🤖 AI 辅助评分 AI-Assisted Scoring"),
-        p(em("上传小朋友写作照片，AI 自动识别内容并给出评分建议")),
-        fileInput("sw_image_upload", "上传写作照片",
-                  accept = c("image/jpeg","image/png","image/jpg","image/webp"),
-                  buttonLabel = "选择图片", placeholder = "未选择文件"),
-        fluidRow(
-          column(6, actionButton("btn_run_ai_score", "🔍 AI 分析",
-                                icon = icon("brain"), class = "btn-primary")),
-          column(6, actionButton("btn_clear_ai", "🗑️ 清除",
-                                icon = icon("trash"), class = "btn-outline-secondary"))
-        ),
-        uiOutput("sw_ai_result")
-      )
-    } else if (t == "RS") {
+    if (t == "RS") {
       # UI shows error count; stored score is scaled (3=0err, 2=1err, 1=2-3err, 0=4+err)
       err_val <- if (!is.na(cur_score) && !is.null(cur_score)) max_s - as.integer(cur_score) else NA_integer_
       tagList(
@@ -812,6 +779,435 @@ server <- function(input, output, session) {
     paste(tail(sub_r$score, 20), collapse=" ")
   })
 
+  # ═══════════════════════════════════════════════════════════════
+  # SW STANDALONE TAB — Topic-based flow (NOT item-number based)
+  # ═══════════════════════════════════════════════════════════════
+
+  # Reactive: current rubric key for SW
+  sw_rubric_key <- reactive({
+    ag_raw <- rv$age_group
+    dplyr::case_when(
+      ag_raw %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_8",
+      ag_raw %in% c("9:0-9:11","10:0-10:11")                                                   ~ "age_9_10",
+      ag_raw %in% c("11:0-11:11","12:0-12:11")                                                 ~ "age_11_12",
+      TRUE                                                                                      ~ "age_13_21"
+    )
+  })
+
+  # Reactive: available SW topics for current age group
+  sw_topics_r <- reactive({
+    req(rv$age_group)
+    get_sw_topics(rv$age_group)
+  })
+
+  # Reactive: currently selected topic item_number (NULL if none selected)
+  sw_selected_item_r <- reactive({
+    if (is.null(input$sw_topic_select)) return(NULL)
+    as.integer(input$sw_topic_select)
+  })
+
+  # Reactive: rubric for current age group
+  sw_rubric_r <- reactive({
+    req(sw_rubric_key())
+    rub <- SW_SCORING_RUBRIC[[sw_rubric_key()]]
+    if (is.null(rub)) {
+      showNotification(glue("未知 age_group rubric: {sw_rubric_key()}"), type="error")
+    }
+    rub
+  })
+
+  # Main SW standalone UI
+  output$sw_standalone_ui <- renderUI({
+    req(rv$assessment_id)
+    topics <- sw_topics_r()
+    if (nrow(topics) == 0) {
+      return(div(class="alert alert-warning", "当前年龄组无可用写作任务 / No writing tasks for this age group"))
+    }
+
+    # Determine selected item_number
+    sel_item <- sw_selected_item_r()
+    if (is.null(sel_item) && !is.null(rv$sw_current_topic)) {
+      sel_item <- rv$sw_current_topic
+    }
+    # Default to first uncompleted topic, or first topic
+    if (is.null(sel_item)) {
+      remaining <- setdiff(topics$item_number, rv$sw_completed_topics)
+      sel_item <- if (length(remaining) > 0) remaining[1] else topics$item_number[1]
+    }
+
+    # Build topic dropdown choices
+    topic_choices <- setNames(as.character(topics$item_number), topics$topic_label)
+    # Mark completed topics
+    topic_choices_display <- sapply(names(topic_choices), function(n) {
+      inum <- as.integer(topic_choices[n])
+      if (inum %in% rv$sw_completed_topics) {
+        paste0(n, " ✓")
+      } else {
+        n
+      }
+    })
+    names(topic_choices) <- topic_choices_display
+
+    # Show previously saved scores for each topic (summary badges)
+    saved_summary <- lapply(topics$item_number, function(inum) {
+      r_row <- rv$responses %>% filter(subtest=="SW", item_number==!!inum)
+      if (nrow(r_row) > 0) {
+        row <- r_row[1,]
+        score_str <- if (!is.na(row$score)) paste0(row$score, "分") else "未打分"
+        fluidRow(column(12,
+          wellPanel(
+            h5(topics$topic_label[topics$item_number == inum], style="margin:0"),
+            tags$span(style="float:right", strong(score_str)),
+            if (!is.na(row$structure_complete)) {
+              p(em(paste0("结构:", row$structure_complete,
+                          " 语法:", row$grammar,
+                          " 组织:", row$organization,
+                          " 机械:", row$mechanics)),
+                style="margin:4px 0 0 0;color:#555;font-size:12px")
+            }
+          )
+        ))
+      } else NULL
+    }) %>% compact()
+
+    tagList(
+      fluidRow(
+        column(12,
+          h3("📝 Structured Writing / 结构化写作"),
+          p(glue("年龄组 Age Group: {rv$age_group}  |  评分量表: {sw_rubric_key()}"))
+        )
+      ),
+      fluidRow(
+        column(12,
+          if (length(saved_summary) > 0) {
+            div(class="card mb-3", style="background:#f0f7ff",
+              div(class="card-body",
+                h4("已完成Topics / Completed Topics"),
+                saved_summary
+              )
+            )
+          }
+        )
+      ),
+      fluidRow(
+        column(4,
+          wellPanel(
+            h4("选择写作任务 / Select Topic"),
+            selectInput("sw_topic_select", "任务 / Task",
+              choices = topic_choices,
+              selected = as.character(sel_item),
+              selectize = FALSE),
+            br(),
+            if (length(rv$sw_completed_topics) > 0) {
+              p(em(paste0("已完成 ", length(rv$sw_completed_topics), "/", nrow(topics), " 个任务")))
+            }
+          )
+        ),
+        column(8,
+          if (!is.null(sel_item) && sel_item %in% topics$item_number) {
+            sw_topic_scoring_ui(sel_item, sw_rubric_r())
+          } else {
+            div(class="alert alert-info", "请从左侧选择写作任务 / Please select a writing task from the left")
+          }
+        )
+      )
+    )
+  })
+
+  # Per-topic scoring UI builder
+  sw_topic_scoring_ui <- function(item_number, rubric) {
+    req(item_number, !is.null(rubric))
+    topics <- sw_topics_r()
+    topic_row <- topics[topics$item_number == as.integer(item_number), ]
+    if (nrow(topic_row) == 0) return(div("Topic not found"))
+
+    prompt_text <- topic_row$question_en[1]
+    is_trial <- (as.integer(item_number) == 1L)
+
+    # Read existing scores for this topic
+    cur_resp <- rv$responses %>% filter(subtest=="SW", item_number==!!as.integer(item_number))
+    cur_sc <- if (nrow(cur_resp)>0) cur_resp$structure_complete[1] else NA_integer_
+    cur_gr <- if (nrow(cur_resp)>0) cur_resp$grammar[1] else NA_integer_
+    cur_or <- if (nrow(cur_resp)>0) cur_resp$organization[1] else NA_integer_
+    cur_me <- if (nrow(cur_resp)>0) cur_resp$mechanics[1] else NA_integer_
+
+    tagList(
+      wellPanel(
+        h4(topic_row$topic_label[1]),
+        if (is_trial) {
+          div(class="alert alert-secondary", "Trial Task（不计分 / Not Scored）")
+        },
+        div(class="card mb-3", style="background:#f8f9fa",
+          div(class="card-body",
+            h5("📋 写作提示 / Writing Prompt"),
+            p(strong(prompt_text))
+          )
+        ),
+
+        if (!is_trial) {
+          tagList(
+            h5("1. 结构完整性 Structure（每句完整=1，不完整=0）"),
+            radioButtons("sw_struct", "句子是否完整写出？",
+              choices = rubric$struct_scale,
+              selected = cur_sc),
+            hr(),
+            h5("2. 语法准确性 Grammar"),
+            p(em("对应当前句子语法正确性")),
+            radioButtons("sw_grammar", "语法评分",
+              choices = rubric$grammar_scale,
+              selected = cur_gr),
+            hr(),
+            h5("3. 组织 Organization（整体逻辑与衔接）"),
+            radioButtons("sw_org", "组织评分",
+              choices = rubric$org_scale,
+              selected = cur_or),
+            hr(),
+            h5("4. 写作机械 Mechanics（拼写/大小写/标点）"),
+            p(em("按对应年龄组标准")),
+            radioButtons("sw_mech", "机械评分",
+              choices = rubric$mech_scale,
+              selected = cur_me),
+            hr()
+          )
+        },
+
+        # ── AI 辅助评分区 ────────────────────────────────
+        h5("🤖 AI 辅助评分 AI-Assisted Scoring"),
+        p(em("上传小朋友写作照片，AI 自动识别内容并给出评分建议")),
+        fileInput("sw_image_upload", "上传写作照片",
+          accept = c("image/jpeg","image/png","image/jpg","image/webp"),
+          buttonLabel = "选择图片", placeholder = "未选择文件"),
+        fluidRow(
+          column(6, actionButton("btn_run_ai_score", "🔍 AI 分析",
+            icon = icon("brain"), class = "btn-primary")),
+          column(6, actionButton("btn_clear_ai", "🗑️ 清除",
+            icon = icon("trash"), class = "btn-outline-secondary"))
+        ),
+        uiOutput("sw_ai_result"),
+        hr(),
+        if (!is_trial) {
+          fluidRow(
+            column(6, actionButton("btn_sw_save", "💾 保存当前任务 / Save Topic",
+              class = "btn-primary",
+              style = sprintf("width:100%%; background:%s;", celf5_blue))),
+            column(6, actionButton("btn_sw_done", "✅ 标记完成并选择下一任务 / Done",
+              class = "btn-success", style = "width:100%;"))
+          )
+        } else {
+          fluidRow(
+            column(6, actionButton("btn_sw_trial_done", "✅ Trial完成 / Trial Done",
+              class = "btn-success", style = sprintf("width:100%%; background:%s;", celf5_blue)))
+          )
+        }
+      )
+    )
+  }
+
+  # ── 保存当前 SW topic ─────────────────────────────────────
+  observeEvent(input$btn_sw_save, {
+    item_n <- sw_selected_item_r()
+    req(item_n)
+    rubric <- sw_rubric_r()
+    if (is.null(rubric)) { showNotification("Rubric 未找到", type="error"); return() }
+
+    sw_struct  <- input$sw_struct
+    sw_grammar <- input$sw_grammar
+    sw_org     <- input$sw_org
+    sw_mech    <- input$sw_mech
+
+    if (is.null(sw_struct) || is.null(sw_grammar) || is.null(sw_org) || is.null(sw_mech)) {
+      showNotification("请完成所有维度评分 / Please complete all dimension scores", type = "warning"); return()
+    }
+
+    total_score <- as.integer(sw_struct) + as.integer(sw_grammar) + as.integer(sw_org) + as.integer(sw_mech)
+
+    rv$responses <- rv$responses %>% filter(!(subtest=="SW" & item_number==!!item_n)) %>%
+      add_row(subtest="SW", item_number=item_n, response_text="",
+              score=total_score,
+              structure_complete=as.integer(sw_struct),
+              grammar=as.integer(sw_grammar),
+              organization=as.integer(sw_org),
+              mechanics=as.integer(sw_mech))
+    save_response(rv$assessment_id, "SW", item_n, "", total_score,
+                  structure_complete=as.integer(sw_struct),
+                  grammar=as.integer(sw_grammar),
+                  organization=as.integer(sw_org),
+                  mechanics=as.integer(sw_mech))
+    showNotification(glue("已保存 / Saved: SW Topic {item_n} = {total_score}分"), type="message")
+  })
+
+  # ── 标记 SW topic 完成并选下一任务 ───────────────────────
+  observeEvent(input$btn_sw_done, {
+    item_n <- sw_selected_item_r()
+    req(item_n)
+    # Save first (same logic as btn_sw_save)
+    rubric <- sw_rubric_r()
+    if (!is.null(rubric)) {
+      sw_struct  <- input$sw_struct
+      sw_grammar <- input$sw_grammar
+      sw_org     <- input$sw_org
+      sw_mech    <- input$sw_mech
+      if (!is.null(sw_struct) && !is.null(sw_grammar) && !is.null(sw_org) && !is.null(sw_mech)) {
+        total_score <- as.integer(sw_struct) + as.integer(sw_grammar) + as.integer(sw_org) + as.integer(sw_mech)
+        rv$responses <- rv$responses %>% filter(!(subtest=="SW" & item_number==!!item_n)) %>%
+          add_row(subtest="SW", item_number=item_n, response_text="",
+                  score=total_score,
+                  structure_complete=as.integer(sw_struct),
+                  grammar=as.integer(sw_grammar),
+                  organization=as.integer(sw_org),
+                  mechanics=as.integer(sw_mech))
+        save_response(rv$assessment_id, "SW", item_n, "", total_score,
+                      structure_complete=as.integer(sw_struct),
+                      grammar=as.integer(sw_grammar),
+                      organization=as.integer(sw_org),
+                      mechanics=as.integer(sw_mech))
+      }
+    }
+    # Mark as completed
+    rv$sw_completed_topics <- c(rv$sw_completed_topics, item_n) %>% unique()
+    topics <- sw_topics_r()
+    remaining <- setdiff(topics$item_number, rv$sw_completed_topics)
+    if (length(remaining) > 0) {
+      next_topic <- remaining[1]
+      rv$sw_current_topic <- next_topic
+      updateSelectInput(session, "sw_topic_select", selected = as.character(next_topic))
+      showNotification(glue("已切换到下一任务 / Next topic: {topics$topic_label[topics$item_number==next_topic]}"), type="message")
+    } else {
+      showNotification("🎉 所有写作任务已完成！/ All writing tasks completed!", type="message", duration=5)
+    }
+  })
+
+  # ── Trial task done ─────────────────────────────────────────
+  observeEvent(input$btn_sw_trial_done, {
+    item_n <- sw_selected_item_r()
+    req(item_n)
+    # Mark trial (item 1) as completed in responses with 0 score (not counted)
+    rv$responses <- rv$responses %>% filter(!(subtest=="SW" & item_number==!!item_n)) %>%
+      add_row(subtest="SW", item_number=item_n, response_text="Trial",
+              score=0L, structure_complete=0L, grammar=0L, organization=0L, mechanics=0L)
+    save_response(rv$assessment_id, "SW", item_n, "Trial", 0L,
+                  structure_complete=0L, grammar=0L, organization=0L, mechanics=0L)
+    rv$sw_completed_topics <- c(rv$sw_completed_topics, item_n) %>% unique()
+    topics <- sw_topics_r()
+    remaining <- setdiff(topics$item_number, rv$sw_completed_topics)
+    if (length(remaining) > 0) {
+      next_topic <- remaining[1]
+      rv$sw_current_topic <- next_topic
+      updateSelectInput(session, "sw_topic_select", selected = as.character(next_topic))
+    }
+    showNotification("Trial 完成，请继续正式任务 / Trial done, proceed to scored tasks", type="message")
+  })
+
+  # ── AI scoring (same logic as before, scoped to current topic) ──
+  ai_result_rv <- reactiveValues(status = "idle", data = NULL)
+
+  output$sw_ai_result <- renderUI({
+    req(input$sw_image_upload)
+    NULL
+  })
+
+  observeEvent(input$btn_run_ai_score, {
+    req(input$sw_image_upload)
+    img_path <- input$sw_image_upload$datapath
+    if (!file.exists(img_path)) {
+      showNotification("图片文件未找到", type = "error"); return()
+    }
+
+    ai_result_rv$status <- "running"
+    ai_result_rv$data   <- NULL
+
+    output$sw_ai_result <- renderUI({
+      div(class = "alert alert-info",
+          h5("🤖 AI 识别中..."),
+          p(em("正在 OCR 识别 + AI 评分，请稍候（约 10-20 秒）"))
+      )
+    })
+
+    tryCatch({
+      result <- ocr_and_score(img_path, sw_rubric_key())
+      ai_result_rv$data   <- result
+      ai_result_rv$status <- if (is.null(result$error)) "done" else "error"
+    }, error = function(e) {
+      ai_result_rv$status <<- "error"
+      ai_result_rv$data   <<- list(error = conditionMessage(e))
+    })
+
+    if (ai_result_rv$status == "done") {
+      r <- ai_result_rv$data
+      output$sw_ai_result <- renderUI({
+        tagList(
+          div(class = "alert alert-success",
+              h5("✅ AI 评分建议"), br(),
+              fluidRow(
+                column(3, strong("结构 Structure"),  p(r$structure$score, "/ 结构满分")),
+                column(3, strong("语法 Grammar"),     p(r$grammar$score,   "/ 语法满分")),
+                column(3, strong("组织 Organization"),p(r$organization$score,"/ 组织满分")),
+                column(3, strong("机械 Mechanics"),   p(r$mechanics$score,  "/ 机械满分"))
+              ),
+              fluidRow(
+                column(12, strong("临床评语 Clinical Comment:")),
+                column(12, p(r$summary))
+              ),
+              if (!is.null(r$structure$comment) && r$structure$comment != "") {
+                fluidRow(column(12, p(em("结构: ", r$structure$comment))))
+              },
+              if (!is.null(r$grammar$comment) && r$grammar$comment != "") {
+                fluidRow(column(12, p(em("语法: ", r$grammar$comment))))
+              },
+              if (!is.null(r$organization$comment) && r$organization$comment != "") {
+                fluidRow(column(12, p(em("组织: ", r$organization$comment))))
+              },
+              if (!is.null(r$mechanics$comment) && r$mechanics$comment != "") {
+                fluidRow(column(12, p(em("机械: ", r$mechanics$comment))))
+              },
+              hr(),
+              p(strong("🔽 识别文本（可复制到 response 框）:")),
+              pre(style = "font-size:12px; background:#f8f9fa; padding:8px;",
+                  r$ocr_text)
+          ),
+          div(class = "alert alert-warning",
+              p(strong("📋 临床医生确认:"), " 请审核 AI 评分并手动调整下方评分后保存。"),
+              actionButton("btn_apply_ai_scores", "✅ 采纳 AI 建议分数",
+                           icon = icon("check"), class = "btn-success btn-sm")
+          )
+        )
+      })
+    } else {
+      err_msg <- if (!is.null(ai_result_rv$data$error)) ai_result_rv$data$error else "未知错误"
+      output$sw_ai_result <- renderUI({
+        div(class = "alert alert-danger",
+            h5("❌ AI 评分失败"),
+            p(err_msg),
+            p("请手动评分或重试。")
+        )
+      })
+    }
+  })
+
+  # Apply AI scores to the rating UI
+  observeEvent(input$btn_apply_ai_scores, {
+    r <- ai_result_rv$data
+    req(!is.null(r))
+    rubric <- sw_rubric_r()
+    if (is.null(rubric)) return()
+    updateRadioButtons(session, "sw_struct",  selected = r$structure$score)
+    updateRadioButtons(session, "sw_grammar", selected = r$grammar$score)
+    updateRadioButtons(session, "sw_org",     selected = r$organization$score)
+    updateRadioButtons(session, "sw_mech",    selected = r$mechanics$score)
+    showNotification("✅ AI 分数已填入，请确认后保存", type = "message")
+  })
+
+  # Clear AI results
+  observeEvent(input$btn_clear_ai, {
+    ai_result_rv$status <- "idle"
+    ai_result_rv$data   <- NULL
+    output$sw_ai_result <- renderUI(NULL)
+  })
+
+  # ═══════════════════════════════════════════════════════════════
+  # END SW STANDALONE TAB
+  # ═══════════════════════════════════════════════════════════════
+
   # ── 按钮交互（移到 tab 3 外部，点击事件始终有效）──────────
 
   observeEvent(input$btn_save_score, {
@@ -820,33 +1216,11 @@ server <- function(input, output, session) {
     sp <- rv$start_point
     rt <- if (is.null(input$response_text) || is.na(input$response_text)) "" else input$response_text
 
+    # SW uses standalone tab — nothing to do here
     if (t == "SW") {
-      # ── SW 多维评分保存 ──────────────────────────────────
-      sw_struct  <- input$sw_struct
-      sw_grammar <- input$sw_grammar
-      sw_org     <- input$sw_org
-      sw_mech    <- input$sw_mech
-      if (is.null(sw_struct) || is.null(sw_grammar) || is.null(sw_org) || is.null(sw_mech)) {
-        showNotification("请完成所有维度评分 / Please complete all dimension scores", type = "warning"); return()
-      }
-      # Total score = sum of all dimensions
-      total_score <- as.integer(sw_struct) + as.integer(sw_grammar) + as.integer(sw_org) + as.integer(sw_mech)
-
-      rv$responses <- rv$responses %>% filter(!(subtest==!!t & item_number==!!i_n)) %>%
-        add_row(subtest=t, item_number=i_n, response_text=as.character(rt),
-                score=total_score,
-                structure_complete=as.integer(sw_struct),
-                grammar=as.integer(sw_grammar),
-                organization=as.integer(sw_org),
-                mechanics=as.integer(sw_mech))
-      save_response(rv$assessment_id, t, i_n, as.character(rt), total_score,
-                    structure_complete=as.integer(sw_struct),
-                    grammar=as.integer(sw_grammar),
-                    organization=as.integer(sw_org),
-                    mechanics=as.integer(sw_mech))
-      showNotification(glue("已保存 / Saved: SW 第{i_n}题 = {total_score}分",
-                            " (S={sw_struct} G={sw_grammar} O={sw_org} M={sw_mech})"), type="message")
-
+      showNotification("请使用「📝 写作任务」标签页进行 Structured Writing 评分",
+                       type = "warning")
+      return()
     } else if (t == "USP") {
       # ── USP per-question score save ──────────────────────────
       qi <- get_question_info("USP", i_n, rv$age_group)
@@ -910,152 +1284,20 @@ server <- function(input, output, session) {
       # 清除打分控件
       if (t == "RS") {
         updateNumericInput(session, "input_score", value = NA_integer_)
-      } else if (t == "SW") {
-        updateRadioButtons(session, "sw_struct",  selected = NA_integer_)
-        updateRadioButtons(session, "sw_grammar", selected = NA_integer_)
-        updateRadioButtons(session, "sw_org",     selected = NA_integer_)
-        updateRadioButtons(session, "sw_mech",   selected = NA_integer_)
       } else {
         updateRadioButtons(session, "input_score", selected = NA_integer_)
       }
     }
   })
 
-  # ── SW AI 辅助评分 ─────────────────────────────────────────────
-  # age_group reactive (depends on rv$age_group)
-  sw_rubric_key <- reactive({
-    ag_raw <- rv$age_group
-    dplyr::case_when(
-      ag_raw %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_8",
-      ag_raw %in% c("9:0-9:11","10:0-10:11")                                                   ~ "age_9_10",
-      ag_raw %in% c("11:0-11:11","12:0-12:11")                                                 ~ "age_11_12",
-      TRUE                                                                                      ~ "age_13_21"
-    )
-  })
-
-  # Display AI result
-  output$sw_ai_result <- renderUI({
-    req(input$sw_image_upload)
-    # Results are shown reactively via invalidateLater or observer below
-    NULL
-  })
-
-  # Run AI scoring
-  ai_result_rv <- reactiveValues(status = "idle", data = NULL)
-
-  observeEvent(input$btn_run_ai_score, {
-    req(input$sw_image_upload)
-    img_path <- input$sw_image_upload$datapath
-    if (!file.exists(img_path)) {
-      showNotification("图片文件未找到", type = "error"); return()
-    }
-
-    # Disable button during processing
-    ai_result_rv$status <- "running"
-    ai_result_rv$data   <- NULL
-
-    # Show loading state
-    output$sw_ai_result <- renderUI({
-      div(class = "alert alert-info",
-          h5("🤖 AI 识别中..."),
-          p(em("正在 OCR 识别 + AI 评分，请稍候（约 10-20 秒）"))
-      )
-    })
-
-    # Run OCR + scoring in background (non-blocking)
-    tryCatch({
-      result <- ocr_and_score(img_path, sw_rubric_key())
-      ai_result_rv$data   <- result
-      ai_result_rv$status <- if (is.null(result$error)) "done" else "error"
-    }, error = function(e) {
-      ai_result_rv$status <<- "error"
-      ai_result_rv$data   <<- list(error = conditionMessage(e))
-    })
-
-    # Render result
-    if (ai_result_rv$status == "done") {
-      r <- ai_result_rv$data
-      output$sw_ai_result <- renderUI({
-        tagList(
-          div(class = "alert alert-success",
-              h5("✅ AI 评分建议"), br(),
-              fluidRow(
-                column(3, strong("结构 Structure"),  p(r$structure$score, "/ 结构满分")),
-                column(3, strong("语法 Grammar"),     p(r$grammar$score,   "/ 语法满分")),
-                column(3, strong("组织 Organization"),p(r$organization$score,"/ 组织满分")),
-                column(3, strong("机械 Mechanics"),   p(r$mechanics$score,  "/ 机械满分"))
-              ),
-              fluidRow(
-                column(12, strong("临床评语 Clinical Comment:")),
-                column(12, p(r$summary))
-              ),
-              if (!is.null(r$structure$comment) && r$structure$comment != "") {
-                fluidRow(column(12, p(em("结构: ", r$structure$comment))))
-              },
-              if (!is.null(r$grammar$comment) && r$grammar$comment != "") {
-                fluidRow(column(12, p(em("语法: ", r$grammar$comment))))
-              },
-              if (!is.null(r$organization$comment) && r$organization$comment != "") {
-                fluidRow(column(12, p(em("组织: ", r$organization$comment))))
-              },
-              if (!is.null(r$mechanics$comment) && r$mechanics$comment != "") {
-                fluidRow(column(12, p(em("机械: ", r$mechanics$comment))))
-              },
-              hr(),
-              p(strong("🔽 识别文本（可复制到 response 框）:")),
-              pre(style = "font-size:12px; background:#f8f9fa; padding:8px;",
-                  r$ocr_text)
-          ),
-          div(class = "alert alert-warning",
-              p(strong("📋 临床医生确认:"), " 请审核 AI 评分并手动调整下方评分后保存。"),
-              actionButton("btn_apply_ai_scores", "✅ 采纳 AI 建议分数",
-                           icon = icon("check"), class = "btn-success btn-sm")
-          )
-        )
-      })
-    } else {
-      err_msg <- if (!is.null(ai_result_rv$data$error)) ai_result_rv$data$error else "未知错误"
-      output$sw_ai_result <- renderUI({
-        div(class = "alert alert-danger",
-            h5("❌ AI 评分失败"),
-            p(err_msg),
-            p("请手动评分或重试。")
-        )
-      })
-    }
-  })
-
-  # Apply AI scores to the rating UI
-  observeEvent(input$btn_apply_ai_scores, {
-    r <- ai_result_rv$data
-    req(!is.null(r))
-    rubric <- SW_SCORING_RUBRIC[[sw_rubric_key()]]
-    # structure: per-sentence, max = struct_max * n_sentences
-    struct_max <- 1L * rubric$n_sentences
-    grammar_max <- rubric$grammar_scale %>% attr("names") %>% length() - 1  # not clean
-
-    # Map total structure/grammar scores to individual sentences (simplify: put total in first)
-    # The rubric UI scores per sentence; AI gives aggregate. Distribute across sentences.
-    updateRadioButtons(session, "sw_struct",  selected = r$structure$score)
-    updateRadioButtons(session, "sw_grammar", selected = r$grammar$score)
-    updateRadioButtons(session, "sw_org",     selected = r$organization$score)
-    updateRadioButtons(session, "sw_mech",    selected = r$mechanics$score)
-    showNotification("✅ AI 分数已填入，请确认后保存", type = "message")
-  })
-
-  # Clear AI results
-  observeEvent(input$btn_clear_ai, {
-    ai_result_rv$status <- "idle"
-    ai_result_rv$data   <- NULL
-    output$sw_ai_result <- renderUI(NULL)
-  })
-
   observeEvent(input$btn_prev, {
+    if (rv$current_subtest == "SW") return()  # SW uses standalone tab
     if (rv$current_item > 1) rv$current_item <- rv$current_item - 1L
     if (rv$current_item < 1) rv$current_item <- 1L
   })
 
   observeEvent(input$btn_next, {
+    if (rv$current_subtest == "SW") return()  # SW uses standalone tab
     t <- rv$current_subtest
     i_n <- rv$current_item
     # 没有 end point：仅 discontinue 触发时才切换 subtest；否则永远前进一题

@@ -34,7 +34,50 @@ COMPOSITE_TABLE  <- .normas$composite
 COMPOSITE_CI_TABLE <- .normas$composite_ci
 
 # ─────────────────────────────────────────────────────────────
-# 0c. SW 多维评分 Rubric（按 age_group 分维度打分）
+# 0c. SW topic names (display labels)
+# ─────────────────────────────────────────────────────────────
+# Returns a named character vector: item_number → display label
+get_sw_topic_label <- function(item_number, age_group_db) {
+  labels <- list(
+    age_8 = c("1" = "Trial: Catching the Bus", "2" = "Field Trip", "3" = "Stuffing the Backpack"),
+    age_9_10 = c("1" = "Trial: Catching the Bus", "2" = "Class Schedules", "3" = "Morning Announcements"),
+    age_11_12 = c("1" = "Trial: Catching the Bus", "2" = "Summer Break", "3" = "Elsa's Project"),
+    age_13_21 = c("1" = "Trial: Catching the Bus", "2" = "School Play", "3" = "Mystery on Route 9")
+  )
+  l <- labels[[age_group_db]]
+  if (is.null(l)) l <- c("1" = "Trial: Catching the Bus", "2" = "Task 2", "3" = "Task 3")
+  as.character(l[as.character(item_number)])
+}
+
+# Returns data frame of SW topics available for a norms-format age_group
+# Columns: item_number, topic_label, question_en, age_group_db
+get_sw_topics <- function(age_group_norms) {
+  rubric_key <- switch(age_group_norms,
+    "5:0-5:5"   = "age_8", "5:6-5:11" = "age_8",
+    "6:0-6:5"   = "age_8", "6:6-6:11" = "age_8",
+    "7:0-7:11"  = "age_8", "8:0-8:11" = "age_8",
+    "9:0-9:11"  = "age_9_10", "10:0-10:11" = "age_9_10",
+    "11:0-11:11" = "age_11_12", "12:0-12:11" = "age_11_12",
+    "13:0-13:11" = "age_13_21", "14:0-14:11" = "age_13_21",
+    "15:0-15:11" = "age_13_21", "16:0-16:11" = "age_13_21",
+    "17:0-21:11" = "age_13_21",
+    "age_8"  # fallback
+  )
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  topics <- dbGetQuery(con,
+    "SELECT item_number, question_en, age_group AS age_group_db
+     FROM questions WHERE subtest = 'SW' AND age_group = ?
+     ORDER BY item_number",
+    params = list(rubric_key))
+  if (nrow(topics) == 0) return(tibble(item_number=integer(), topic_label=character(),
+                                        question_en=character(), age_group_db=character()))
+  topics$topic_label <- get_sw_topic_label(topics$item_number, rubric_key)
+  topics
+}
+
+# ─────────────────────────────────────────────────────────────
+# 0d. SW 多维评分 Rubric（按 age_group 分维度打分）
 # ─────────────────────────────────────────────────────────────
 # 每个 entry: list(max_struct=结构满分, struct_scale=结构选项向量,
 #                  grammar_scale=语规格式, org_scale=组织格式, mech_scale=机械格式)
