@@ -740,8 +740,8 @@ server <- function(input, output, session) {
     } else if (t == "USP") {
       # ── USP: show paragraph + questions + per-question scoring ──
       qi <- get_question_info("USP", i_n, rv$age_group)
-      para_text <- if (!is.na(qi$paragraph_en[1]) && nzchar(qi$paragraph_en[1])) qi$paragraph_en[1] else ""
-      questions_json_str <- if (!is.na(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
+      para_text <- if (is.character(qi$paragraph_en[1]) && nzchar(qi$paragraph_en[1])) qi$paragraph_en[1] else ""
+      questions_json_str <- if (is.character(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
       questions_list <- tryCatch(jsonlite::fromJSON(questions_json_str, simplifyVector = FALSE)[[1]],
                                   error = function(e) list())
       cur_resp_df <- rv$responses %>% filter(subtest=="USP", item_number==!!i_n)
@@ -759,6 +759,8 @@ server <- function(input, output, session) {
         if (length(questions_list) > 0) {
           lapply(seq_along(questions_list), function(qi_idx) {
             q_item <- questions_list[[qi_idx]]
+            # Guard: skip atomic vectors or items without $q/$a fields
+            if (!is.list(q_item) || is.null(q_item$q)) return(NULL)
             q_text <- q_item$q
             q_ans  <- q_item$a
             q_score_val <- if (qi_idx <= length(saved_scores)) saved_scores[qi_idx] else NA_integer_
@@ -848,7 +850,7 @@ server <- function(input, output, session) {
     } else if (t == "USP") {
       # ── USP per-question score save ──────────────────────────
       qi <- get_question_info("USP", i_n, rv$age_group)
-      questions_json_str <- if (!is.na(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
+      questions_json_str <- if (is.character(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
       questions_list <- tryCatch(jsonlite::fromJSON(questions_json_str, simplifyVector = FALSE)[[1]], error = function(e) list())
       n_q <- length(questions_list)
 

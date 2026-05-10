@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3 *)",
+      "Read(/home/yzhang/.hermes/kanban.db)",
+      "Read(/home/yzhang/clawfiles/celf5_shiny/**)"
+    ]
+  }
+}
