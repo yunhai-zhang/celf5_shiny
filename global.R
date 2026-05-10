@@ -358,45 +358,157 @@ age_group_from_questions <- function(q_age_group) {
 }
 
 # ─────────────────────────────────────────────────────────────
+# norms 格式 (e.g. "5:0-5:5", "6:0-6:5", "9:0-9:11") → USP paragraphs 字母 (A/B/C/D/E/F)
+# CELF-5 Manual Table 1.2 / USP test record form age groupings:
+#   A = 5:0–8:11  (age_5_8)
+#   B = 9:0–10:11 (age_9_11)
+#   C = 11:0–14:11 (age_12_14)
+#   D = 15:0–17:11 (age_15_21 lower)
+#   E = 18:0–19:11 (age_15_21 upper)
+#   F = 20:0–21:11 (age_15_21 highest)
+# ─────────────────────────────────────────────────────────────
+age_group_to_usp_db <- function(age_group) {
+  dplyr::case_when(
+    age_group %in% c("5:0-5:5","5:6-5:11",
+                     "6:0-6:5","6:6-6:11",
+                     "7:0-7:11","8:0-8:11") ~ "A",
+    age_group %in% c("9:0-9:11","10:0-10:11") ~ "B",
+    age_group %in% c("11:0-11:11","12:0-12:11",
+                     "13:0-13:11","14:0-14:11") ~ "C",
+    age_group %in% c("15:0-15:11","16:0-16:11","17:0-17:11") ~ "D",
+    age_group %in% c("18:0-18:11","19:0-19:11") ~ "E",
+    TRUE ~ "F"  # 20:0–21:11
+  )
+}
+
+# ─────────────────────────────────────────────────────────────
 # 3c. 题目信息查询（来自 questions 表）
 # ─────────────────────────────────────────────────────────────
 get_question_info <- function(subtest, item_number, age_group) {
   con <- get_con()
   on.exit(dbDisconnect(con), add = TRUE)
-  q_ag <- age_group_to_questions(age_group, subtest)
-  sql <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
-          FROM questions WHERE subtest = ? AND age_group = ? AND item_number = ? LIMIT 1"
-  q <- dbGetQuery(con, sql, params = list(subtest, q_ag, item_number))
+
+  # ── USP items 8+: fully dynamic from usp_paragraphs ────────────────────────
+  if (subtest == "USP" && as.integer(item_number) > 7) {
+    para_info <- get_usp_paragraph_for_item(age_group, as.integer(item_number))
+    if (!is.null(para_info) && nrow(para_info) > 0) {
+      qs <- jsonlite::fromJSON(para_info$questions_json[1], simplifyVector = FALSE)
+      # slot = item_number - 7 gives the cumulative question position across all paragraphs
+      # e.g. Trial items 8-14 → slot 1-7; Paragraph A items 15-18 → slot 8-11
+      # But qs[[]] is indexed within THIS paragraph, so find the relative position
+      slot <- as.integer(item_number) - 7   # cumulative slot: item 8 → 1, item 15 → 8
+      # Paragraph boundaries (cumulative): Trial=7, Trial+A=11, Trial+A+B=17, ...
+      # We need the position within THIS paragraph's qs array
+      # The paragraph returned covers items (start_item) to (start_item + len(qs) - 1)
+      # For item 15 → paragraph A (qs has 4 items), relative position is 15 - 14 = 1 (first Q of A)
+      # For item 19 → paragraph B (qs has 6 items), relative position is 19 - 18 = 1 (first Q of B)
+      # Since get_usp_paragraph_for_item already found which paragraph this item falls in,
+      # we know the item is somewhere within qs.  The relative slot = slot - (sum of Qs in earlier paras)
+      # We can compute earlier paragraphs' total Q count from the cumulative boundary
+      # stored in get_usp_paragraph_for_item's loop.  Simpler: just iterate qs and use item_number directly.
+      # ── RECALCULATE from scratch: what is item_number's position within this paragraph? ──
+      usp_ag <- age_group_to_usp_db(age_group)
+      all_paras <- dbGetQuery(con,
+        "SELECT id, questions_json FROM usp_paragraphs WHERE age_group = ? ORDER BY id",
+        params = list(usp_ag))
+      cum <- 7
+      rel_slot <- NA_integer_
+      for (pi in seq_len(nrow(all_paras))) {
+        pqs <- jsonlite::fromJSON(all_paras$questions_json[pi], simplifyVector = FALSE)
+        n   <- length(pqs)
+        if (as.integer(item_number) >= cum + 1 && as.integer(item_number) <= cum + n) {
+          rel_slot <- as.integer(item_number) - cum   # 1-indexed position within this paragraph
+          break
+        }
+        cum <- cum + n
+      }
+      if (is.na(rel_slot) || rel_slot < 1 || rel_slot > length(qs)) {
+        return(tibble(
+          question_en = NA_character_, prompt_en = NA_character_,
+          stimulus_en = NA_character_,  scoring_key = NA_character_,
+          max_score = NA_integer_,     paragraph_en = NA_character_,
+          questions_json = NA_character_
+        ))
+      }
+      q_text  <- qs[[rel_slot]]$q
+      q_ans   <- qs[[rel_slot]]$a
+      mx <- if (grepl("two|Three|two things", q_text, ignore.case = TRUE)) 2L else 1L
+      return(tibble(
+        question_en    = q_text,
+        prompt_en      = NA_character_,
+        stimulus_en    = NA_character_,
+        scoring_key    = q_ans,
+        max_score      = mx,
+        paragraph_en   = para_info$paragraph_en[1],
+        questions_json = para_info$questions_json[1]
+      ))
+    }
+    return(tibble(
+      question_en = NA_character_, prompt_en = NA_character_,
+      stimulus_en = NA_character_,  scoring_key = NA_character_,
+      max_score = NA_integer_,     paragraph_en = NA_character_,
+      questions_json = NA_character_
+    ))
+  }
+
+  # ── Non-USP, or USP items 1-7 ──────────────────────────────────────────────
+  q_ag <- if (subtest == "USP") age_group else age_group_to_questions(age_group, subtest)
+  sql  <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
+           FROM questions WHERE subtest = ? AND age_group = ? AND item_number = ? LIMIT 1"
+  q    <- dbGetQuery(con, sql, params = list(subtest, q_ag, item_number))
+
   if (nrow(q) == 0) {
-    # fallback: try without age_group filter (e.g. PP has age_group='A', USP has age_group='A')
     sql2 <- "SELECT question_en, prompt_en, stimulus_en, scoring_key, max_score
              FROM questions WHERE subtest = ? AND item_number = ? LIMIT 1"
-    q <- dbGetQuery(con, sql2, params = list(subtest, item_number))
+    q    <- dbGetQuery(con, sql2, params = list(subtest, item_number))
     if (nrow(q) == 0) {
       return(tibble(
-        question_en = NA_character_,
-        prompt_en   = NA_character_,
-        stimulus_en = NA_character_,
-        scoring_key = NA_character_,
+        question_en = NA_character_, prompt_en   = NA_character_,
+        stimulus_en = NA_character_, scoring_key = NA_character_,
         max_score   = NA_integer_
       ))
     }
   }
-  # ── USP 段落属性（来自 usp_paragraphs 表）─────────────────
-  if (subtest == "USP" && nrow(q) > 0) {
-    q_para <- dbGetQuery(con,
-      "SELECT paragraph_en, questions_json FROM usp_paragraphs
-       WHERE age_group = ? AND item_number = ? LIMIT 1",
-      params = list(age_group, item_number))
-    if (nrow(q_para) > 0) {
-      q$paragraph_en   <- q_para$paragraph_en[1]
-      q$questions_json <- q_para$questions_json[1]
+
+  # ── USP items 1-7: attach paragraph info ──────────────────────────────────
+  if (subtest == "USP") {
+    para_info <- get_usp_paragraph_for_item(age_group, as.integer(item_number))
+    if (!is.null(para_info) && nrow(para_info) > 0) {
+      q$paragraph_en   <- para_info$paragraph_en[1]
+      q$questions_json <- para_info$questions_json[1]
     } else {
       q$paragraph_en   <- NA_character_
       q$questions_json <- NA_character_
     }
   }
   q
+}
+
+# ── Helper: map USP item_number → paragraph row ──────────────────────────
+get_usp_paragraph_for_item <- function(age_group, item_number) {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+  # Items 1-7 are option cards (no paragraph data needed)
+  if (item_number <= 7) return(data.frame())
+  # Convert norms-format age_group (e.g. "7:0-7:11") to USP DB letter (e.g. "A")
+  usp_ag <- age_group_to_usp_db(age_group)
+  # Get all paragraphs for this age_group in order, compute cumulative Q counts
+  paras <- dbGetQuery(con,
+    "SELECT paragraph_id, paragraph_en, questions_json
+     FROM usp_paragraphs WHERE age_group = ? ORDER BY id",
+    params = list(usp_ag))
+  if (nrow(paras) == 0) return(data.frame())
+  # Cumulative count: first paragraph covers items 8 to (8 + n_1 - 1)
+  cum <- 7  # items 1-7 are option cards
+  for (i in seq_len(nrow(paras))) {
+    qs <- jsonlite::fromJSON(paras$questions_json[i], simplifyVector = FALSE)
+    n_q <- length(qs)
+    if (item_number <= cum + n_q) {
+      return(paras[i, c("paragraph_en", "questions_json"), drop = FALSE])
+    }
+    cum <- cum + n_q
+  }
+  data.frame()  # item_number beyond all paragraphs
 }
 
 get_max_item <- function(subtest, age_group) {
@@ -1310,8 +1422,9 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   if (nzchar(key)) return(key)
   # Fallback: read from .env file directly
   env_lines <- readLines(file.path(Sys.getenv("HOME"), ".hermes", ".env"), warn = FALSE)
-  pat <- regexpr("MINIMAX_CN_API_KEY=(.+)", env_lines, value = TRUE)
-  regmatches(env_lines, pat)[1]
+  matched <- grep("^MINIMAX_CN_API_KEY=", env_lines, value = TRUE)
+  if (length(matched) == 0) return("")
+  sub("^MINIMAX_CN_API_KEY=", "", matched[1])
 }
 
 
@@ -1345,7 +1458,7 @@ get_gsv <- function(subtest, raw_score, age_group = NULL) {
   api_key  <- .read_minimax_key()
   url      <- "https://api.minimaxi.com/v1/chat/completions"
   body     <- list(
-    model    = "MiniMax/M2.7",
+    model    = "MiniMax-M2.7",
     messages = list(list(role = "user", content = prompt)),
     max_tokens = max_tokens,
     temperature = 0.7

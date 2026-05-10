@@ -644,7 +644,12 @@ server <- function(input, output, session) {
           )
         )
       } else {
-        div(class="alert alert-secondary", "题目加载中 / Question not yet available for this item")
+        # DEBUG: show raw qi columns
+        div(class="alert alert-danger", style="font-size:11px;word-break:break-all",
+          "题目加载中 / Question not yet available",
+          br(), "DEBUG: stimulus_txt empty — qi$question_en:",
+          I(paste0(capture.output(print(qi)), collapse="\n"))
+        )
       },
 
       hr(),

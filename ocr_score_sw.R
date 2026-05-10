@@ -105,14 +105,39 @@ build_sw_scoring_prompt <- function(ocr_text, age_group, rubric) {
 .read_minimax_key <- function() {
   key <- Sys.getenv("MINIMAX_CN_API_KEY")
   if (nzchar(key)) return(key)
-  # fallback: read from ~/.env
-  env_file <- file.path(Sys.getenv("HOME"), ".env")
-  if (file.exists(env_file)) {
-    lines <- readLines(env_file, warn = FALSE)
-    pat   <- grep("MINIMAX", lines, value = TRUE)
-    if (length(pat) > 0) return(sub(".*=", "", pat[1]))
+  # fallback: read from ~/.hermes/.env (where Hermes stores it)
+  # NOTE: shiny-server may run as root so ~=/root — try USER home as well
+  possible_homes <- unique(c(
+    Sys.getenv("HOME"),
+    Sys.getenv("USER"),
+    "/home/yzhang"
+  ))
+  for (home in possible_homes) {
+    env_file <- file.path(home, ".hermes", ".env")
+    if (file.exists(env_file)) {
+      lines <- readLines(env_file, warn = FALSE)
+      pat   <- grep("^MINIMAX_CN_API_KEY=", lines, value = TRUE)
+      if (length(pat) > 0) return(sub("^MINIMAX_CN_API_KEY=", "", pat[1]))
+    }
   }
-  stop("MINIMAX_CN_API_KEY not found in environment or ~/.env")
+  stop("MINIMAX_CN_API_KEY not found in environment or ~/.hermes/.env")
+}
+
+#' Strip think/reasoning tags from MiniMax JSON responses
+#' MiniMax models prepend <think>...</think> or 【思考】... blocks before JSON
+.clean_json_tags <- function(raw_text) {
+  # Remove <think>...</think> (English think blocks)
+  cleaned <- gsub("<think>[\\s\\S]*?</think>", "", raw_text, perl = TRUE)
+  # Remove 【思考】...【思考】 or 【思考】... blocks
+  cleaned <- gsub("【思考】[\\s\\S]*?【思考】", "", cleaned, perl = TRUE)
+  # Remove remaining 【思考】... singletons
+  cleaned <- gsub("【思考】[\\s\\S]*?$", "", cleaned, perl = TRUE)
+  # Remove leading whitespace / newlines before the first {
+  cleaned <- gsub("^[\\s\\n]+", "", cleaned)
+  trimmed <- trimws(cleaned)
+  # If we still have no braces, return as-is
+  if (!grepl("\\{", trimmed)) return(raw_text)
+  trimmed
 }
 
 .call_minimax <- function(prompt, max_tokens = 600L) {
@@ -136,7 +161,7 @@ build_sw_scoring_prompt <- function(ocr_text, age_group, rubric) {
     stop(sprintf("API error %d: %s", resp$status_code, substr(txt, 1, 300)))
   }
   parsed   <- jsonlite::fromJSON(txt, simplifyVector = FALSE)
-  parsed$choices[[1]]$message$content
+  .clean_json_tags(parsed$choices[[1]]$message$content)
 }
 
 # 5. Main Pipeline ─────────────────────────────────────────────────────────
