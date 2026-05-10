@@ -1163,7 +1163,7 @@ server <- function(input, output, session) {
               hr(),
               p(strong("🔽 识别文本（可复制到 response 框）:")),
               pre(style = "font-size:12px; background:#f8f9fa; padding:8px;",
-                  r$ocr_text)
+                  r$recognized_text)
           ),
           div(class = "alert alert-warning",
               p(strong("📋 临床医生确认:"), " 请审核 AI 评分并手动调整下方评分后保存。"),

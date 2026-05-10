@@ -1,33 +1,69 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# ocr_score_sw.R — CELF-5 Structured Writing: OCR + LLM AI Scoring Pipeline
+# ocr_score_sw.R — CELF-5 Structured Writing: Vision AI Scoring Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
-# Deps: tesseract (apt), pytesseract (pip), httr, jsonlite
-# Usage: source("ocr_score_sw.R"); ocr_and_score(image_path, age_group)
+# Deps: httr, jsonlite, base64enc
+# Usage: source("ocr_score_sw.R"); vision_and_score(image_path, age_group)
+# Strategy: MiniMax VLM (vision) instead of Tesseract OCR — much better at
+# reading children's handwriting. Falls back gracefully on error.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 1. OCR ────────────────────────────────────────────────────────────────────
+# 1. Vision (MiniMax VLM) — replaces old Tesseract OCR ───────────────────────
 
-#' Run Tesseract OCR on an image file
+#' Call MiniMax VLM to analyze an image + prompt
 #' @param image_path Local path to image (JPEG/PNG)
-#' @param lang Language code: "eng", "chi_sim", "eng+chi_sim"
-#' @return Extracted text (raw string)
-run_ocr <- function(image_path, lang = "eng+chi_sim") {
-  cmd <- "tesseract"
-  args <- c(shQuote(image_path), "stdout", "-l", lang)
-  result <- system2(cmd, args = args, stdout = TRUE, stderr = FALSE)
-  paste(result, collapse = "\n")
+#' @param prompt_text Prompt to send to the vision model
+#' @return Raw text response from VLM
+.call_minimax_vlm <- function(image_path, prompt_text) {
+  api_key <- .read_minimax_key()
+  url     <- "https://api.minimaxi.com/v1/coding_plan/vlm"
+
+  b64 <- base64enc::base64encode(image_path)
+  ext <- tolower(tools::file_ext(image_path))
+  if (ext == "jpg") ext <- "jpeg"
+  data_url <- sprintf("data:image/%s;base64,%s", ext, b64)
+
+  body <- list(
+    prompt    = prompt_text,
+    image_url = data_url
+  )
+
+  resp <- httr::POST(
+    url,
+    httr::add_headers(
+      `Content-Type` = "application/json",
+      `Authorization` = paste0("Bearer ", api_key)
+    ),
+    body  = body,
+    httr::content_type_json(),
+    encode = "json"
+  )
+
+  txt <- httr::content(resp, as = "text", encoding = "UTF-8")
+  if (resp$status_code != 200) {
+    stop(sprintf("VLM API error %d: %s", resp$status_code, substr(txt, 1, 300)))
+  }
+
+  parsed <- jsonlite::fromJSON(txt, simplifyVector = FALSE)
+  content <- parsed$content
+  if (is.null(content) || !nzchar(content)) {
+    stop(sprintf("No content in VLM response: %s", substr(txt, 1, 300)))
+  }
+  content
 }
 
-#' Clean OCR output — remove tesseract artifacts and empty lines
+# Legacy OCR stubs (kept for compatibility with existing code) ──────────────
+
+#' Run Tesseract OCR on an image file (stub — VLM now handles recognition)
+#' @param image_path Local path to image (JPEG/PNG)
+#' @param lang Language code — ignored, kept for API compat
+#' @return Extracted text (raw string)
+run_ocr <- function(image_path, lang = "eng+chi_sim") {
+  NA_character_
+}
+
+#' Clean OCR output (stub — no OCR output to clean)
 clean_ocr_text <- function(raw_text) {
-  # Remove confidence lines and artifact patterns
-  lines <- strsplit(raw_text, "\n")[[1]]
-  lines <- trimws(lines)
-  # Remove lines that are mostly confidence scores or empty
-  lines <- lines[nchar(lines) > 0]
-  # Remove lines that look like tesseract debug output
-  lines <- lines[!grepl("^(Warning|Page\\s+\\d+|Detected\\s+\\d+|Boxane)", lines, ignore.case = TRUE)]
-  paste(lines, collapse = "\n")
+  NA_character_
 }
 
 # 2. SW Scoring Rubric (mirrors global.R, self-contained) ──────────────────
@@ -67,36 +103,32 @@ SW_RUBRIC <- list(
   )
 )
 
-# 3. LLM Prompt Builder ───────────────────────────────────────────────────
+# 3. Vision Prompt Builder ─────────────────────────────────────────────────
 
-build_sw_scoring_prompt <- function(ocr_text, age_group, rubric) {
+build_sw_vision_prompt <- function(rubric) {
   paste0(
-    "You are a CELF-5 Structured Writing (SW) scorer.\n",
-    "Child's age group: ", rubric$prompt_desc, "\n",
-    "Child's handwritten response (OCR extracted):\n",
-    "----------------------------------------\n",
-    ocr_text, "\n",
-    "----------------------------------------\n",
-    "CELF-5 SW Scoring Rubric:\n",
-    "- Structure (complete sentences): 0 or 1 per sentence\n",
-    "- Grammar accuracy: 0-", rubric$grammar_max, " per sentence\n",
-    "- Organization (whole piece): 0-", rubric$org_max, "\n",
-    "- Mechanics (spelling/capitalization/punctuation): 0-", rubric$mech_max, "\n",
-    "Important: The half-written sentence at the top of the page is a STIMULUS prompt (not scored).\n",
-    "Only score the child's self-written sentences.\n\n",
-    "Your response must begin with { and end with } — no other text. Only output valid JSON.\n",
-    "{\n",
-    "  \"structure\": {\"score\": N, \"comment\": \"...\"},\n",
-    "  \"grammar\":   {\"score\": N, \"comment\": \"...\"},\n",
-    "  \"organization\": {\"score\": N, \"comment\": \"...\"},\n",
-    "  \"mechanics\":    {\"score\": N, \"comment\": \"...\"},\n",
-    "  \"summary\":      \"2-3 sentence clinical summary\"\n",
-    "}\n",
-    "Score ranges: structure=0-", rubric$struct_max * rubric$n_sentences,
-    ", grammar=0-", rubric$grammar_max * rubric$n_sentences,
-    ", organization=0-", rubric$org_max,
-    ", mechanics=0-", rubric$mech_max,
-    ", total=0-", (rubric$struct_max * rubric$n_sentences) + (rubric$grammar_max * rubric$n_sentences) + rubric$org_max + rubric$mech_max
+    "You are a clinical child psychologist specializing in language assessment.\n",
+    "You will receive an image of a child handwriting sample from CELF-5 Structured Writing test.\n",
+    "Your task:\n",
+    "1. Read ALL handwritten text in the image carefully — be thorough, children's handwriting can be messy\n",
+    "2. Score according to the rubric below\n",
+    "3. Return ONLY valid JSON (no thinking tags, no extra text, no markdown code blocks)\n\n",
+    "Return EXACTLY this JSON structure, starting with { and ending with }:\n",
+    '{"recognized_text": "the complete text you read from the handwriting (be precise, capture every word)", ',
+    '"structure": {"score": N, "comment": "brief comment about sentence completeness and logical flow"}, ',
+    '"grammar": {"score": N, "comment": "brief comment about sentence structure and word order"}, ',
+    '"organization": {"score": N, "comment": "brief comment about overall piece organization"}, ',
+    '"mechanics": {"score": N, "comment": "brief comment about spelling, capitalization, punctuation"}, ',
+    '"summary": "2 sentence clinical summary in Chinese"}\n\n',
+    "Scoring rubric (age group: ", rubric$prompt_desc, "):\n",
+    "- Structure (0-", rubric$struct_max * rubric$n_sentences, "): Complete sentences, logical flow between sentences\n",
+    "- Grammar (0-", rubric$grammar_max * rubric$n_sentences, "): Sentence structure, verb usage, word order accuracy\n",
+    "- Organization (0-", rubric$org_max, "): Overall piece organization and coherence\n",
+    "- Mechanics (0-", rubric$mech_max, "): Spelling accuracy, capitalization, punctuation\n\n",
+    "IMPORTANT:\n",
+    "- recognized_text must capture EVERY word/sentence the child wrote\n",
+    "- Do NOT score the stimulus/prompt text at the top of the page — only the child's own writing\n",
+    "- Return ONLY the raw JSON, no markdown formatting\n"
   )
 }
 
@@ -169,117 +201,102 @@ build_sw_scoring_prompt <- function(ocr_text, age_group, rubric) {
 # Helper: null-coalescing
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
-#' OCR + AI score a child's SW handwritten response
+#' Vision AI score a child's SW handwritten response (replaces old OCR pipeline)
 #' @param image_path Path to photo of handwritten work
 #' @param age_group Age group key: "age_8", "age_9_10", "age_11_12", "age_13_21"
-#' @return Named list with: ocr_text, structure, grammar, organization, mechanics, total_score, summary, raw_json
-ocr_and_score <- function(image_path, age_group = "age_9_10") {
+#' @return Named list with: recognized_text, structure, grammar, organization,
+#'         mechanics, total_score, summary, raw_json, error
+vision_and_score <- function(image_path, age_group = "age_9_10") {
   rubric <- SW_RUBRIC[[age_group]]
   if (is.null(rubric)) stop("Unknown age_group: ", age_group)
 
-  # Step 1: OCR
-  raw_ocr   <- run_ocr(image_path)
-  ocr_text  <- clean_ocr_text(raw_ocr)
-
-  if (nchar(ocr_text) < 5) {
+  # Check file exists
+  if (!file.exists(image_path)) {
     return(list(
-      ocr_text    = "",
-      structure   = list(score = NA_integer_, comment = "OCR failed to extract text"),
+      recognized_text = "",
+      structure   = list(score = NA_integer_, comment = "图片文件未找到"),
       grammar     = list(score = NA_integer_, comment = ""),
       organization= list(score = NA_integer_, comment = ""),
       mechanics   = list(score = NA_integer_, comment = ""),
       total_score = NA_integer_,
-      summary     = "无法识别手写内容，请手动输入",
+      summary     = "图片文件未找到，请手动评分",
       raw_json    = "{}",
-      error       = "OCR returned empty/too short text"
+      error       = "Image file not found"
     ))
   }
 
-  # Step 2: Build prompt + call LLM
-  prompt    <- build_sw_scoring_prompt(ocr_text, age_group, rubric)
-  raw_json  <- .call_minimax(prompt, max_tokens = 4000L)
+  # Step 1: Call MiniMax VLM
+  prompt  <- build_sw_vision_prompt(rubric)
+  content <- .call_minimax_vlm(image_path, prompt)
 
-  # Step 3: Parse JSON — the actual JSON is always at the END of the response
-  # (after all <think>...思考 thinking). Strategy: scan RIGHT-TO-LEFT from the end,
-  # find the last "}" (end of JSON), then walk backward to find matching "{".
-  n <- nchar(raw_json)
-  # Find last "}"
-  last_close <- NA
-  for (i in n:1) {
-    if (substr(raw_json, i, i) == "}") { last_close <- i; break }
-  }
-  if (is.na(last_close)) {
-    # No closing brace found — return graceful fallback with raw response for debugging
-    return(list(
-      ocr_text     = ocr_text,
-      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
-      grammar      = list(score = NA_integer_, comment = ""),
-      organization = list(score = NA_integer_, comment = ""),
-      mechanics    = list(score = NA_integer_, comment = ""),
-      total_score  = NA_integer_,
-      summary      = paste0("LLM返回无有效JSON，已识别文本：", substr(ocr_text, 1, 100)),
-      raw_json     = raw_json,
-      error        = "No } found in response - LLM returned non-JSON text"
-    ))
-  }
+  # Step 2: Extract JSON from VLM content
+  # VLM may return: (a) plain JSON, (b) markdown-wrapped ```json...```,
+  # or (c) other text. Strip markdown code fences first.
+  content_clean <- gsub("```json\\s*", "", content, fixed = TRUE)
+  content_clean <- gsub("```", "", content_clean, fixed = TRUE)
 
-  # Walk backward from last_close to find matching "{"
-  depth <- 0; json_end <- last_close
-  for (i in last_close:1) {
-    ch <- substr(raw_json, i, i)
-    if (ch == "}") depth <- depth + 1
-    else if (ch == "{") {
-      depth <- depth - 1
-      if (depth == 0) { json_start <- i; break }
+  # Find JSON block — first { and matching last }
+  first_brace <- which(charToRaw(content_clean) == charToRaw("{"))[1]
+  last_brace  <- which(rev(charToRaw(content_clean)) == charToRaw("}"))[1]
+
+  json_str <- NULL
+  if (!is.na(first_brace) && !is.na(last_brace)) {
+    n <- nchar(content_clean)
+    last_pos <- n - last_brace + 1
+    if (last_pos >= first_brace) {
+      json_str <- substr(content_clean, first_brace, last_pos)
     }
   }
-  if (is.na(json_start)) {
+
+  if (is.null(json_str) || length(grep("{", json_str, fixed = TRUE)) == 0) {
     return(list(
-      ocr_text     = ocr_text,
-      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
-      grammar      = list(score = NA_integer_, comment = ""),
-      organization = list(score = NA_integer_, comment = ""),
-      mechanics    = list(score = NA_integer_, comment = ""),
-      total_score  = NA_integer_,
-      summary      = paste0("LLM返回JSON无有效开始括号，已识别文本：", substr(ocr_text, 1, 100)),
-      raw_json     = raw_json,
-      error        = "No matching { found for JSON"
+      recognized_text = "",
+      structure   = list(score = NA_integer_, comment = "VLM返回格式异常，请手动评分"),
+      grammar     = list(score = NA_integer_, comment = ""),
+      organization= list(score = NA_integer_, comment = ""),
+      mechanics   = list(score = NA_integer_, comment = ""),
+      total_score = NA_integer_,
+      summary     = paste0("VLM未返回有效JSON，已识别内容：", substr(content, 1, 100)),
+      raw_json    = content,
+      error       = "No JSON found in VLM response"
     ))
   }
-  json_str <- substr(raw_json, json_start, json_end)
 
+  # Step 3: Parse JSON
   parsed <- tryCatch(
-    jsonlite::fromJSON(json_str, simplifyVector = FALSE),
+    jsonlite::fromJSON(json_str, simplifyVector = FALSE, check.names = FALSE),
     error = function(e) NULL
   )
 
   if (is.null(parsed)) {
     return(list(
-      ocr_text     = ocr_text,
-      structure    = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
-      grammar      = list(score = NA_integer_, comment = ""),
-      organization = list(score = NA_integer_, comment = ""),
-      mechanics    = list(score = NA_integer_, comment = ""),
-      total_score  = NA_integer_,
-      summary      = paste0("LLM返回格式异常，已识别文本：", substr(ocr_text, 1, 100)),
-      raw_json     = raw_json,
-      error        = "JSON parse failed"
+      recognized_text = "",
+      structure   = list(score = NA_integer_, comment = "JSON解析失败，请手动评分"),
+      grammar     = list(score = NA_integer_, comment = ""),
+      organization= list(score = NA_integer_, comment = ""),
+      mechanics   = list(score = NA_integer_, comment = ""),
+      total_score = NA_integer_,
+      summary     = paste0("JSON解析失败，已识别内容：", substr(content, 1, 100)),
+      raw_json    = content,
+      error       = "JSON parse failed"
     ))
   }
 
   # Step 4: Validate and cap scores within rubric limits
-  cap <- function(n, max) pmin(as.integer(n), as.integer(max))
+  cap <- function(n, max_val) pmin(as.integer(n), as.integer(max_val))
 
-  structure_max   <- rubric$struct_max   * rubric$n_sentences
-  grammar_max     <- rubric$grammar_max   * rubric$n_sentences
+  structure_max <- rubric$struct_max * rubric$n_sentences
+  grammar_max    <- rubric$grammar_max * rubric$n_sentences
+
+  recognized_text <- as.character(parsed$recognized_text %||% "")
 
   list(
-    ocr_text     = ocr_text,
-    structure    = list(
+    recognized_text = recognized_text,
+    structure   = list(
       score   = cap(parsed$structure$score, structure_max),
       comment = as.character(parsed$structure$comment %||% "")
     ),
-    grammar      = list(
+    grammar     = list(
       score   = cap(parsed$grammar$score, grammar_max),
       comment = as.character(parsed$grammar$comment %||% "")
     ),
@@ -292,13 +309,19 @@ ocr_and_score <- function(image_path, age_group = "age_9_10") {
       comment = as.character(parsed$mechanics$comment %||% "")
     ),
     total_score  = sum(c(
-      cap(parsed$structure$score   %||% 0, structure_max),
-      cap(parsed$grammar$score     %||% 0, grammar_max),
+      cap(parsed$structure$score    %||% 0, structure_max),
+      cap(parsed$grammar$score      %||% 0, grammar_max),
       cap(parsed$organization$score%||% 0, rubric$org_max),
-      cap(parsed$mechanics$score   %||% 0, rubric$mech_max)
+      cap(parsed$mechanics$score    %||% 0, rubric$mech_max)
     )),
-    summary      = as.character(parsed$summary %||% ""),
-    raw_json     = raw_json,
-    error        = NULL
+    summary  = as.character(parsed$summary %||% ""),
+    raw_json = content,
+    error    = NULL
   )
+}
+
+#' Legacy wrapper — ocr_and_score now delegates to vision_and_score
+#' Kept for backwards compatibility with app.R
+ocr_and_score <- function(image_path, age_group = "age_9_10") {
+  vision_and_score(image_path, age_group)
 }
