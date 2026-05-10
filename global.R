@@ -382,6 +382,20 @@ get_question_info <- function(subtest, item_number, age_group) {
       ))
     }
   }
+  # ── USP 段落属性（来自 usp_paragraphs 表）─────────────────
+  if (subtest == "USP" && nrow(q) > 0) {
+    q_para <- dbGetQuery(con,
+      "SELECT paragraph_en, questions_json FROM usp_paragraphs
+       WHERE age_group = ? AND item_number = ? LIMIT 1",
+      params = list(age_group, item_number))
+    if (nrow(q_para) > 0) {
+      q$paragraph_en   <- q_para$paragraph_en[1]
+      q$questions_json <- q_para$questions_json[1]
+    } else {
+      q$paragraph_en   <- NA_character_
+      q$questions_json <- NA_character_
+    }
+  }
   q
 }
 

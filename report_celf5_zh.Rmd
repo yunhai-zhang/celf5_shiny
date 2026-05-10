@@ -145,7 +145,7 @@ flextable(df_info) |> autofit() |> bold(part = "header")
 subtest_names_cn <- c(
   SC="句子理解", LC="语言概念", WS="词汇结构", WC="词汇语义",
   FD="跟随指令", FS="造句", RS="句子复述", USP="段落理解",
-  PP="语用观察", WD="词汇定义", SA="句子重组", SR="语义关系",
+  WD="词汇定义", SA="句子重组", SR="语义关系",
   RC="阅读理解", SW="命题写作"
 )
 
@@ -217,7 +217,6 @@ if (nrow(df_idx) > 0) {
 | FS | 造句 / Formulated Sentences | 使用目标词汇造完整、语义和语法正确的句子 |
 | RS | 句子复述 / Recalling Sentences | 复述和准确再现不同长度和句法复杂度的句子 |
 | USP | 段落理解 / Understanding Spoken Paragraphs | 理解口语段落的主旨和细节 |
-| PP | 语用观察 / Pragmatics Profile | 社会交际情境中的语用语言技能观察 |
 | WD | 词汇定义 / Word Definitions | 通过描述语义特征来定义词汇 |
 | SA | 句子重组 / Sentence Assembly | 使用指定词类构建语法正确的句子 |
 | SR | 语义关系 / Semantic Relationships | 解释包含语义关系的句子（比较、位置、时间、顺序、被动语态） |

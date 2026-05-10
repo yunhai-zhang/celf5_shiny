@@ -218,7 +218,6 @@ flextable(df_idx) |>
 | FS | Formulated Sentences | 造句能力 |
 | RS | Recalling Sentences | 句子复述 |
 | USP | Understanding Spoken Paragraphs | 口语段落理解 |
-| PP | Pragmatics Profile | 语用能力观察问卷 |
 | WD | Word Definitions | 词汇定义 |
 | SA | Sentence Assembly | 句子重组 |
 | SR | Semantic Relationships | 语义关系理解 |

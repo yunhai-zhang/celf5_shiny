@@ -14,6 +14,7 @@ library(DT)
 library(stringr)
 
 source("global.R")
+source("ocr_score_sw.R")
 
 # ─────────────────────────────────────────────────────────────
 # UI — CELF-5 配色：深蓝 #1B3A6B + 白 + 浅灰
@@ -708,7 +709,21 @@ server <- function(input, output, session) {
         p(em("拼写/大小写/标点")),
         radioButtons("sw_mech", "机械评分",
                      choices = rubric$mech_scale,
-                     selected = cur_me)
+                     selected = cur_me),
+        hr(),
+        # ── AI 辅助评分区 ────────────────────────────────────
+        h5("🤖 AI 辅助评分 AI-Assisted Scoring"),
+        p(em("上传小朋友写作照片，AI 自动识别内容并给出评分建议")),
+        fileInput("sw_image_upload", "上传写作照片",
+                  accept = c("image/jpeg","image/png","image/jpg","image/webp"),
+                  buttonLabel = "选择图片", placeholder = "未选择文件"),
+        fluidRow(
+          column(6, actionButton("btn_run_ai_score", "🔍 AI 分析",
+                                icon = icon("brain"), class = "btn-primary")),
+          column(6, actionButton("btn_clear_ai", "🗑️ 清除",
+                                icon = icon("trash"), class = "btn-outline-secondary"))
+        ),
+        uiOutput("sw_ai_result")
       )
     } else if (t == "RS") {
       # UI shows error count; stored score is scaled (3=0err, 2=1err, 1=2-3err, 0=4+err)
@@ -716,6 +731,45 @@ server <- function(input, output, session) {
       tagList(
         numericInput("input_score", "错误数量（0=3分, 1=2分, 2-3=1分, 4+=0分）",
                      value=err_val, min=0, max=99, step=1)
+      )
+    } else if (t == "USP") {
+      # ── USP: show paragraph + questions + per-question scoring ──
+      qi <- get_question_info("USP", i_n, rv$age_group)
+      para_text <- if (!is.na(qi$paragraph_en[1]) && nzchar(qi$paragraph_en[1])) qi$paragraph_en[1] else ""
+      questions_json_str <- if (!is.na(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
+      questions_list <- tryCatch(jsonlite::fromJSON(questions_json_str, simplifyVector = FALSE)[[1]],
+                                  error = function(e) list())
+      cur_resp_df <- rv$responses %>% filter(subtest=="USP", item_number==!!i_n)
+      saved_scores <- if (nrow(cur_resp_df) > 0) {
+        cur_resp_df$score
+      } else integer(0)
+
+      tagList(
+        if (nzchar(para_text)) {
+          div(class="card mb-3", style="background:#e8f4f8",
+            div(class="card-body",
+              h5("📖 段落文本 / Paragraph"),
+              p(strong(para_text))))
+        } else div(),
+        if (length(questions_list) > 0) {
+          lapply(seq_along(questions_list), function(qi_idx) {
+            q_item <- questions_list[[qi_idx]]
+            q_text <- q_item$q
+            q_ans  <- q_item$a
+            q_score_val <- if (qi_idx <= length(saved_scores)) saved_scores[qi_idx] else NA_integer_
+            q_name <- paste0("usp_q", i_n, "_", qi_idx)
+            fluidRow(column(12,
+              wellPanel(
+                h6(paste0("Q", qi_idx, ". ", q_text)),
+                p(em(strong("参考答案: "), code(q_ans)), style="color:#555"),
+                radioButtons(q_name, "得分",
+                  choices = c("1分"=1L, "0分"=0L),
+                  selected = q_score_val,
+                  inline = TRUE)
+              )
+            ))
+          })
+        } else div(class="alert alert-secondary", "题目加载中...")
       )
     } else if (max_s == 1L) {
       tagList(
@@ -786,6 +840,35 @@ server <- function(input, output, session) {
       showNotification(glue("已保存 / Saved: SW 第{i_n}题 = {total_score}分",
                             " (S={sw_struct} G={sw_grammar} O={sw_org} M={sw_mech})"), type="message")
 
+    } else if (t == "USP") {
+      # ── USP per-question score save ──────────────────────────
+      qi <- get_question_info("USP", i_n, rv$age_group)
+      questions_json_str <- if (!is.na(qi$questions_json[1]) && nzchar(qi$questions_json[1])) qi$questions_json[1] else "[]"
+      questions_list <- tryCatch(jsonlite::fromJSON(questions_json_str, simplifyVector = FALSE)[[1]], error = function(e) list())
+      n_q <- length(questions_list)
+
+      q_scores <- lapply(seq_len(n_q), function(qi_idx) {
+        q_name <- paste0("usp_q", i_n, "_", qi_idx)
+        input[[q_name]]
+      })
+      q_scores_vec <- as.integer(q_scores)
+
+      if (any(is.na(q_scores_vec))) {
+        showNotification("请完成所有题目评分 / Please score all questions", type = "warning"); return()
+      }
+
+      # Sum over all questions for this paragraph item
+      total_score <- sum(q_scores_vec, na.rm = TRUE)
+      # Store response_text as JSON of per-question scores
+      resp_json <- jsonlite::toJSON(setNames(q_scores_vec, paste0("Q", seq_len(n_q))), auto_unbox = TRUE)
+
+      # Clear old responses for this item (may have multiple rows for per-question) and re-add
+      rv$responses <- rv$responses %>% filter(!(subtest=="USP" & item_number==!!i_n)) %>%
+        add_row(subtest="USP", item_number=i_n, response_text=resp_json, score=total_score)
+
+      save_response(rv$assessment_id, "USP", i_n, resp_json, total_score)
+      showNotification(glue("已保存 / Saved: USP 第{i_n}题 = {total_score}/{n_q} 分"), type="message")
+
     } else {
       captured_score <- input$input_score
       if (is.null(captured_score) || is.na(captured_score)) {
@@ -831,6 +914,135 @@ server <- function(input, output, session) {
     }
   })
 
+  # ── SW AI 辅助评分 ─────────────────────────────────────────────
+  # age_group reactive (depends on rv$age_group)
+  sw_rubric_key <- reactive({
+    ag_raw <- rv$age_group
+    dplyr::case_when(
+      ag_raw %in% c("5:0-5:5","5:6-5:11","6:0-6:5","6:6-6:11","7:0-7:11","8:0-8:11") ~ "age_8",
+      ag_raw %in% c("9:0-9:11","10:0-10:11")                                                   ~ "age_9_10",
+      ag_raw %in% c("11:0-11:11","12:0-12:11")                                                 ~ "age_11_12",
+      TRUE                                                                                      ~ "age_13_21"
+    )
+  })
+
+  # Display AI result
+  output$sw_ai_result <- renderUI({
+    req(input$sw_image_upload)
+    # Results are shown reactively via invalidateLater or observer below
+    NULL
+  })
+
+  # Run AI scoring
+  ai_result_rv <- reactiveValues(status = "idle", data = NULL)
+
+  observeEvent(input$btn_run_ai_score, {
+    req(input$sw_image_upload)
+    img_path <- input$sw_image_upload$datapath
+    if (!file.exists(img_path)) {
+      showNotification("图片文件未找到", type = "error"); return()
+    }
+
+    # Disable button during processing
+    ai_result_rv$status <- "running"
+    ai_result_rv$data   <- NULL
+
+    # Show loading state
+    output$sw_ai_result <- renderUI({
+      div(class = "alert alert-info",
+          h5("🤖 AI 识别中..."),
+          p(em("正在 OCR 识别 + AI 评分，请稍候（约 10-20 秒）"))
+      )
+    })
+
+    # Run OCR + scoring in background (non-blocking)
+    tryCatch({
+      result <- ocr_and_score(img_path, sw_rubric_key())
+      ai_result_rv$data   <- result
+      ai_result_rv$status <- if (is.null(result$error)) "done" else "error"
+    }, error = function(e) {
+      ai_result_rv$status <<- "error"
+      ai_result_rv$data   <<- list(error = conditionMessage(e))
+    })
+
+    # Render result
+    if (ai_result_rv$status == "done") {
+      r <- ai_result_rv$data
+      output$sw_ai_result <- renderUI({
+        tagList(
+          div(class = "alert alert-success",
+              h5("✅ AI 评分建议"), br(),
+              fluidRow(
+                column(3, strong("结构 Structure"),  p(r$structure$score, "/ 结构满分")),
+                column(3, strong("语法 Grammar"),     p(r$grammar$score,   "/ 语法满分")),
+                column(3, strong("组织 Organization"),p(r$organization$score,"/ 组织满分")),
+                column(3, strong("机械 Mechanics"),   p(r$mechanics$score,  "/ 机械满分"))
+              ),
+              fluidRow(
+                column(12, strong("临床评语 Clinical Comment:")),
+                column(12, p(r$summary))
+              ),
+              if (!is.null(r$structure$comment) && r$structure$comment != "") {
+                fluidRow(column(12, p(em("结构: ", r$structure$comment))))
+              },
+              if (!is.null(r$grammar$comment) && r$grammar$comment != "") {
+                fluidRow(column(12, p(em("语法: ", r$grammar$comment))))
+              },
+              if (!is.null(r$organization$comment) && r$organization$comment != "") {
+                fluidRow(column(12, p(em("组织: ", r$organization$comment))))
+              },
+              if (!is.null(r$mechanics$comment) && r$mechanics$comment != "") {
+                fluidRow(column(12, p(em("机械: ", r$mechanics$comment))))
+              },
+              hr(),
+              p(strong("🔽 识别文本（可复制到 response 框）:")),
+              pre(style = "font-size:12px; background:#f8f9fa; padding:8px;",
+                  r$ocr_text)
+          ),
+          div(class = "alert alert-warning",
+              p(strong("📋 临床医生确认:"), " 请审核 AI 评分并手动调整下方评分后保存。"),
+              actionButton("btn_apply_ai_scores", "✅ 采纳 AI 建议分数",
+                           icon = icon("check"), class = "btn-success btn-sm")
+          )
+        )
+      })
+    } else {
+      err_msg <- if (!is.null(ai_result_rv$data$error)) ai_result_rv$data$error else "未知错误"
+      output$sw_ai_result <- renderUI({
+        div(class = "alert alert-danger",
+            h5("❌ AI 评分失败"),
+            p(err_msg),
+            p("请手动评分或重试。")
+        )
+      })
+    }
+  })
+
+  # Apply AI scores to the rating UI
+  observeEvent(input$btn_apply_ai_scores, {
+    r <- ai_result_rv$data
+    req(!is.null(r))
+    rubric <- SW_SCORING_RUBRIC[[sw_rubric_key()]]
+    # structure: per-sentence, max = struct_max * n_sentences
+    struct_max <- 1L * rubric$n_sentences
+    grammar_max <- rubric$grammar_scale %>% attr("names") %>% length() - 1  # not clean
+
+    # Map total structure/grammar scores to individual sentences (simplify: put total in first)
+    # The rubric UI scores per sentence; AI gives aggregate. Distribute across sentences.
+    updateRadioButtons(session, "sw_struct",  selected = r$structure$score)
+    updateRadioButtons(session, "sw_grammar", selected = r$grammar$score)
+    updateRadioButtons(session, "sw_org",     selected = r$organization$score)
+    updateRadioButtons(session, "sw_mech",    selected = r$mechanics$score)
+    showNotification("✅ AI 分数已填入，请确认后保存", type = "message")
+  })
+
+  # Clear AI results
+  observeEvent(input$btn_clear_ai, {
+    ai_result_rv$status <- "idle"
+    ai_result_rv$data   <- NULL
+    output$sw_ai_result <- renderUI(NULL)
+  })
+
   observeEvent(input$btn_prev, {
     if (rv$current_item > 1) rv$current_item <- rv$current_item - 1L
     if (rv$current_item < 1) rv$current_item <- 1L
@@ -861,7 +1073,7 @@ server <- function(input, output, session) {
 
     # ── Reversal 检查（Manual Chapter 3 原文）──────────────────
     # 有 reversal: SC / LC / WC / FS / RS / WD / SA
-    # 无 reversal: FD / WS / SR / RC / SW / USP / PP
+    # 无 reversal: FD / WS / SR / RC / SW / USP
     #
     # Continue Rule（所有 subtest 通用）：
     #   start_point 只是施测起点，不是题库上限。
@@ -1087,7 +1299,6 @@ server <- function(input, output, session) {
         FS  = "造句 / Formulated Sentences",
         RS  = "句子复述 / Recalling Sentences",
         USP = "段落理解 / Understanding Spoken Paragraphs",
-        PP  = "语用观察 / Pragmatics Profile",
         WD  = "词汇定义 / Word Definitions",
         SA  = "句子重组 / Sentence Assembly",
         SR  = "语义关系 / Semantic Relationships",
@@ -1104,7 +1315,6 @@ server <- function(input, output, session) {
         FS  = "Ability to formulate complete, semantically and syntactically correct sentences using target vocabulary.",
         RS  = "Ability to recall and accurately reproduce sentences of varying length and syntactic complexity.",
         USP = "Ability to understand main ideas and relevant details in spoken paragraphs; assessing listening comprehension.",
-        PP  = "Pragmatic language skills as observed across social communication situations.",
         WD  = "Ability to define words by describing their semantic features and relevant attributes.",
         SA  = "Ability to construct grammatically well-formed sentences using specified word classes.",
         SR  = "Ability to interpret sentences involving semantic relationships such as comparison, location, time, serial order, and passive voice.",

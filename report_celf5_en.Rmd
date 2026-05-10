@@ -199,7 +199,6 @@ if (nrow(df_idx) > 0) {
 | FS | Formulated Sentences | Ability to formulate complete, correct sentences using target vocabulary |
 | RS | Recalling Sentences | Ability to recall and accurately reproduce sentences |
 | USP | Understanding Spoken Paragraphs | Ability to understand main ideas in spoken paragraphs |
-| PP | Pragmatics Profile | Pragmatic language skills as observed across situations |
 | WD | Word Definitions | Ability to define words by describing semantic features |
 | SA | Sentence Assembly | Ability to construct grammatically well-formed sentences |
 | SR | Semantic Relationships | Ability to interpret sentences involving semantic relationships |

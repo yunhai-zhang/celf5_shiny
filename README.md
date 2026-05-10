@@ -26,9 +26,9 @@ shiny::runApp(".")
 ```
 
 ## Age Groups
-- Ages 5–8: Core SC, LC, WS, WC, FD, FS, RS + Supplementary RC, SW, PP
-- Ages 9–12: Core WC, FD, FS, RS, SR + Supplementary RC, SW, PP
-- Ages 13–21: Core FS, RS, USP, WC, SR + Supplementary RC, SW, PP
+- Ages 5–8: Core SC, LC, WS, WC, FD, FS, RS + Supplementary RC, SW
+- Ages 9–12: Core WC, FD, FS, RS, SR + Supplementary RC, SW
+- Ages 13–21: Core FS, RS, USP, WC, SR + Supplementary RC, SW
 
 ## Scoring Flow
 1. Examiner enters student demographics → age calculated automatically
