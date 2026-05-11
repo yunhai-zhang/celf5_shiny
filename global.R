@@ -340,6 +340,47 @@ get_discontinue_rule <- function(subtest) {
 }
 
 # ─────────────────────────────────────────────────────────────
+# 获取某 subtest + age_group 在数据库中的实际最大题号
+# 用于替代 SUBTEST_DEFS 的理论 max_items 进行导航限制
+# ─────────────────────────────────────────────────────────────
+get_db_max_item <- function(subtest, age_group) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+
+  # USP: 从 usp_paragraphs 计算实际题量（所有段落的 Q 数累加）
+  if (subtest == "USP") {
+    usp_ag <- age_group_to_usp_db(age_group)
+    paras <- dbGetQuery(con,
+      "SELECT questions_json FROM usp_paragraphs WHERE age_group = ?",
+      params = list(usp_ag))
+    if (nrow(paras) > 0) {
+      total_qs <- sum(sapply(paras$questions_json, function(j) {
+        qs <- tryCatch(jsonlite::fromJSON(j, simplifyVector=FALSE), error=function(e) list())
+        length(qs)
+      }), na.rm=TRUE)
+      # 7个 Trial Q 覆盖 items 1-7；之后每段落 Q 数依次往后排
+      return(as.integer(total_qs))
+    }
+    return(18L)  # fallback
+  }
+
+  q_ag <- age_group_to_questions(age_group, subtest)
+  # 对于 RC/SW（部分 age 存为 age_9_10），如果标准查询返回空，尝试 age_9_10
+  max_item <- dbGetQuery(con,
+    "SELECT MAX(item_number) FROM questions WHERE subtest = ? AND age_group = ? AND question_en IS NOT NULL AND question_en != ''",
+    params = list(subtest, q_ag))[[1]]
+  if ((is.na(max_item) || max_item == 0) && q_ag == "age_9_11") {
+    max_item <- dbGetQuery(con,
+      "SELECT MAX(item_number) FROM questions WHERE subtest = ? AND age_group = ? AND question_en IS NOT NULL AND question_en != ''",
+      params = list(subtest, "age_9_10"))[[1]]
+  }
+  if (!is.na(max_item) && max_item > 0) return(as.integer(max_item))
+  # SUBTEST_DEFS 的理论最大值作为最终 fallback（仅当数据库确实无数据时）
+  def_max <- SUBTEST_DEFS %>% filter(subtest == !!subtest) %>% pull(max_items) %>% .[[1]]
+  as.integer(def_max)
+}
+
+# ─────────────────────────────────────────────────────────────
 # max_score_for_subtest — 各 subtest 最高分（reversal 检测用）
 # ─────────────────────────────────────────────────────────────
 max_score_for_subtest <- function(subtest) {
