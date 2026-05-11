@@ -92,82 +92,35 @@ ui <- fluidPage(
       fluidPage(
         tags$head(
           tags$style(HTML("
-            .home-hero {
-              background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%);
-              color: white;
-              border-radius: 16px;
-              padding: 48px 40px;
-              margin: 24px 0 36px;
-              text-align: center;
-              box-shadow: 0 8px 32px rgba(27,58,107,0.25);
-            }
+            .home-hero { background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%); color: white; border-radius: 16px; padding: 48px 40px; margin: 24px 0 36px; text-align: center; box-shadow: 0 8px 32px rgba(27,58,107,0.25); }
             .home-hero h1 { color: white; font-size: 32px; margin-bottom: 8px; }
-            .home-hero p  { color: rgba(255,255,255,0.85); font-size: 15px; margin: 0; }
-            .entry-card {
-              border-radius: 14px;
-              border: 2px solid #e8eaf0;
-              padding: 28px 24px;
-              text-align: center;
-              transition: all 0.25s ease;
-              background: white;
-              height: 100%%;
-              cursor: pointer;
-              text-decoration: none;
-              display: block;
-            }
-            .entry-card:hover {
-              border-color: #1B3A6B;
-              box-shadow: 0 6px 24px rgba(27,58,107,0.15);
-              transform: translateY(-3px);
-              text-decoration: none;
-            }
-            .entry-icon {
-              font-size: 52px;
-              margin-bottom: 14px;
-              display: block;
-            }
-            .entry-title {
-              font-size: 20px;
-              font-weight: 700;
-              color: #1B3A6B;
-              margin-bottom: 10px;
-            }
-            .entry-desc {
-              font-size: 13px;
-              color: #666;
-              line-height: 1.6;
-              margin-bottom: 18px;
-            }
-            .entry-badge {
-              display: inline-block;
-              padding: 4px 14px;
-              border-radius: 20px;
-              font-size: 12px;
-              font-weight: 600;
-            }
-            .badge-celf5  { background: #e8f0fe; color: #1B3A6B; }
-            .badge-slam   { background: #fff3e0; color: #e65100; }
-            .badge-ai     { background: #e8f5e9; color: #2e7d32; }
-            .badge-soon   { background: #f5f5f5; color: #9e9e9e; }
-            .home-footer {
-              text-align: center;
-              margin-top: 32px;
-              color: #aaa;
-              font-size: 12px;
-            }
+            .home-hero p { color: rgba(255,255,255,0.85); font-size: 15px; margin: 0; }
+            .entry-card { border-radius: 14px; border: 2px solid #e8eaf0; padding: 28px 24px; text-align: center; transition: all 0.25s ease; background: white; height: 100%%; cursor: pointer; text-decoration: none; display: block; }
+            .entry-card:hover { border-color: #1B3A6B; box-shadow: 0 6px 24px rgba(27,58,107,0.15); transform: translateY(-3px); text-decoration: none; }
+            .entry-icon { font-size: 52px; margin-bottom: 14px; display: block; }
+            .entry-title { font-size: 20px; font-weight: 700; color: #1B3A6B; margin-bottom: 10px; }
+            .entry-desc { font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 18px; }
+            .entry-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+            .badge-celf5 { background: #e8f0fe; color: #1B3A6B; }
+            .badge-slam { background: #fff3e0; color: #e65100; }
+            .badge-ai { background: #e8f5e9; color: #2e7d32; }
+            .badge-soon { background: #f5f5f5; color: #9e9e9e; }
+            .home-footer { text-align: center; margin-top: 32px; color: #aaa; font-size: 12px; }
+            .container-fluid { padding: 0; }
+            .tab-content { padding: 20px; background: #F5F5F5; min-height: 100vh; }
+            .nav-tabs > li > a { color: #1B3A6B; font-weight: 600; }
+            .nav-tabs > li.active > a { background: #1B3A6B !important; color: white !important; }
+            .nav-tabs > li > a:hover { color: #1B3A6B; }
           "))
         ),
-
         div(class = "home-hero",
           h1("CELF-5 2.0 共同评估平台"),
           p("CELF-5 2.0 Integrated Assessment Platform  |  三大评估入口  |  Unified Assessment Hub")
         ),
-
         fluidRow(
-          # ── Card 1: CELF-5 ──────────────────────────────────
           column(4,
-            tags$a(href = "#", class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'celf5', {priority: 'event'}); return false;",
+            div(class = "entry-card",
+              onclick = "Shiny.setInputValue('home_goto', 'celf5', {priority: 'event'});",
               span(class = "entry-icon", "📋"),
               div(class = "entry-title", "CELF-5"),
               div(class = "entry-desc",
@@ -178,11 +131,9 @@ ui <- fluidPage(
               span(class = "entry-badge badge-celf5", "进行中 / In Use")
             )
           ),
-
-          # ── Card 2: SLAM ───────────────────────────────────
           column(4,
-            tags$a(href = "#", class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'slam', {priority: 'event'}); return false;",
+            div(class = "entry-card",
+              onclick = "Shiny.setInputValue('home_goto', 'slam', {priority: 'event'});",
               span(class = "entry-icon", "📖"),
               div(class = "entry-title", "SLAM"),
               div(class = "entry-desc",
@@ -193,11 +144,9 @@ ui <- fluidPage(
               span(class = "entry-badge badge-soon", "建设中 / Coming Soon")
             )
           ),
-
-          # ── Card 3: AI Report ──────────────────────────────
           column(4,
-            tags$a(href = "#", class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'aireport', {priority: 'event'}); return false;",
+            div(class = "entry-card",
+              onclick = "Shiny.setInputValue('home_goto', 'aireport', {priority: 'event'});",
               span(class = "entry-icon", "🤖"),
               div(class = "entry-title", "AI Report"),
               div(class = "entry-desc",
@@ -209,19 +158,13 @@ ui <- fluidPage(
             )
           )
         ),
-
-        fluidRow(
-          column(12,
-            div(home_recent_ui())
-          )
-        ),
-
         div(class = "home-footer",
           "CELF-5 2.0 © 2026  |  Powered by Shiny  |  ",
           "如需帮助请联系评估系统管理员"
         )
       )
-    ),  # end Homepage tab
+    ),
+
 
     # ── Tab 1: 受试者信息 ─────────────────────────────
     tabPanel("受试者信息 / Subject Info",
@@ -723,9 +666,7 @@ server <- function(input, output, session) {
   # ── Subtest 选择 ─────────────────────────────────────────
   output$subtest_selector <- renderUI({
     req(rv$test_list)
-    # 排除 SW：Structured Writing 使用独立写作标签页，不在测试题目页导航
-    active_tests <- setdiff(rv$test_list, "SW")
-    opts <- setNames(active_tests, map_chr(active_tests, ~{
+    opts <- setNames(rv$test_list, map_chr(rv$test_list, ~{
       val <- SUBTEST_DEFS %>% filter(subtest==.x) %>% pull(full_name)
       if (length(val)==0) .x else val[[1]]
     }))
@@ -736,11 +677,13 @@ server <- function(input, output, session) {
     rv$current_subtest <- input$selected_subtest
     sp <- get_start_point(rv$current_subtest, rv$age_group)
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
-    # 使用数据库实际最大题号（而非理论 max_items）来限制导航范围
-    real_max <- get_db_max_item(rv$current_subtest, rv$age_group)
+    # 找下一个未打分的题（允许从 Item 1 导航到全部题目，没有 end point）
+    # 注意：start_point 之前的题（1~sp-1）在 reversal 触发时已被 backfill 为满分，
+    #       但施测流程中仍可通过 btn_prev 回退查看（打过分但不参与正常施测流程）
+    real_max <- SUBTEST_DEFS %>% filter(subtest==rv$current_subtest) %>% pull(max_items) %>% .[[1]]
     scored_items <- sub_resp$item_number
     candidates <- setdiff(seq(1, real_max), scored_items)
-    next_item <- if (length(candidates) > 0) min(candidates) else real_max
+    next_item <- if (length(candidates) > 0) min(candidates) else (real_max + 1L)
     # 避免 btn_start/init 时覆盖 current_item（btn_start 在此之前已正确设置）
     if (length(scored_items) > 0 || next_item >= sp) {
       rv$current_item <- next_item
@@ -762,18 +705,12 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     item_n <- rv$current_item
     sp <- rv$start_point
-    # 使用数据库实际最大题号限制导航（避免导航到不存在的题）
-    real_max <- get_db_max_item(t, rv$age_group)
+    # 使用 SUBTEST_DEFS 的固定最大题数（没有 end point，按 start_point 施测，做完或触发 discontinue 为止）
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
                  h3("⏹ Discontinue: 连续4题0分，该测试结束 / 4 consecutive 0s — subtest ended")))
-    }
-
-    if (item_n > real_max) {
-      return(div(class="alert alert-success", style="margin-top:20px",
-                 h3(glue("✅ {box_title} 已完成所有题目（共{real_max}题）")),
-                 p("所有可用题目已完成，请选择下一测试或查看报告。")))
     }
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
@@ -1461,25 +1398,22 @@ server <- function(input, output, session) {
     check_reversal(t)
 
     # ── 导航：保存后前进到下一题 ───────────────────────────
-    # 使用数据库实际最大题号限制导航
-    real_max <- get_db_max_item(t, rv$age_group)
-    if (rv$discontinue_triggered || i_n >= real_max) {
-      # 结束当前 subtest（discontinue 或 已做完最后题）
+    # 没有 end point：只有 discontinue 才会结束 subtest；否则一直做到题目库最后
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
+    if (rv$discontinue_triggered) {
+      # 连续4×0 → 结束当前 subtest，跳到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       # 计算并保存该 subtest 的 raw/scaled 分（用于持久化缓存）
       sub_raw  <- sum(rv$responses %>% filter(subtest==!!t) %>% pull(score), na.rm = TRUE)
       sub_scaled <- raw_to_scaled(t, sub_raw, rv$age_group)
       save_subtest_scores(rv$assessment_id,
                          tibble(subtest=t, raw_score=as.integer(sub_raw), scaled_score=as.integer(sub_scaled)))
-      if (i_n >= real_max && !rv$discontinue_triggered) {
-        showNotification(glue("{t} 已完成所有题目（共{i_n}题）"), type="message", duration=3)
-      }
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
       }
     } else {
-      # 继续前进
+      # 继续前进：没有 end point，永远前进一题
       rv$current_item <- i_n + 1L
       # 清除打分控件
       if (t == "RS") {
@@ -1502,20 +1436,8 @@ server <- function(input, output, session) {
     i_n <- rv$current_item
     # 重置 discontinue 状态，避免用户点击「下一题」时卡在 discontinue 提示上
     rv$discontinue_triggered <- FALSE
-    # 使用数据库实际最大题号限制导航
-    real_max <- get_db_max_item(t, rv$age_group)
-    if (i_n < real_max) {
-      rv$current_item <- i_n + 1L
-    } else {
-      # 已到最后题，尝试切换到下一个未完成的 subtest
-      rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
-      next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
-      if (!is.na(next_t)) {
-        updateSelectInput(session, "selected_subtest", selected = next_t)
-      } else {
-        showNotification("所有测试已完成 / All tests completed", type="message", duration=4)
-      }
-    }
+    # 没有 end point：仅 discontinue 触发时才切换 subtest；否则永远前进一题
+    rv$current_item <- i_n + 1L
   })
 
   # ── Discontinue 检查 ─────────────────────────────────────
