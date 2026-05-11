@@ -658,11 +658,14 @@ server <- function(input, output, session) {
           )
         )
       } else {
-        # DEBUG: show raw qi columns
-        div(class="alert alert-danger", style="font-size:11px;word-break:break-all",
-          "题目加载中 / Question not yet available",
-          br(), "DEBUG: stimulus_txt empty — qi$question_en:",
-          I(paste0(capture.output(print(qi)), collapse="\n"))
+        div(class="alert alert-warning", style="margin-top:10px",
+          p(strong("📋 段落阅读说明 / Listening Passage")),
+          if (t == "USP" && item_n > 7) {
+            # USP items 8+: question text comes from paragraph content, rendered separately
+            p("请查看下方「段落内容」区域，按照题目进行评分。")
+          } else {
+            p("题目内容加载中，请稍候片刻，或返回上一题重新进入。")
+          }
         )
       },
 
@@ -732,12 +735,19 @@ server <- function(input, output, session) {
             q_ans  <- q_item$a
             q_score_val <- if (qi_idx <= length(saved_scores)) saved_scores[qi_idx] else NA_integer_
             q_name <- paste0("usp_q", i_n, "_", qi_idx)
+            # 动态生成评分选项：包含 "two"/"three" 的题目得2分，否则得1分
+            q_max <- if (grepl("two|Three|two things", q_text, ignore.case = TRUE)) 2L else 1L
+            score_choices <- if (q_max == 2L) {
+              c("2分（完全正确）"=2L, "1分（部分正确）"=1L, "0分（错误）"=0L)
+            } else {
+              c("1分（正确）"=1L, "0分（错误）"=0L)
+            }
             fluidRow(column(12,
               wellPanel(
                 h6(paste0("Q", qi_idx, ". ", q_text)),
                 p(em(strong("参考答案: "), code(q_ans)), style="color:#555"),
                 radioButtons(q_name, "得分",
-                  choices = c("1分"=1L, "0分"=0L),
+                  choices = score_choices,
                   selected = q_score_val,
                   inline = TRUE)
               )
@@ -1074,6 +1084,11 @@ server <- function(input, output, session) {
       updateSelectInput(session, "sw_topic_select", selected = as.character(next_topic))
       showNotification(glue("已切换到下一任务 / Next topic: {topics$topic_label[topics$item_number==next_topic]}"), type="message")
     } else {
+      # 所有写作任务完成：计算并保存 SW subtest 总分
+      sw_raw <- sum(rv$responses %>% filter(subtest=="SW") %>% pull(score), na.rm = TRUE)
+      sw_scaled <- raw_to_scaled("SW", sw_raw, rv$age_group)
+      save_subtest_scores(rv$assessment_id,
+                         tibble(subtest="SW", raw_score=as.integer(sw_raw), scaled_score=as.integer(sw_scaled)))
       showNotification("🎉 所有写作任务已完成！/ All writing tasks completed!", type="message", duration=5)
     }
   })
@@ -1307,6 +1322,11 @@ server <- function(input, output, session) {
     if (rv$discontinue_triggered) {
       # 连续4×0 → 结束当前 subtest，跳到下一个
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
+      # 计算并保存该 subtest 的 raw/scaled 分（用于持久化缓存）
+      sub_raw  <- sum(rv$responses %>% filter(subtest==!!t) %>% pull(score), na.rm = TRUE)
+      sub_scaled <- raw_to_scaled(t, sub_raw, rv$age_group)
+      save_subtest_scores(rv$assessment_id,
+                         tibble(subtest=t, raw_score=as.integer(sub_raw), scaled_score=as.integer(sub_scaled)))
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
@@ -1333,6 +1353,8 @@ server <- function(input, output, session) {
     if (rv$current_subtest == "SW") return()  # SW uses standalone tab
     t <- rv$current_subtest
     i_n <- rv$current_item
+    # 重置 discontinue 状态，避免用户点击「下一题」时卡在 discontinue 提示上
+    rv$discontinue_triggered <- FALSE
     # 没有 end point：仅 discontinue 触发时才切换 subtest；否则永远前进一题
     rv$current_item <- i_n + 1L
   })
