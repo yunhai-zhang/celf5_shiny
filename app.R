@@ -983,6 +983,7 @@ server <- function(input, output, session) {
           column(6, actionButton("btn_clear_ai", "🗑️ 清除",
             icon = icon("trash"), class = "btn-outline-secondary"))
         ),
+        uiOutput("sw_ai_spinner"),
         uiOutput("sw_ai_result"),
         hr(),
         if (!is_trial) {
@@ -1100,6 +1101,27 @@ server <- function(input, output, session) {
 
   # ── AI scoring (same logic as before, scoped to current topic) ──
   ai_result_rv <- reactiveValues(status = "idle", data = NULL)
+  ai_score_phase <- reactiveVal("idle")
+
+  output$sw_ai_spinner <- renderUI({
+    if (ai_score_phase() == "running") {
+      tags$div(
+        tags$style(HTML("
+          @keyframes ai-spin { to { transform: rotate(360deg); } }
+          .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
+                     border-top:2px solid #1B3A6B; border-radius:50%;
+                     display:inline-block; animation:ai-spin 0.7s linear infinite; }
+          .ai-msg  { display:inline; margin-left:8px; color:#6c757d; }
+        ")),
+        tags$div(style="margin-top:6px",
+          tags$span(class="ai-spin"),
+          tags$span(class="ai-msg", "🤖 AI 识别中，请稍候...")
+        )
+      )
+    } else {
+      NULL
+    }
+  })
 
   output$sw_ai_result <- renderUI({
     req(input$sw_image_upload)
@@ -1113,34 +1135,44 @@ server <- function(input, output, session) {
       showNotification("图片文件未找到", type = "error"); return()
     }
 
-    ai_result_rv$status <- "running"
+    # 第一步：立刻切换 phase → 触发 sw_ai_spinner 的 observe 立即画 spinner
+    ai_score_phase("running")
+    ai_result_rv$status <- "idle"
     ai_result_rv$data   <- NULL
 
-    output$sw_ai_result <- renderUI({
-      div(class = "alert alert-info",
-          h5("🤖 AI 识别中..."),
-          p(em("正在 OCR 识别 + AI 评分，请稍候（约 10-20 秒）"))
-      )
-    })
+    # 第二步：推迟 API 调用到下一个 tick，让 reactive flush 先跑完
+    later::later(function() {
+      tryCatch({
+        result <- ocr_and_score(img_path, sw_rubric_key())
+        ai_result_rv$data   <- result
+        ai_result_rv$status <- if (is.null(result$error)) "done" else "error"
+      }, error = function(e) {
+        ai_result_rv$status <<- "error"
+        ai_result_rv$data   <<- list(error = conditionMessage(e))
+      })
 
-    tryCatch({
-      result <- ocr_and_score(img_path, sw_rubric_key())
-      ai_result_rv$data   <- result
-      ai_result_rv$status <- if (is.null(result$error)) "done" else "error"
-    }, error = function(e) {
-      ai_result_rv$status <<- "error"
-      ai_result_rv$data   <<- list(error = conditionMessage(e))
+      # 第三步：切换 phase → observe 驱动渲染结果
+      ai_score_phase(if (ai_result_rv$status == "done") "done" else "error")
     })
+  })
 
-    if (ai_result_rv$status == "done") {
+  # 第四步：ai_score_phase 切换时，由 observe 驱动渲染最终 UI
+  observe({
+    phase <- ai_score_phase()
+    if (phase == "idle") {
+      output$sw_ai_result <- renderUI({ NULL })
+    } else if (phase == "running") {
+      # spinner 由独立的 sw_ai_spinner 输出渲染，这里只清空结果区
+      output$sw_ai_result <- renderUI({ NULL })
+    } else if (phase == "done") {
       r <- ai_result_rv$data
       output$sw_ai_result <- renderUI({
         tagList(
           div(class = "alert alert-success",
               h5("✅ AI 评分建议"), br(),
               fluidRow(
-                column(3, strong("结构 Structure"),  p(r$structure$score, "/ 结构满分")),
-                column(3, strong("语法 Grammar"),     p(r$grammar$score,   "/ 语法满分")),
+                column(3, strong("结构 Structure"),  p(r$structure$score,   "/ 结构满分")),
+                column(3, strong("语法 Grammar"),     p(r$grammar$score,    "/ 语法满分")),
                 column(3, strong("组织 Organization"),p(r$organization$score,"/ 组织满分")),
                 column(3, strong("机械 Mechanics"),   p(r$mechanics$score,  "/ 机械满分"))
               ),
@@ -1173,6 +1205,7 @@ server <- function(input, output, session) {
         )
       })
     } else {
+      # error
       err_msg <- if (!is.null(ai_result_rv$data$error)) ai_result_rv$data$error else "未知错误"
       output$sw_ai_result <- renderUI({
         div(class = "alert alert-danger",
