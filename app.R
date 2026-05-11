@@ -85,87 +85,6 @@ ui <- fluidPage(
 
   tabsetPanel(id = "main_tabs",
 
-    # ═══════════════════════════════════════════════════════
-    # Tab 0: 共同首頁 / Shared Homepage
-    # ═══════════════════════════════════════════════════════
-    tabPanel("🏠 首页 / Home",
-      fluidPage(
-        tags$head(
-          tags$style(HTML("
-            .home-hero { background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%); color: white; border-radius: 16px; padding: 48px 40px; margin: 24px 0 36px; text-align: center; box-shadow: 0 8px 32px rgba(27,58,107,0.25); }
-            .home-hero h1 { color: white; font-size: 32px; margin-bottom: 8px; }
-            .home-hero p { color: rgba(255,255,255,0.85); font-size: 15px; margin: 0; }
-            .entry-card { border-radius: 14px; border: 2px solid #e8eaf0; padding: 28px 24px; text-align: center; transition: all 0.25s ease; background: white; height: 100%%; cursor: pointer; text-decoration: none; display: block; }
-            .entry-card:hover { border-color: #1B3A6B; box-shadow: 0 6px 24px rgba(27,58,107,0.15); transform: translateY(-3px); text-decoration: none; }
-            .entry-icon { font-size: 52px; margin-bottom: 14px; display: block; }
-            .entry-title { font-size: 20px; font-weight: 700; color: #1B3A6B; margin-bottom: 10px; }
-            .entry-desc { font-size: 13px; color: #666; line-height: 1.6; margin-bottom: 18px; }
-            .entry-badge { display: inline-block; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-            .badge-celf5 { background: #e8f0fe; color: #1B3A6B; }
-            .badge-slam { background: #fff3e0; color: #e65100; }
-            .badge-ai { background: #e8f5e9; color: #2e7d32; }
-            .badge-soon { background: #f5f5f5; color: #9e9e9e; }
-            .home-footer { text-align: center; margin-top: 32px; color: #aaa; font-size: 12px; }
-            .container-fluid { padding: 0; }
-            .tab-content { padding: 20px; background: #F5F5F5; min-height: 100vh; }
-            .nav-tabs > li > a { color: #1B3A6B; font-weight: 600; }
-            .nav-tabs > li.active > a { background: #1B3A6B !important; color: white !important; }
-            .nav-tabs > li > a:hover { color: #1B3A6B; }
-          "))
-        ),
-        div(class = "home-hero",
-          h1("CELF-5 2.0 共同评估平台"),
-          p("CELF-5 2.0 Integrated Assessment Platform  |  三大评估入口  |  Unified Assessment Hub")
-        ),
-        fluidRow(
-          column(4,
-            div(class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'celf5', {priority: 'event'});",
-              span(class = "entry-icon", "📋"),
-              div(class = "entry-title", "CELF-5"),
-              div(class = "entry-desc",
-                "语言评估基础工具 / Language Assessment",
-                br(),
-                "核心语言分数、复合量表分、临床叙事报告"
-              ),
-              span(class = "entry-badge badge-celf5", "进行中 / In Use")
-            )
-          ),
-          column(4,
-            div(class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'slam', {priority: 'event'});",
-              span(class = "entry-icon", "📖"),
-              div(class = "entry-title", "SLAM"),
-              div(class = "entry-desc",
-                "叙事评估工具 / Narrative Assessment",
-                br(),
-                "图片叙事情境，评估叙事能力与语用"
-              ),
-              span(class = "entry-badge badge-soon", "建设中 / Coming Soon")
-            )
-          ),
-          column(4,
-            div(class = "entry-card",
-              onclick = "Shiny.setInputValue('home_goto', 'aireport', {priority: 'event'});",
-              span(class = "entry-icon", "🤖"),
-              div(class = "entry-title", "AI Report"),
-              div(class = "entry-desc",
-                "AI 临床叙事报告 / Clinical Narrative",
-                br(),
-                "基于评估数据自动生成临床报告"
-              ),
-              span(class = "entry-badge badge-ai", "Beta")
-            )
-          )
-        ),
-        div(class = "home-footer",
-          "CELF-5 2.0 © 2026  |  Powered by Shiny  |  ",
-          "如需帮助请联系评估系统管理员"
-        )
-      )
-    ),
-
-
     # ── Tab 1: 受试者信息 ─────────────────────────────
     tabPanel("受试者信息 / Subject Info",
       fluidRow(
@@ -256,31 +175,6 @@ ui <- fluidPage(
       uiOutput("sw_standalone_ui")
     ),
 
-
-    # ── Tab 4: AI 报告 ────────────────────────────────────
-    tabPanel("AI 报告 / AI Report",
-      fluidRow(
-        column(12,
-          h3("🤖 AI 临床叙事报告 / AI Clinical Narrative"),
-          fluidRow(
-            column(3,
-              selectInput("report_lang", "语言 / Language",
-                choices = c("中文" = "zh", "English" = "en"),
-                selected = "zh", width = "100%")
-            ),
-            column(3,
-              actionButton("btn_gen_narrative", "生成报告 / Generate",
-                icon = icon("brain"), class = "btn btn-primary",
-                style = "margin-top: 18px;", width = "100%")
-            ),
-            column(6,
-              uiOutput("narrative_status", style = "padding-top: 22px;")
-            )
-          ),
-          uiOutput("narrative_preview")
-        )
-      )
-    ),
 
     # ── Tab 5: 评分报告 ─────────────────────────────
     tabPanel("评分报告 / Report",
@@ -666,7 +560,9 @@ server <- function(input, output, session) {
   # ── Subtest 选择 ─────────────────────────────────────────
   output$subtest_selector <- renderUI({
     req(rv$test_list)
-    opts <- setNames(rv$test_list, map_chr(rv$test_list, ~{
+    # 排除 SW：Structured Writing 使用独立写作标签页，不在测试题目页导航
+    active_tests <- setdiff(rv$test_list, "SW")
+    opts <- setNames(active_tests, map_chr(active_tests, ~{
       val <- SUBTEST_DEFS %>% filter(subtest==.x) %>% pull(full_name)
       if (length(val)==0) .x else val[[1]]
     }))
@@ -677,13 +573,11 @@ server <- function(input, output, session) {
     rv$current_subtest <- input$selected_subtest
     sp <- get_start_point(rv$current_subtest, rv$age_group)
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
-    # 找下一个未打分的题（允许从 Item 1 导航到全部题目，没有 end point）
-    # 注意：start_point 之前的题（1~sp-1）在 reversal 触发时已被 backfill 为满分，
-    #       但施测流程中仍可通过 btn_prev 回退查看（打过分但不参与正常施测流程）
-    real_max <- SUBTEST_DEFS %>% filter(subtest==rv$current_subtest) %>% pull(max_items) %>% .[[1]]
+    # 使用数据库实际最大题号（而非理论 max_items）来限制导航范围
+    real_max <- get_db_max_item(rv$current_subtest, rv$age_group)
     scored_items <- sub_resp$item_number
     candidates <- setdiff(seq(1, real_max), scored_items)
-    next_item <- if (length(candidates) > 0) min(candidates) else (real_max + 1L)
+    next_item <- if (length(candidates) > 0) min(candidates) else real_max
     # 避免 btn_start/init 时覆盖 current_item（btn_start 在此之前已正确设置）
     if (length(scored_items) > 0 || next_item >= sp) {
       rv$current_item <- next_item
@@ -705,12 +599,18 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     item_n <- rv$current_item
     sp <- rv$start_point
-    # 使用 SUBTEST_DEFS 的固定最大题数（没有 end point，按 start_point 施测，做完或触发 discontinue 为止）
-    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
+    # 使用数据库实际最大题号限制导航（避免导航到不存在的题）
+    real_max <- get_db_max_item(t, rv$age_group)
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
                  h3("⏹ Discontinue: 连续4题0分，该测试结束 / 4 consecutive 0s — subtest ended")))
+    }
+
+    if (item_n > real_max) {
+      return(div(class="alert alert-success", style="margin-top:20px",
+                 h3(glue("✅ {box_title} 已完成所有题目（共{real_max}题）")),
+                 p("所有可用题目已完成，请选择下一测试或查看报告。")))
     }
 
     box_title <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(full_name) %>% .[[1]]
@@ -1398,22 +1298,25 @@ server <- function(input, output, session) {
     check_reversal(t)
 
     # ── 导航：保存后前进到下一题 ───────────────────────────
-    # 没有 end point：只有 discontinue 才会结束 subtest；否则一直做到题目库最后
-    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
-    if (rv$discontinue_triggered) {
-      # 连续4×0 → 结束当前 subtest，跳到下一个
+    # 使用数据库实际最大题号限制导航
+    real_max <- get_db_max_item(t, rv$age_group)
+    if (rv$discontinue_triggered || i_n >= real_max) {
+      # 结束当前 subtest（discontinue 或 已做完最后题）
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
       # 计算并保存该 subtest 的 raw/scaled 分（用于持久化缓存）
       sub_raw  <- sum(rv$responses %>% filter(subtest==!!t) %>% pull(score), na.rm = TRUE)
       sub_scaled <- raw_to_scaled(t, sub_raw, rv$age_group)
       save_subtest_scores(rv$assessment_id,
                          tibble(subtest=t, raw_score=as.integer(sub_raw), scaled_score=as.integer(sub_scaled)))
+      if (i_n >= real_max && !rv$discontinue_triggered) {
+        showNotification(glue("{t} 已完成所有题目（共{i_n}题）"), type="message", duration=3)
+      }
       next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
       if (!is.na(next_t)) {
         updateSelectInput(session, "selected_subtest", selected = next_t)
       }
     } else {
-      # 继续前进：没有 end point，永远前进一题
+      # 继续前进
       rv$current_item <- i_n + 1L
       # 清除打分控件
       if (t == "RS") {
@@ -1436,8 +1339,20 @@ server <- function(input, output, session) {
     i_n <- rv$current_item
     # 重置 discontinue 状态，避免用户点击「下一题」时卡在 discontinue 提示上
     rv$discontinue_triggered <- FALSE
-    # 没有 end point：仅 discontinue 触发时才切换 subtest；否则永远前进一题
-    rv$current_item <- i_n + 1L
+    # 使用数据库实际最大题号限制导航
+    real_max <- get_db_max_item(t, rv$age_group)
+    if (i_n < real_max) {
+      rv$current_item <- i_n + 1L
+    } else {
+      # 已到最后题，尝试切换到下一个未完成的 subtest
+      rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
+      next_t <- setdiff(rv$test_list, rv$completed_subtests)[1]
+      if (!is.na(next_t)) {
+        updateSelectInput(session, "selected_subtest", selected = next_t)
+      } else {
+        showNotification("所有测试已完成 / All tests completed", type="message", duration=4)
+      }
+    }
   })
 
   # ── Discontinue 检查 ─────────────────────────────────────
@@ -2134,179 +2049,5 @@ server <- function(input, output, session) {
     }
   )
 
-  # ── AI 临床叙事报告 ─────────────────────────────────────────
-  # Phase: "idle" | "generating" | "done" | "error"
-  narrative_phase <- reactiveVal("idle")
-  # narrative_text removed — was dead state (never read in UI)
-
-  output$narrative_status <- renderUI({ NULL })
-  output$narrative_preview <- renderUI({ NULL })
-
-  # observe 驱动 UI：phase 一切换，spinner/报告立刻画出来
-  observe({
-narrative_phase <- narrative_phase()
-    if (narrative_phase == "generating") {
-      output$narrative_status <- renderUI({
-        tags$div(
-          tags$style(HTML("
-            @keyframes ai-spin { to { transform: rotate(360deg); } }
-            .ai-spin { width:18px; height:18px; border:2px solid #dee2e6;
-                       border-top:2px solid #1B3A6B; border-radius:50%;
-                       display:inline-block; animation:ai-spin 0.7s linear infinite; }
-            .ai-msg  { display:inline; margin-left:8px; color:#6c757d; }
-          ")),
-          tags$div(style="margin-top:6px",
-            tags$span(class="ai-spin"),
-            tags$span(class="ai-msg", "🤖 正在生成报告，请稍候...")
-          )
-        )
-      })
-      output$narrative_preview <- renderUI({ NULL })
-    }
-  })
-
-  observeEvent(input$btn_gen_narrative, {
-    req(rv$assessment_id)
-    lang <- input$report_lang
-    aid <- rv$assessment_id  # capture before later::later()
-
-    # 第一步：立刻切换 phase → 触发上面的 observe 立即画 spinner
-    narrative_phase("generating")
-
-    # 第二步：推迟 API 调用到下一个 tick，让 reactive flush 先跑完
-    later::later(function() {
-
-    tryCatch({
-      narrative <- if (lang == "zh") {
-        generate_clinical_narrative(aid)
-      } else {
-        generate_clinical_narrative_en(aid)
-      }
-
-      # ── 清理 think tags + 残余 prompt 前缀 ──────────────────
-              narrative <- .clean_narrative_tags(narrative)
-
-narrative_phase("done")
-
-      output$narrative_status <- renderUI({
-        div(class = "alert alert-success mb-0", role = "alert",
-          icon("check-circle"),
-          if (lang == "zh") "中文报告已生成！" else "English report generated!",
-          " ",
-          actionLink("btn_regen_narrative",
-            if (lang == "zh") " 重新生成" else " Regenerate",
-            icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
-      })
-
-      md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
-      output$narrative_preview <- renderUI({
-        tags$div(
-          tags$style(HTML("
-            .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
-                             border-radius:8px; padding:20px 24px; margin-top:12px;
-                             font-size:14px; line-height:1.75; max-height:600px;
-                             overflow-y:auto; }
-            .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
-            .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
-            .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
-            .ai-report-card li { margin-bottom:5px; }
-            .ai-report-card strong { color:#1B3A6B; }
-            .ai-report-card em { color:#666; font-style:italic; }
-            .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
-          ")),
-          div(class = "card mb-3",
-            div(class = "card-header d-flex justify-content-between align-items-center",
-              strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
-              span(class = "badge bg-secondary", "AI")
-            ),
-            div(class = "card-body p-0",
-              div(class = "ai-report-card", HTML(md_html))
-            )
-          )
-        )
-      })
-    }, error = function(e) {
-      # 失败 → 切换 phase 为 error
-      narrative_phase("error")
-      output$narrative_status <- renderUI({
-        div(class = "alert alert-danger mb-0", role = "alert",
-          icon("exclamation-triangle"),
-          if (lang == "zh") "生成失败: " else "Generation failed: ",
-          e$message)
-      })
-      cat(file = stderr(), "[narrative error]", e$message, "\n")
-    })  # closes tryCatch
-  })  # closes later::later
-  })  # closes observeEvent(input$btn_gen_narrative, ...)
-
-  # 重新生成按钮
-  observeEvent(input$btn_regen_narrative, {
-    req(rv$assessment_id)
-    lang <- input$report_lang
-    aid <- rv$assessment_id  # capture before later::later()
-
-    narrative_phase("generating")
-
-    later::later(function() {
-      tryCatch({
-        narrative <- if (lang == "zh") {
-          generate_clinical_narrative(aid)
-        } else {
-          generate_clinical_narrative_en(aid)
-        }
-
-                narrative <- .clean_narrative_tags(narrative)
-
-narrative_phase("done")
-
-        output$narrative_status <- renderUI({
-          div(class = "alert alert-success mb-0", role = "alert",
-            icon("check-circle"),
-            if (lang == "zh") "中文报告已生成！" else "English report generated!",
-            " ",
-            actionLink("btn_regen_narrative",
-              if (lang == "zh") " 重新生成" else " Regenerate",
-              icon = icon("refresh"), class = "btn btn-sm btn-outline-success"))
-        })
-
-        md_html <- markdown::markdownToHTML(text = narrative, fragment.only = TRUE)
-        output$narrative_preview <- renderUI({
-          tags$div(
-            tags$style(HTML("
-              .ai-report-card { background:#fafafa; border:1px solid #e9ecef;
-                               border-radius:8px; padding:20px 24px; margin-top:12px;
-                               font-size:14px; line-height:1.75; max-height:600px;
-                               overflow-y:auto; }
-              .ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }
-              .ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }
-              .ai-report-card ul,.ai-report-card ol { padding-left:22px; }
-              .ai-report-card li { margin-bottom:5px; }
-              .ai-report-card strong { color:#1B3A6B; }
-              .ai-report-card em { color:#666; font-style:italic; }
-              .ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }
-            ")),
-            div(class = "card mb-3",
-              div(class = "card-header d-flex justify-content-between align-items-center",
-                strong(if (lang == "zh") "中文临床叙事报告" else "English Clinical Narrative"),
-                span(class = "badge bg-secondary", "AI")
-              ),
-              div(class = "card-body p-0",
-                div(class = "ai-report-card", HTML(md_html))
-              )
-            )
-          )
-        })
-      }, error = function(e) {
-        narrative_phase("error")
-        output$narrative_status <- renderUI({
-          div(class = "alert alert-danger mb-0", role = "alert",
-            icon("exclamation-triangle"),
-            if (lang == "zh") "生成失败: " else "Generation failed: ",
-            e$message)
-        })
-        cat(file = stderr(), "[narrative error]", e$message, "\n")
-      })
-    })  # closes later::later
-  })    # closes observeEvent(input$btn_regen_narrative, ...)
 }      # closes server
 shinyApp(ui, server)

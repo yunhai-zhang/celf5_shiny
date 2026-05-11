@@ -1807,5 +1807,631 @@ Requirements:
   .call_minimax(prompt, max_tokens = 4000L)
 }
 
+# ─────────────────────────────────────────────────────────────
+# generate_combined_report — CELF5 + SLAM 联合临床报告
+# 输入: student_id (patient id), assessment_id_celf5, assessment_id_slam
+#       若仅有一种评估，传 NA 即可（优雅降级）
+# 输出: 联合临床报告文字 (character, Chinese)
+# ─────────────────────────────────────────────────────────────
+generate_combined_report <- function(student_id,
+                                    assessment_id_celf5 = NA,
+                                    assessment_id_slam  = NA) {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+
+  # ── 患者信息 ─────────────────────────────────────────────
+  pat <- dbGetQuery(con, sprintf(
+    "SELECT * FROM patients WHERE id = %d", student_id
+  ))
+  if (nrow(pat) == 0) stop("Patient not found: ", student_id)
+
+  gender_zh <- if (is.na(pat$gender[1]) || pat$gender[1] == "") {
+    "未记录"
+  } else if (pat$gender[1] == "M") {
+    "男"
+  } else if (pat$gender[1] == "F") {
+    "女"
+  } else {
+    pat$gender[1]
+  }
+
+  # ── 判断可用评估类型 ─────────────────────────────────────
+  has_celf5 <- !is.na(assessment_id_celf5)
+  has_slam  <- !is.na(assessment_id_slam)
+
+  if (!has_celf5 && !has_slam) {
+    stop("At least one assessment ID must be provided")
+  }
+
+  # ── CELF5 数据提取 ───────────────────────────────────────
+  celf5_block <- NULL
+  if (has_celf5) {
+    ass_c5 <- dbGetQuery(con, sprintf(
+      "SELECT *, strftime('%%Y-%%m-%%d', assessment_date) as date_str
+       FROM assessments WHERE id = %d AND patient_id = %d",
+      assessment_id_celf5, student_id
+    ))
+    if (nrow(ass_c5) == 0) {
+      warning("CELF5 assessment not found for this patient; proceeding without CELF5 data.")
+      has_celf5 <- FALSE
+    } else {
+      # 子测验原始分
+      resp_c5 <- dbGetQuery(con, sprintf(
+        "SELECT subtest, item_number, score FROM responses
+         WHERE assessment_id = %d AND score IS NOT NULL
+         ORDER BY subtest, item_number",
+        assessment_id_celf5
+      ))
+      raw_c5 <- resp_c5 %>%
+        group_by(subtest) %>%
+        summarise(raw = sum(score, na.rm = TRUE), .groups = "drop")
+
+      ag <- ass_c5$age_group[1]
+      sdf <- calculate_scaled_scores(
+        setNames(as.list(raw_c5$raw), raw_c5$subtest),
+        ag
+      )
+
+      # 复合量表
+      composites_c5 <- dbGetQuery(con, sprintf(
+        "SELECT * FROM composite_scores WHERE assessment_id = %d",
+        assessment_id_celf5
+      ))
+
+      available_c5 <- sdf$scaled_score
+      names(available_c5) <- sdf$subtest
+      ss_sorted_c5 <- sort(available_c5, decreasing = TRUE)
+      strongest_c5  <- names(ss_sorted_c5)[1]
+      weakest_c5    <- names(ss_sorted_c5)[length(ss_sorted_c5)]
+
+      # 核心指标行
+      core_lines_c5 <- if (nrow(composites_c5) > 0) {
+        composites_c5$composite <- as.character(composites_c5$composite)
+        map_chr(seq_len(nrow(composites_c5)), function(i) {
+          r <- composites_c5[i, ]
+          lvl_cn <- if (r$standard_score >= 110) "高于平均"
+            else if (r$standard_score >= 100) "正常偏高"
+            else if (r$standard_score >= 90)  "在正常范围内"
+            else if (r$standard_score >= 80)  "低于平均"
+            else "显著低于平均"
+          sprintf("%s: 标准分=%d (百分位%.0f, 68%%CI: %d–%d) %s",
+            r$composite, r$standard_score, r$percentile_rank,
+            r$confidence_68_lo, r$confidence_68_hi, lvl_cn)
+        })
+      } else {
+        # 无复合量表时，用核心分量表
+        core_subs <- c("CLS", "EL", "RL", "LQS")
+        core_df <- sdf %>% filter(.data$subtest %in% core_subs)
+        if (nrow(core_df) == 0) core_df <- sdf %>% slice(1:min(4, nrow(sdf)))
+        map_chr(seq_len(nrow(core_df)), function(i) {
+          r <- core_df[i, ]
+          sprintf("%s: SS=%d", r$subtest, r$scaled_score)
+        })
+      }
+      celf5_block <- list(
+        date_str      = ass_c5$date_str[1],
+        age_years     = ass_c5$age_years[1],
+        age_months    = ass_c5$age_months[1],
+        age_group     = ag,
+        composites    = composites_c5,
+        raw_scores    = raw_c5,
+        scaled_scores = sdf,
+        available_ss  = available_c5,
+        strongest     = strongest_c5,
+        weakest       = weakest_c5,
+        core_lines    = paste(core_lines_c5, collapse = "\n"),
+        subtest_lines = paste(map_chr(seq_len(nrow(raw_c5)), function(i) {
+          t <- raw_c5$subtest[i]; raw <- raw_c5$raw[i]
+          ss <- available_c5[t]
+          sprintf("%s raw=%d SS=%d", t, raw, ss)
+        }), collapse = "; ")
+      )
+    }
+  }
+
+  # ── SLAM 数据提取 ────────────────────────────────────────
+  slam_block <- NULL
+  if (has_slam) {
+    ass_sl <- dbGetQuery(con, sprintf(
+      "SELECT *, strftime('%%Y-%%m-%%d', assessment_date) as date_str
+       FROM assessments WHERE id = %d AND patient_id = %d",
+      assessment_id_slam, student_id
+    ))
+    if (nrow(ass_sl) == 0) {
+      warning("SLAM assessment not found for this patient; proceeding without SLAM data.")
+      has_slam <- FALSE
+    } else {
+      age_sl <- ass_sl$age_years[1]
+      scores_sl <- dbGetQuery(con, sprintf(
+        "SELECT subtest, raw_score, scaled_score, percentile, story_id
+         FROM subtest_scores WHERE assessment_id = %d",
+        assessment_id_slam
+      ))
+      story_ids  <- c("BaseballTroubles", "TheBestTurkey", "GirlWhoLovedHorses", "WallaceAndBatty")
+      story_keys <- c("baseball_troubles", "the_best_turkey", "the_girl_who_loved_horses", "wallace_and_batty")
+
+      story_summary_sl <- map_dfr(seq_along(story_ids), function(i) {
+        sid <- story_ids[i]; sk <- story_keys[i]
+        sinfo <- STORIES[[sk]]
+        wf_row   <- scores_sl %>% filter(grepl(paste0(sid, "_WordFinding"), subtest))
+        gfa_row  <- scores_sl %>% filter(grepl(paste0(sid, "_GFA"), subtest))
+        wf_raw   <- wf_row$raw_score[1]; gfa_raw <- gfa_row$raw_score[1]
+        wf_ss    <- get_slam_ss(wf_raw, "word_finding", age_sl)
+        gfa_ss   <- get_slam_ss(gfa_raw, "gfa", age_sl)
+        tibble(
+          story_id = sid, story_name_zh = sinfo$name_zh,
+          wf_raw = wf_raw %||% NA_integer_, wf_max = sinfo$wf_max,
+          wf_ss  = wf_ss  %||% NA_integer_,
+          gfa_raw = gfa_raw %||% NA_integer_, gfa_max = sinfo$gfa_max,
+          gfa_ss  = gfa_ss %||% NA_integer_
+        )
+      })
+
+      wf_data  <- story_summary_sl %>% filter(!is.na(wf_ss))  %>% arrange(desc(wf_ss))
+      gfa_data <- story_summary_sl %>% filter(!is.na(gfa_ss)) %>% arrange(desc(gfa_ss))
+      avg_wf_ss  <- mean(story_summary_sl$wf_ss,  na.rm = TRUE)
+      avg_gfa_ss <- mean(story_summary_sl$gfa_ss, na.rm = TRUE)
+
+      slam_subtest_lines <- map_chr(seq_len(nrow(story_summary_sl)), function(i) {
+        r <- story_summary_sl[i, ]
+        sprintf("%s [Word Finding]: raw %d/%d, SS=%d; %s [GFA]: raw %d/%d, SS=%d",
+          r$story_name_zh, r$wf_raw, r$wf_max, r$wf_ss %||% 0L,
+          r$story_name_zh, r$gfa_raw, r$gfa_max, r$gfa_ss %||% 0L)
+      })
+
+      strongest_wf_val  <- if (nrow(wf_data) > 0) wf_data$story_name_zh[1] else "无数据"
+      weakest_wf_val    <- if (nrow(wf_data) > 0) wf_data$story_name_zh[nrow(wf_data)] else "无数据"
+      strongest_gfa_val <- if (nrow(gfa_data) > 0) gfa_data$story_name_zh[1] else "无数据"
+      weakest_gfa_val   <- if (nrow(gfa_data) > 0) gfa_data$story_name_zh[nrow(gfa_data)] else "无数据"
+
+      slam_block <- list(
+        date_str       = ass_sl$date_str[1],
+        age_years      = age_sl,
+        age_group      = ass_sl$age_group[1],
+        story_summary  = story_summary_sl,
+        avg_wf_ss      = avg_wf_ss,
+        avg_gfa_ss     = avg_gfa_ss,
+        wf_range       = ss_to_range(avg_wf_ss),
+        gfa_range      = ss_to_range(avg_gfa_ss),
+        strongest_wf   = strongest_wf_val,
+        weakest_wf     = weakest_wf_val,
+        strongest_gfa  = strongest_gfa_val,
+        weakest_gfa    = weakest_gfa_val,
+        subtest_lines  = paste(slam_subtest_lines, collapse = "\n")
+      )
+    }
+  }
+
+  # ── 构建 Prompt ──────────────────────────────────────────
+  if (has_celf5 && has_slam) {
+    .build_combined_prompt(pat, gender_zh, celf5_block, slam_block)
+  } else if (has_celf5) {
+    .build_celf5_standalone_prompt(pat, gender_zh, celf5_block)
+  } else {
+    .build_slam_standalone_prompt(pat, gender_zh, slam_block)
+  }
+}
+
+# ── Prompt builders ─────────────────────────────────────────
+
+.build_celf5_standalone_prompt <- function(pat, gender_zh, c5) {
+  lvl_zh <- function(ss) {
+    if (is.na(ss) || ss >= 110) return("高于平均")
+    if (ss >= 100) return("正常偏高")
+    if (ss >= 90)  return("在正常范围内")
+    if (ss >= 80)  return("低于平均")
+    "显著低于平均"
+  }
+  strongest_ss <- c5$available_ss[c5$strongest]
+  weakest_ss   <- c5$available_ss[c5$weakest]
+
+  prompt <- sprintf(
+    "You are a clinical child psychologist specializing in language assessment.
+Generate a professional clinical assessment report in Simplified Chinese for the following CELF-5 results.
+Write in formal clinical language, 3rd person, as if signing an official report.
+
+PATIENT INFO:
+- Name: %s
+- Age: %d years %d months
+- Gender: %s
+- Assessment Date: %s
+- Age Group: %s
+
+CORE COMPOSITE INDICES:
+%s
+
+SUBTEST RESULTS:
+%s
+
+STRONGEST SUBTEST: %s (SS=%d, %s)
+WEAKEST SUBTEST: %s (SS=%d, %s)
+
+Write a comprehensive clinical narrative report with these sections (in Simplified Chinese):
+1. 总评（Overall Summary — 2-3 sentences of overall clinical impression）
+2. 各分测验结果分析（每项 2-3 句话，描述测量内容 + 临床发现 + 意义）
+3. 临床画像（Clinical Profile — 强项弱项总结，2-3句话）
+4. 建议（Recommendations — 3 bullet points, highest priority first）
+5. 注意事项与局限性（Limitations — 1-2 sentences）
+
+Requirements:
+- Write entirely in Simplified Chinese (简体中文)
+- Clinical but compassionate tone
+- Each subtest section must include what the test measures, the finding, and clinical implication
+- The weakest subtest MUST be highlighted as requiring follow-up
+- Recommendations must be specific and actionable
+- Do NOT make up any additional data beyond what is provided above
+- End with: 报告生成时间: %s | 本报告需经主试评估师审核签字
+",
+    pat$name[1], c5$age_years, c5$age_months,
+    gender_zh, c5$date_str, c5$age_group,
+    c5$core_lines,
+    c5$subtest_lines,
+    c5$strongest, strongest_ss, lvl_zh(strongest_ss),
+    c5$weakest,   weakest_ss,   lvl_zh(weakest_ss),
+    c5$date_str
+  )
+  .call_minimax(prompt, max_tokens = 4000L) %>%
+    { sub("^.*?\n\n(?=[一-鿿])", "", ., perl = TRUE) } %>%
+    { if (grepl("^You are a", ., ignore.case = TRUE)) {
+        cs <- regexpr("[一-鿿]", .)[1]
+        if (cs > 1) substr(., cs, nchar(.)) else .
+      } else .
+    }
+}
+
+.build_slam_standalone_prompt <- function(pat, gender_zh, sl) {
+  prompt <- sprintf(
+    "You are a clinical child psychologist specializing in narrative language assessment.
+Generate a professional clinical assessment report in Simplified Chinese for the following SLAM (Structured Language Assessment Measures) results.
+Write in formal clinical language, 3rd person, as if signing an official report.
+
+PATIENT INFO:
+- Name: %s
+- Age: %d years
+- Gender: %s
+- Assessment Date: %s
+- Age Group: %s
+
+SUBTEST RESULTS (by story):
+%s
+
+OVERALL SUMMARY:
+- 平均 Word Finding SS: %.0f (68%% CI: %.0f–%.0f)
+- 平均 GFA SS: %.0f (68%% CI: %.0f–%.0f)
+- 最强故事 (Word Finding): %s
+- 最弱故事 (Word Finding): %s
+- 最强故事 (GFA): %s
+- 最弱故事 (GFA): %s
+
+Write a comprehensive clinical narrative report with these sections (in Simplified Chinese):
+1. 总评（Overall Summary — 2-3 sentences of overall clinical impression about narrative language abilities）
+2. 各故事结果分析（每项故事 2-3 句话，包含测量内容 + 临床发现 + 意义）
+3. 临床画像（Clinical Profile — 强项弱项总结，2-3句话）
+4. 建议（Recommendations — 3 bullet points, highest priority first）
+5. 注意事项与局限性（Limitations — 1-2 sentences）
+
+Requirements:
+- Write entirely in Simplified Chinese (简体中文)
+- Clinical but compassionate tone
+- Each story section must include what it measures, the finding, and clinical implication
+- The weakest areas MUST be highlighted as requiring follow-up
+- Recommendations must be specific and actionable
+- Do NOT make up any additional data beyond what is provided above
+- End with: 报告生成时间: %s | 本报告需经主试评估师审核签字
+",
+    pat$name[1], sl$age_years,
+    gender_zh, sl$date_str, sl$age_group,
+    sl$subtest_lines,
+    sl$avg_wf_ss, sl$wf_range[1], sl$wf_range[2],
+    sl$avg_gfa_ss, sl$gfa_range[1], sl$gfa_range[2],
+    sl$strongest_wf, sl$weakest_wf,
+    sl$strongest_gfa, sl$weakest_gfa,
+    sl$date_str
+  )
+  .call_minimax(prompt, max_tokens = 4000L) %>%
+    { sub("^.*?\n\n(?=[一-鿿])", "", ., perl = TRUE) } %>%
+    { if (grepl("^You are a", ., ignore.case = TRUE)) {
+        cs <- regexpr("[一-鿿]", .)[1]
+        if (cs > 1) substr(., cs, nchar(.)) else .
+      } else .
+    }
+}
+
+.build_combined_prompt <- function(pat, gender_zh, c5, sl) {
+  lvl_zh <- function(ss) {
+    if (is.na(ss) || ss >= 110) return("高于平均")
+    if (ss >= 100) return("正常偏高")
+    if (ss >= 90)  return("在正常范围内")
+    if (ss >= 80)  return("低于平均")
+    "显著低于平均"
+  }
+  strongest_c5_ss <- c5$available_ss[c5$strongest]
+  weakest_c5_ss   <- c5$available_ss[c5$weakest]
+
+  prompt <- sprintf(
+    "You are a clinical child psychologist specializing in both standardized language testing and narrative language assessment.
+Generate a professional clinical assessment report in Simplified Chinese that integrates results from BOTH the CELF-5 (Clinical Evaluation of Language Fundamentals) and SLAM (Structured Language Assessment Measures).
+Write in formal clinical language, 3rd person, as if signing an official report.
+
+PATIENT INFO:
+- Name: %s
+- Age: %d years %d months
+- Gender: %s
+- CELF-5 Assessment Date: %s
+- SLAM Assessment Date: %s
+- Age Group: %s
+
+══════════════════════════════════════
+PART 1: CELF-5 RESULTS
+══════════════════════════════════════
+
+CORE COMPOSITE INDICES (CELF-5):
+%s
+
+SUBTEST RESULTS (CELF-5):
+%s
+
+STRONGEST CELF-5 SUBTEST: %s (SS=%d, %s)
+WEAKEST CELF-5 SUBTEST: %s (SS=%d, %s)
+
+══════════════════════════════════════
+PART 2: SLAM RESULTS
+══════════════════════════════════════
+
+SUBTEST RESULTS (SLAM, by story):
+%s
+
+SLAM OVERALL SUMMARY:
+- 平均 Word Finding SS: %.0f (68%% CI: %.0f–%.0f)
+- 平均 GFA SS: %.0f (68%% CI: %.0f–%.0f)
+- 最强故事 (Word Finding): %s
+- 最弱故事 (Word Finding): %s
+- 最强故事 (GFA): %s
+- 最弱故事 (GFA): %s
+
+══════════════════════════════════════
+PART 3: COMBINED INTERPRETATION
+══════════════════════════════════════
+
+基于以上 CELF-5 和 SLAM 的综合结果，撰写一份联合临床报告，包含以下章节（全部使用简体中文）：
+
+1. 总评（Overall Summary — 3-4句话，评估语言能力与叙事能力的整体临床印象，特别关注两项评估结果的一致性或差异）
+2. CELF-5 各分测验结果分析（每项 2-3 句话，包含测量内容 + 临床发现 + 意义）
+3. SLAM 叙事评估结果分析（每项故事 2-3 句话，包含测量内容 + 临床发现 + 意义）
+4. 综合临床解读（Combined Clinical Interpretation — 3-4句话：
+   - CELF-5 与 SLAM 结果是否相互印证？
+   - 标准语言测试（CELF-5）与叙事语言评估（SLAM）的关系是什么？
+   - 词找（Word Finding）与语法加工（GFA）在两项评估中的一致性如何？）
+5. 临床画像（Clinical Profile — 强项弱项总结，3-4句话）
+6. 建议（Recommendations — 3 bullet points, highest priority first）
+7. 注意事项与局限性（Limitations — 1-2 sentences）
+
+Requirements:
+- Write entirely in Simplified Chinese (简体中文)
+- Clinical but compassionate tone
+- The COMBINED INTERPRETATION section is the most important part — explicitly discuss how the CELF-5 and SLAM results relate to each other (convergent validity, divergent patterns, clinical implications)
+- The weakest areas MUST be highlighted as requiring follow-up
+- Recommendations must be specific and actionable
+- Do NOT make up any additional data beyond what is provided above
+- End with: 报告生成时间: %s | 本报告需经主试评估师审核签字
+",
+    pat$name[1], c5$age_years, c5$age_months,
+    gender_zh,
+    c5$date_str, sl$date_str, c5$age_group,
+    c5$core_lines,
+    c5$subtest_lines,
+    c5$strongest, strongest_c5_ss, lvl_zh(strongest_c5_ss),
+    c5$weakest,   weakest_c5_ss,   lvl_zh(weakest_c5_ss),
+    sl$subtest_lines,
+    sl$avg_wf_ss, sl$wf_range[1], sl$wf_range[2],
+    sl$avg_gfa_ss, sl$gfa_range[1], sl$gfa_range[2],
+    sl$strongest_wf, sl$weakest_wf,
+    sl$strongest_gfa, sl$weakest_gfa,
+    c5$date_str
+  )
+
+  .call_minimax(prompt, max_tokens = 6000L) %>%
+    { sub("^.*?\n\n(?=[一-鿿])", "", ., perl = TRUE) } %>%
+    { if (grepl("^You are a", ., ignore.case = TRUE)) {
+        cs <- regexpr("[一-鿿]", .)[1]
+        if (cs > 1) substr(., cs, nchar(.)) else .
+      } else .
+    }
+}
+
+# ─────────────────────────────────────────────────────────────
+# SLAM helpers — needed by generate_combined_report()
+# Copied from slam_report.R for standalone use
+# ─────────────────────────────────────────────────────────────
+.build_slam_norms <- function() {
+  ages   <- rep(7:17, each = 4)
+  raw    <- rep(c(0, 5, 10, 15), 11)
+  std_wf <- c(
+    50,62,74,86,  50,63,75,87,  51,64,76,88,  51,64,77,88,
+    52,65,78,89,  52,66,79,90,  53,67,80,91,  54,68,81,92,
+    55,69,82,93,  56,70,83,94,  57,71,84,95
+  )
+  std_gfa <- c(
+    50,60,70,82,  50,61,71,83,  51,62,72,84,  52,63,73,85,
+    53,64,74,86,  54,65,75,87,  55,66,76,88,  56,67,77,89,
+    57,68,78,90,  58,69,79,91,  59,70,80,92
+  )
+  tibble(age = ages, raw_score = raw, std_word_finding = std_wf, std_gfa = std_gfa)
+}
+
+.SLAM_NORMS <- .build_slam_norms()
+
+get_slam_ss <- function(raw, type = c("word_finding", "gfa"), age) {
+  type <- match.arg(type)
+  col  <- if (type == "word_finding") "std_word_finding" else "std_gfa"
+  row  <- .SLAM_NORMS %>%
+    filter(.data$age == !!age, .data$raw_score <= !!raw) %>%
+    summarise(s = max(.data[[col]]), .groups = "drop")
+  if (nrow(row) == 0) return(NA_integer_)
+  row$s[1]
+}
+
+ss_to_range <- function(ss) {
+  lo <- max(50, ss - 15)
+  hi <- min(140, ss + 15)
+  c(lo, hi)
+}
+
+# Simplified SLAM story metadata (only fields used by generate_combined_report)
+.STORIES <- list(
+  baseball_troubles = list(name_zh = "棒球烦恼",   wf_max = 6L, gfa_max = 8L),
+  the_best_turkey    = list(name_zh = "最好的火鸡", wf_max = 5L, gfa_max = 8L),
+  the_girl_who_loved_horses = list(name_zh = "爱马的女孩", wf_max = 6L, gfa_max = 8L),
+  wallace_and_batty  = list(name_zh = "华莱士与巴蒂", wf_max = 5L, gfa_max = 8L)
+)
+
+# Override the closure reference inside generate_combined_report's environment
+# so it picks up .STORIES instead of looking in slam_report.R
+environment(generate_combined_report)[["STORIES"]] <- .STORIES
+
+# ─────────────────────────────────────────────────────────────
+# generate_slam_narrative — SLAM 叙事评估 AI 临床报告
+# 输入: assessment_id (integer), lang ("zh" or "en")
+# 输出: 临床评估报告文字 (character)
+# ─────────────────────────────────────────────────────────────
+generate_slam_narrative <- function(assessment_id, lang = "zh") {
+  con <- get_con()
+  on.exit(dbDisconnect(con), add = TRUE)
+
+  ass <- dbGetQuery(con, sprintf(
+    "SELECT a.*, p.name AS patient_name, p.gender,
+            strftime('%%Y-%%m-%%d', a.assessment_date) AS date_str
+     FROM assessments a
+     JOIN patients p ON a.patient_id = p.id
+     WHERE a.id = %d", assessment_id))
+
+  if (nrow(ass) == 0) stop("Assessment not found: ", assessment_id)
+
+  pat <- ass[1, ]
+
+  # Fetch all subtest scores for this assessment
+  scores <- dbGetQuery(con, sprintf(
+    "SELECT subtest, raw_score, scaled_score FROM subtest_scores
+     WHERE assessment_id = %d", assessment_id))
+
+  # Fetch narrative texts
+  narratives <- dbGetQuery(con, sprintf(
+    "SELECT subtest, response_text FROM responses
+     WHERE assessment_id = %d AND subtest LIKE '%%_Narrative'", assessment_id))
+
+  # Fetch individual item responses (Word Finding & GFA)
+  wf_gfa_responses <- dbGetQuery(con, sprintf(
+    "SELECT subtest, item_number, response_text, score FROM responses
+     WHERE assessment_id = %d AND subtest LIKE '%%_WordFinding' OR subtest LIKE '%%_GFA'
+     ORDER BY subtest, item_number", assessment_id))
+
+  # Build story results
+  story_map <- c(
+    "BaseballTroubles"     = "baseball_troubles",
+    "TheBestTurkey"       = "the_best_turkey",
+    "GirlWhoLovedHorses"  = "the_girl_who_loved_horses",
+    "WallaceAndBatty"     = "wallace_and_batty"
+  )
+
+  story_names_zh <- c(
+    "baseball_troubles"      = "棒球烦恼",
+    "the_best_turkey"        = "最好的火鸡",
+    "the_girl_who_loved_horses" = "爱马的女孩",
+    "wallace_and_batty"      = "华莱士与巴蒂"
+  )
+
+  story_results <- lapply(names(story_map), function(story_id) {
+    sid <- story_map[[story_id]]
+    wf_subtest <- paste0(story_id, "_WordFinding")
+    gfa_subtest <- paste0(story_id, "_GFA")
+    nr_subtest <- paste0(story_id, "_Narrative")
+
+    wf_row  <- scores[scores$subtest == wf_subtest, ]
+    gfa_row <- scores[scores$subtest == gfa_subtest, ]
+
+    wf_raw  <- if (nrow(wf_row) > 0) wf_row$raw_score[1] else NA
+    gfa_raw <- if (nrow(gfa_row) > 0) gfa_row$raw_score[1] else NA
+    wf_ss   <- if (nrow(wf_row) > 0) wf_row$scaled_score[1] else NA
+    gfa_ss  <- if (nrow(gfa_row) > 0) gfa_row$scaled_score[1] else NA
+
+    narr_row <- narratives[narratives$subtest == nr_subtest, ]
+    narr_text <- if (nrow(narr_row) > 0) narr_row$response_text[1] else NA
+
+    list(
+      story_id = sid,
+      story_name_zh = story_names_zh[[sid]],
+      wf_raw = wf_raw, wf_ss = wf_ss,
+      gfa_raw = gfa_raw, gfa_ss = gfa_ss,
+      narr_text = narr_text
+    )
+  })
+  names(story_results) <- names(story_map)
+
+  gender_zh <- if (!is.na(pat$gender) && pat$gender == "M") "男" else if (!is.na(pat$gender) && pat$gender == "F") "女" else "未知"
+  age_str <- if (!is.na(pat$age_years)) sprintf("%d岁", pat$age_years) else "未知"
+
+  if (lang == "zh") {
+    prompt <- sprintf(
+      "你是一位拥有15年经验的言语语言病理学家（SLP），请根据以下SLAM叙事评估数据，为患者撰写一份专业的中文临床叙事评估报告。\n\n【患者基本信息】\n姓名: %s\n性别: %s\n年龄: %s\n评估日期: %s\n评估工具: SLAM (Structured Language Assessment Measures)\n\n【评估故事及得分】",
+      pat$patient_name, gender_zh, age_str, pat$date_str
+    )
+
+    for (sr in story_results) {
+      wf_display <- if (!is.na(sr$wf_ss)) {
+        sprintf("原始分=%d, 标准分=%d(%s)", sr$wf_raw, sr$wf_ss, .ss_range(sr$wf_ss))
+      } else {
+        sprintf("原始分=%d (未完成)", sr$wf_raw %||% 0)
+      }
+      gfa_display <- if (!is.na(sr$gfa_ss)) {
+        sprintf("原始分=%d, 标准分=%d(%s)", sr$gfa_raw, sr$gfa_ss, .ss_range(sr$gfa_ss))
+      } else {
+        sprintf("原始分=%d (未完成)", sr$gfa_raw %||% 0)
+      }
+      prompt <- paste0(prompt, sprintf("\n- 【%s】\n  Word Finding: %s\n  GFA (语法流畅): %s\n  自由叙事文本: %s",
+        sr$story_name_zh, wf_display, gfa_display,
+        if (!is.na(sr$narr_text) && nzchar(sr$narr_text)) substr(sr$narr_text, 1, 200) else "(未记录)"))
+    }
+
+    prompt <- paste0(prompt, sprintf("\n\n请撰写一份专业的临床叙事评估报告，包括：\n1. 总体叙事能力评价\n2. 各故事得分分析（Word Finding + GFA + 自由叙事）\n3. 临床意义与干预建议\n4. 语言优劣势总结\n\n请用中文撰写，格式规范，专业术语使用准确。"))
+
+    .call_minimax(prompt, max_tokens = 4000L)
+
+  } else {
+    # English version
+    prompt <- sprintf(
+      "You are a certified speech-language pathologist (SLP) with 15 years of experience. Based on the following SLAM narrative assessment data, please write a professional English clinical narrative assessment report.\n\n[Patient Information]\nName: %s\nGender: %s\nAge: %s\nAssessment Date: %s\nAssessment Tool: SLAM (Structured Language Assessment Measures)\n\n[Story Results]",
+      pat$patient_name, gender_zh, age_str, pat$date_str
+    )
+
+    for (sr in story_results) {
+      wf_display <- if (!is.na(sr$wf_ss)) {
+        sprintf("Raw=%d, SS=%d(%s)", sr$wf_raw, sr$wf_ss, .ss_range(sr$wf_ss))
+      } else {
+        sprintf("Raw=%d (incomplete)", sr$wf_raw %||% 0)
+      }
+      gfa_display <- if (!is.na(sr$gfa_ss)) {
+        sprintf("Raw=%d, SS=%d(%s)", sr$gfa_raw, sr$gfa_ss, .ss_range(sr$gfa_ss))
+      } else {
+        sprintf("Raw=%d (incomplete)", sr$gfa_raw %||% 0)
+      }
+      prompt <- paste0(prompt, sprintf("\n- [%s]\n  Word Finding: %s\n  GFA (Grammar Fluency): %s\n  Free Narrative: %s",
+        sr$story_name_zh, wf_display, gfa_display,
+        if (!is.na(sr$narr_text) && nzchar(sr$narr_text)) substr(sr$narr_text, 1, 200) else "(not recorded)"))
+    }
+
+    prompt <- paste0(prompt, "\n\nPlease write a professional clinical narrative assessment report in English, including:\n1. Overall narrative ability evaluation\n2. Analysis of each story (Word Finding + GFA + Free Narrative)\n3. Clinical significance and intervention recommendations\n4. Language strengths and weaknesses summary\n\nPlease write in English with proper formatting and accurate professional terminology.")
+
+    .call_minimax(prompt, max_tokens = 4000L)
+  }
+}
+
+# Helper: standard score to confidence interval range label
+.ss_range <- function(ss) {
+  if (is.na(ss) || ss < 50) return("无法判定")
+  lo <- max(50, ss - 15)
+  hi <- min(140, ss + 15)
+  sprintf("%d-%d", lo, hi)
+}
+
 # END OF FILE
 
