@@ -137,7 +137,8 @@ init_db <- function() {
   dbExecute(con, "CREATE TABLE IF NOT EXISTS assessments (
     id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL,
     assessment_date TEXT NOT NULL, age_years INTEGER, age_months INTEGER, age_days INTEGER,
-    age_group TEXT, completed_at TEXT DEFAULT (datetime('now','localtime')),
+    age_group TEXT, assessment_type TEXT DEFAULT 'CELF5',
+    completed_at TEXT DEFAULT (datetime('now','localtime')),
     status TEXT DEFAULT 'in_progress', FOREIGN KEY (patient_id) REFERENCES patients(id))")
 
   dbExecute(con, "CREATE TABLE IF NOT EXISTS responses (
@@ -856,12 +857,14 @@ upsert_patient <- function(name, dob, gender = NULL, examiner = NULL, notes = NU
 }
 
 upsert_assessment <- function(patient_id, assessment_date, age_years,
-                              age_months, age_days, age_group) {
+                              age_months, age_days, age_group,
+                              assessment_type = "CELF5") {
   con <- get_con()
   on.exit(dbDisconnect(con))
+  assessment_type <- if (is.null(assessment_type) || assessment_type == "") "CELF5" else assessment_type
   existing <- dbGetQuery(con,
-    "SELECT id FROM assessments WHERE patient_id=? AND assessment_date=? AND status='in_progress'",
-    params = list(patient_id, assessment_date))
+    "SELECT id FROM assessments WHERE patient_id=? AND assessment_date=? AND assessment_type=? AND status='in_progress'",
+    params = list(patient_id, assessment_date, assessment_type))
   if (nrow(existing) > 0) {
     aid <- existing$id[1]
     dbExecute(con,
@@ -870,8 +873,8 @@ upsert_assessment <- function(patient_id, assessment_date, age_years,
     aid
   } else {
     dbExecute(con,
-      "INSERT INTO assessments (patient_id,assessment_date,age_years,age_months,age_days,age_group) VALUES (?,?,?,?,?,?)",
-      params = list(patient_id, assessment_date, age_years, age_months, age_days, age_group))
+      "INSERT INTO assessments (patient_id,assessment_date,age_years,age_months,age_days,age_group,assessment_type) VALUES (?,?,?,?,?,?,?)",
+      params = list(patient_id, assessment_date, age_years, age_months, age_days, age_group, assessment_type))
     as.integer(dbGetQuery(con, "SELECT last_insert_rowid() as id")$id)
   }
 }

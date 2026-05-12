@@ -47,12 +47,11 @@ ui <- fluidPage(
     ".entry-badge { display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }",
     ".badge-celf5  { background: #e8f0fe; color: #1B3A6B; }",
     ".badge-slam   { background: #fff3e0; color: #e65100; }",
-    ".entry-btn { display: inline-block; padding: 10px 28px; border-radius: 25px; font-size: 14px; font-weight: 600; transition: all 0.2s ease; }",
+    ".entry-btn { display: inline-block; padding: 10px 28px; border-radius: 25px; font-size: 14px; font-weight: 600; transition: all 0.2s ease; color: #1B3A6B; }",
     ".btn-celf5 { background: #1B3A6B; color: white; border: none; }",
     ".btn-celf5:hover { background: #1452a3; color: white; box-shadow: 0 4px 12px rgba(27,58,107,0.35); }",
     ".btn-slam { background: white; color: #C8A951; border: 2px solid #C8A951; }",
     ".btn-slam:hover { background: #C8A951; color: #1B3A6B; }",
-    ".entry-btn { display: inline-block; padding: 10px 28px; border-radius: 25px; font-size: 14px; font-weight: 600; transition: all 0.2s ease; color: #1B3A6B; }",
     ".home-footer { text-align: center; margin-top: 40px; padding: 20px; color: #666; font-size: 13px; }",
     ".footer-brand { color: #1B3A6B; font-weight: 600; }",
     ".student-panel { background: white; border-radius: 18px; border: 1px solid #e0e4ef; box-shadow: 0 4px 16px rgba(0,0,0,0.06); overflow: hidden; }",
@@ -66,7 +65,9 @@ ui <- fluidPage(
     ".assessment-chk input[type='checkbox'] { width: 16px; height: 16px; cursor: pointer; }",
     ".student-selected-info { background: #f8f9fa; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; font-size: 14px; border-left: 4px solid #1B3A6B; }",
     ".student-selected-info .student-name { font-weight: 700; color: #1B3A6B; font-size: 16px; }",
-    ".student-selected-info .student-meta { color: #666; font-size: 13px; margin-top: 2px; }",
+    ".student-selected-info .student-meta { color: #444; font-size: 13px; margin-top: 2px; }",
+    ".new-student-form input::placeholder { color: #999; opacity: 1; }",
+    ".new-student-form select option[value=''] { color: #999; }",
     ".ai-spin { width:18px; height:18px; border:2px solid #dee2e6; border-top:2px solid #1B3A6B; border-radius:50%%; display:inline-block; animation:ai-spin 0.7s linear infinite; }",
     "@keyframes ai-spin { to { transform: rotate(360deg); } }",
     ".ai-msg  { display:inline; margin-left:8px; color:#6c757d; }",
@@ -87,7 +88,7 @@ ui <- fluidPage(
     ".dt-btn-select { background: #1B3A6B; color: white; border: none; border-radius: 16px; padding: 4px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }",
     ".dt-btn-select:hover { background: #1452a3; }",
     ".new-student-form { background: #f8f9fa; border-radius: 12px; padding: 20px; border: 1px solid #e0e4ef; }",
-    ".new-student-form .form-heading { font-size: 15px; font-weight: 700; color: white; background: linear-gradient(135deg, #1B3A6B 0%%, #2a5ab3 100%%); margin: -20px -20px 18px -20px; padding: 14px 20px; border-radius: 12px 12px 0 0; }",
+    ".new-student-form .form-heading { font-size: 15px; font-weight: 700; color: #1B3A6B; background: #f0f4fa; margin: -20px -20px 18px -20px; padding: 14px 20px; border-radius: 12px 12px 0 0; border-bottom: 2px solid #C8A951; }",
     ".new-student-form .form-group { margin-bottom: 12px; }",
     ".new-student-form .form-group input,.new-student-form .form-group select { border-radius: 6px; border: 1.5px solid #d0d7e2; padding: 8px 12px; font-size: 13px; width: 100%%; }",
     ".new-student-form .form-group input:focus,.new-student-form .form-group select:focus { border-color: #1B3A6B; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); outline: none; }",
@@ -163,7 +164,7 @@ ui <- fluidPage(
           # LEFT: New Student Form (4 cols)
           column(4,
             div(class = "new-student-form",
-              div(class = "form-heading", "📝 新学生注册 / New Student Registration"),
+              div(class = "form-heading", style = "font-size:15px;font-weight:700;color:#1B3A6B;background:#f0f4fa;padding:14px 20px;border-bottom:2px solid #C8A951;", "📝 新学生注册 / New Student Registration"),
               div(class = "form-group",
                 tags$label("姓名 * / Name *"),
                 textInput("slp_patient_name", NULL, placeholder = "受试者姓名 / Student name")
@@ -579,7 +580,7 @@ server <- function(input, output, session) {
     if (is.null(rv$patient_id)) {
       return(tags$div(
         class = "student-selected-info",
-        style = "border-left-color: #ccc; color: #999; text-align: center; padding: 20px;",
+        style = "border-left-color: #ccc; color: #555; text-align: center; padding: 20px; background: #f0f0f0;",
         "请在上方表格中选择学生 / Please select a student from the table above"
       ))
     }

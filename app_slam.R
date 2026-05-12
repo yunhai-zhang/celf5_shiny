@@ -450,18 +450,13 @@ ui <- fluidPage(
             )
           )
         ),
-        # Right: Assessment history table (8 cols)
+        # Right: Existing patients table (8 cols)
         column(8,
           div(class = "panel",
-            div(class = "panel-heading", "SLAM 历史评估记录 / SLAM Assessment History"),
+            div(class = "panel-heading", "选择受试者 / Select Subject"),
             div(class = "panel-body",
-              selectInput("slam_filter_status", "筛选状态 / Filter Status",
-                choices = c("全部 / All" = "all",
-                            "进行中 / In Progress" = "in_progress",
-                            "已完成 / Complete" = "complete"),
-                selected = "all", width = "40%"),
-              DT::dataTableOutput("slam_assessments_dt"),
-              uiOutput("slam_load_assessment_btn")
+              DT::dataTableOutput("slam_patient_dt"),
+              uiOutput("slam_load_patient_btn")
             )
           )
         )
@@ -844,86 +839,65 @@ server <- function(input, output, session) {
     )
   })
 
-  # ── SLAM Assessment History DT (Subject Info tab) ────────────
-  output$slam_assessments_dt <- DT::renderDataTable({
-    filter_status <- input$slam_filter_status %||% "all"
+  # ── SLAM Patient DT (Subject Info tab) ─────────────────────────
+  output$slam_patient_dt <- DT::renderDataTable({
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
 
-    if (filter_status == "all") {
-      status_clause <- ""
-    } else {
-      status_clause <- sprintf("AND a.status = '%s'", filter_status)
-    }
+    patients_df <- dbGetQuery(con, "
+      SELECT id, name, dob, gender, examiner
+      FROM patients
+      ORDER BY name ASC")
 
-    sql <- sprintf("
-      SELECT a.id, p.name, p.dob, p.gender,
-             a.assessment_date, a.age_years, a.status, a.assessment_type
-      FROM assessments a
-      JOIN patients p ON a.patient_id = p.id
-      WHERE a.assessment_type = 'SLAM' %s
-      ORDER BY a.assessment_date DESC", status_clause)
-
-    df <- dbGetQuery(con, sql)
-    if (nrow(df) == 0) {
+    if (nrow(patients_df) == 0) {
       return(DT::datatable(data.frame(
-        Message = "暂无SLAM记录 / No SLAM records yet"
+        Message = "暂无受试者记录 / No patient records yet"
       ), options = list(dom = "t")))
     }
 
-    df$gender_display <- sapply(df$gender, function(g) {
+    patients_df$gender_display <- sapply(patients_df$gender, function(g) {
       switch(g, M = "男 / M", F = "女 / F", "—")
     })
 
     DT::datatable(
-      df[, c("name","dob","gender_display","assessment_date","age_years","status")],
-      colnames = c("姓名" = "name", "出生日期" = "dob", "性别" = "gender_display",
-                   "评估日期" = "assessment_date", "年龄" = "age_years", "状态" = "status"),
+      patients_df[, c("name", "dob", "gender_display", "examiner")],
+      colnames = c("姓名 / Name" = "name", "出生日期 / DOB" = "dob",
+                   "性别 / Gender" = "gender_display", "评估师 / Examiner" = "examiner"),
       selection = "single",
       options = list(
         pageLength = 10,
         dom = "frtip",
-        language = list(emptyTable = "暂无SLAM记录 / No SLAM records yet")
+        language = list(emptyTable = "暂无受试者记录 / No patient records yet")
       )
     )
   })
 
-  # ── Load assessment button (when row selected) ───────────────
-  output$slam_load_assessment_btn <- renderUI({
-    req(input$slam_assessments_dt_rows_selected)
+  # ── Load patient button (when row selected) ─────────────────────
+  output$slam_load_patient_btn <- renderUI({
+    req(input$slam_patient_dt_rows_selected)
     tagList(
       hr(),
-      actionButton("slam_load_btn", "📂 加载选中评估 / Load Selected Assessment",
+      actionButton("slam_load_patient_btn2", "📂 加载选中受试者 / Load Selected Patient",
         class = "btn-primary",
         style = sprintf("background:%s; border-color:%s;", SLAM_BLUE, SLAM_BLUE))
     )
   })
 
-  # ── Load assessment — populate form ──────────────────────────
-  observeEvent(input$slam_load_btn, {
-    req(input$slam_assessments_dt_rows_selected)
+  # ── Load patient — populate form fields ──────────────────────────
+  observeEvent(input$slam_load_patient_btn2, {
+    req(input$slam_patient_dt_rows_selected)
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
 
-    filter_status <- input$slam_filter_status %||% "all"
-    if (filter_status == "all") {
-      status_clause <- ""
-    } else {
-      status_clause <- sprintf("AND a.status = '%s'", filter_status)
-    }
-    sql <- sprintf("
-      SELECT a.id, p.name, p.dob, p.gender, p.school, p.grade, p.examiner,
-             a.assessment_date, a.age_years, a.status
-      FROM assessments a
-      JOIN patients p ON a.patient_id = p.id
-      WHERE a.assessment_type = 'SLAM' %s
-      ORDER BY a.assessment_date DESC", status_clause)
-    df <- dbGetQuery(con, sql)
+    patients_df <- dbGetQuery(con, "
+      SELECT id, name, dob, gender, school, grade, examiner
+      FROM patients
+      ORDER BY name ASC")
 
-    row_idx <- input$slam_assessments_dt_rows_selected[1]
-    if (row_idx > nrow(df)) return()
+    row_idx <- input$slam_patient_dt_rows_selected[1]
+    if (row_idx > nrow(patients_df)) return()
 
-    row <- df[row_idx, ]
+    row <- patients_df[row_idx, ]
     updateTextInput(session, "slam_patient_name", value = row$name %||% "")
     updateSelectInput(session, "slam_patient_gender", selected = row$gender %||% "")
     updateTextInput(session, "slam_school_name", value = row$school %||% "")
@@ -933,12 +907,9 @@ server <- function(input, output, session) {
     if (!is.na(row$dob) && nzchar(row$dob)) {
       updateDateInput(session, "slam_dob", value = as.Date(row$dob))
     }
-    if (!is.na(row$assessment_date) && nzchar(row$assessment_date)) {
-      updateDateInput(session, "slam_assessment_date", value = as.Date(row$assessment_date))
-    }
 
     showNotification(
-      tagList(icon("check-circle"), sprintf(" 已加载评估 ID %d — %s", row$id, row$name)),
+      tagList(icon("check-circle"), sprintf(" 已加载受试者: %s", row$name)),
       type = "message", duration = 3
     )
   })
