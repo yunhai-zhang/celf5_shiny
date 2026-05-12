@@ -389,9 +389,9 @@ ui <- fluidPage(
   # Back-to-home link
   div(
     style = "padding: 10px 20px 0;",
-    actionLink("slam_btn_back_home", "‹ Back to Home SLP",
+    actionLink("slam_btn_back_home", "‹ Back to SLP Homepage",
                style = sprintf("color:%s; font-weight:600; font-size:14px; text-decoration:none; cursor:pointer;", SLAM_BLUE),
-               onclick = "window.location.href='https://www.zhangyunhai.com/slp/';"),
+               onclick = "window.location.href='http://www.zhangyunhai.com:3838/slp/';"),
     hr(style = sprintf("margin:8px 0 0; border-top:1px solid %s;", SLAM_BLUE))
   ),
 
