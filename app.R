@@ -83,6 +83,14 @@ ui <- fluidPage(
     windowTitle = "CELF-5"
   ),
 
+  div(
+    style = "padding: 10px 20px 0;",
+    actionLink("btn_back_home", "‹ Back to Home SLP",
+               style = sprintf("color:%s; font-weight:600; font-size:14px; text-decoration:none; cursor:pointer;", celf5_blue),
+               onclick = "window.location.href='https://www.zhangyunhai.com/slp/';"),
+    hr(style = sprintf("margin:8px 0 0; border-top:1px solid %s;", celf5_blue))
+  ),
+
   tabsetPanel(id = "main_tabs",
 
     # ── Tab 1: 受试者信息 ─────────────────────────────
