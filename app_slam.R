@@ -752,8 +752,8 @@ ui <- fluidPage(
               ),
 
               div(class = "scoring-guide",
-                details(
-                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                tags$details(
+                  tags$summary("Scoring Guide / 评分参考 (click to expand)"),
                   tags$h4("Language Characteristics / 语言特点 (3-6 yrs)"),
                   tags$ul(
                     tags$li("Short, simple sentences; basic connectors: then/and/but"),
@@ -844,8 +844,8 @@ ui <- fluidPage(
               ),
 
               div(class = "scoring-guide",
-                details(
-                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                tags$details(
+                  tags$summary("Scoring Guide / 评分参考 (click to expand)"),
                   tags$h4("Language Characteristics / 语言特点 (7-12 yrs)"),
                   tags$ul(
                     tags$li("Complete narrative structure: beginning, middle, end, clear sequence"),
@@ -938,8 +938,8 @@ ui <- fluidPage(
               ),
 
               div(class = "scoring-guide",
-                details(
-                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                tags$details(
+                  tags$summary("Scoring Guide / 评分参考 (click to expand)"),
                   tags$h4("Language Characteristics / 语言特点"),
                   tags$ul(
                     tags$li(tags$span(class = "tier-label", "4-6 yrs"), "Short sentences, repetitive, uses and/then/but; describes what happened"),
@@ -1126,8 +1126,8 @@ ui <- fluidPage(
           ),
 
               div(class = "scoring-guide",
-                details(
-                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                tags$details(
+                  tags$summary("Scoring Guide / 评分参考 (click to expand)"),
                   tags$h4("Language Characteristics / 语言特点"),
                   tags$ul(
                     tags$li(tags$span(class = "tier-label", "JH"), "Clear structure, logical sequence, describes events coherently"),
@@ -1214,8 +1214,8 @@ ui <- fluidPage(
           ),
 
               div(class = "scoring-guide",
-                details(
-                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                tags$details(
+                  tags$summary("Scoring Guide / 评分参考 (click to expand)"),
                   tags$h4("Language Characteristics / 语言特点"),
                   tags$ul(
                     tags$li(tags$span(class = "tier-label", "JH"), "Clear sequence, natural connectors, describes events in order"),
