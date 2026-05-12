@@ -1037,8 +1037,8 @@ delete_patient <- function(patient_id) {
     dbExecute(con, "DELETE FROM subtest_scores WHERE assessment_id = ?", params = list(aid))
     dbExecute(con, "DELETE FROM composite_scores WHERE assessment_id = ?", params = list(aid))
     dbExecute(con, "DELETE FROM slam_composites WHERE assessment_id = ?", params = list(aid))
-    dbExecute(con, "DELETE FROM slam_stories WHERE assessment_id = ?", params = list(aid))
   }
+  # slam_stories stores story definitions (no assessment_id column), skip
   dbExecute(con, "DELETE FROM assessments WHERE patient_id = ?", params = list(patient_id))
   dbExecute(con, "DELETE FROM patients WHERE id = ?", params = list(patient_id))
   invisible()
