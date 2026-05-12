@@ -455,7 +455,7 @@ server <- function(input, output, session) {
 
     # Get all patients with their latest assessment info
     patients <- dbGetQuery(con, "
-      SELECT p.id, p.name, p.class, p.teacher_id,
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner,
              (SELECT COUNT(*) FROM assessments a WHERE a.patient_id = p.id) as n_assessments
       FROM patients p
       ORDER BY p.id DESC
@@ -473,11 +473,12 @@ server <- function(input, output, session) {
 
     # Build display table
     dt_df <- data.frame(
-      ID           = patients$id,
-      Name         = patients$name,
-      Class        = ifelse(is.na(patients$class), "-", patients$class),
-      `Teacher ID` = ifelse(is.na(patients$teacher_id), "-", patients$teacher_id),
-      Assessments  = patients$n_assessments,
+      ID            = patients$id,
+      Name          = patients$name,
+      DOB           = ifelse(is.na(patients$dob), "-", patients$dob),
+      Gender        = ifelse(is.na(patients$gender), "-", patients$gender),
+      Examiner       = ifelse(is.na(patients$examiner), "-", patients$examiner),
+      Assessments   = patients$n_assessments,
       stringsAsFactors = FALSE
     )
 
@@ -500,7 +501,7 @@ server <- function(input, output, session) {
           zeroRecords = "无匹配学生 / No matching students"
         ),
         columnDefs  = list(
-          list(className = 'dt-center', targets = c(0, 2, 3, 4)),
+          list(className = 'dt-center', targets = c(0, 2, 3, 4, 5)),
           list(visible  = FALSE, targets  = 0)  # hide ID column, use data instead
         )
       )
@@ -525,15 +526,16 @@ server <- function(input, output, session) {
 
     # Get patient info
     patients <- dbGetQuery(con, "
-      SELECT p.id, p.name, p.class, p.teacher_id
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner
       FROM patients p
       ORDER BY p.id DESC
     ")
 
-    pid      <- as.integer(patients$id[selected_row])
-    pname    <- patients$name[selected_row]
-    pclass   <- patients$class[selected_row]
-    pteacher <- patients$teacher_id[selected_row]
+    pid   <- as.integer(patients$id[selected_row])
+    pname <- patients$name[selected_row]
+    pdob  <- patients$dob[selected_row]
+    pgender <- patients$gender[selected_row]
+    pexaminer <- patients$examiner[selected_row]
 
     # Get CELF-5 and SLAM assessments
     celf5_df <- dbGetQuery(con, sprintf(
@@ -571,20 +573,23 @@ server <- function(input, output, session) {
     con <- get_con()
     on.exit(dbDisconnect(con))
 
-    pclass   <- dbGetQuery(con, sprintf("SELECT class FROM patients WHERE id = %d", rv$patient_id))$class
-    pteacher <- dbGetQuery(con, sprintf("SELECT teacher_id FROM patients WHERE id = %d", rv$patient_id))$teacher_id
-    if (is.na(pclass))   pclass   <- "-"
-    if (is.na(pteacher))  pteacher <- "-"
+    pdob_out   <- dbGetQuery(con, sprintf("SELECT dob FROM patients WHERE id = %d", rv$patient_id))$dob
+    pgender_out <- dbGetQuery(con, sprintf("SELECT gender FROM patients WHERE id = %d", rv$patient_id))$gender
+    pexaminer_out <- dbGetQuery(con, sprintf("SELECT examiner FROM patients WHERE id = %d", rv$patient_id))$examiner
+    if (is.na(pdob_out))   pdob_out   <- "-"
+    if (is.na(pgender_out)) pgender_out <- "-"
+    if (is.na(pexaminer_out)) pexaminer_out <- "-"
 
     celf5_count <- length(rv$celf5_ids)
     slam_count  <- length(rv$slam_ids)
 
     tags$div(class = "student-selected-info",
-      div(class = "student-name", paste("🎓", rv$patient_name)),
-      div(class = "student-meta",
-        paste0("ID: ", rv$patient_id, "  |  Class: ", pclass,
-               "  |  Teacher: ", pteacher, "  |  ",
-               "CELF-5: ", celf5_count, "次  |  SLAM: ", slam_count, "次"))
+      tags$div(class = "student-name", paste0("👤 ", rv$patient_name)),
+      tags$div(class = "student-meta",
+        paste0("ID: ", rv$patient_id, "  |  DOB: ", pdob_out,
+               "  |  Gender: ", pgender_out, "  |  Examiner: ", pexaminer_out, "  |  ",
+               "CELF-5: ", celf5_count, "套  |  SLAM: ", slam_count, "套")
+      )
     )
   })
 
