@@ -1,5 +1,5 @@
 # app_slam.R — SLAM Narrative Assessment Tool
-# Stories: Baseball Troubles / The Best Turkey / The Girl Who Loved Horses / Wallace and Batty
+# Stories: Baseball Troubles / The Ball Mystery / Lost Cellphone / Kittens Love Milk Cards
 # Scoring: Word Finding (raw→standardized) + GFA (0-2 rubric) + Free Narrative
 # Data saved to celf5_assessments.db
 # Layout: Matches CELF-5 tabPanel pattern with Subject Info tab, 4 story tabs, Report tab
@@ -107,54 +107,60 @@ STORIES <- list(
     )
   ),
 
-  the_best_turkey = list(
-    id   = "the_best_turkey",
-    name = "The Best Turkey",
-    name_zh = "最好的火鸡",
+  the_ball_mystery = list(
+    id   = "the_ball_mystery",
+    name = "The Ball Mystery",
+    name_zh = "神秘小球",
     age_range = "10-14岁",
     n_images = 5,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/2. SLAM The Ball Mystery_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/2. GFA - The Ball Mystery.pdf",
-    synopsis = "一个小男孩偷偷拿了厨房里的火鸡，正当他要和同学分享时，被人发现了。\nA boy secretly takes a turkey from the kitchen and gets caught as he tries to share it with classmates.",
+    synopsis = "几个大男孩把球塞进衣服里假装肚子大，小男孩们偷偷拿球玩了起来。\nSome big boys tuck a ball under their shirts pretending they have big bellies. The little boys secretly take the ball to play.",
     word_finding = tibble(
       item   = 1:5,
       prompt_en = c(
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?"
+        "What is this?",  # ball
+        "What is this?",  # shirt
+        "What is this?",  # boy
+        "What is this?",  # big/belly
+        "What is this?"   # stairs/ground
       ),
       prompt_zh = c(
-        "这是什么？", # turkey
-        "这是什么？", # kitchen
-        "这是什么？", # plate
+        "这是什么？", # ball
+        "这是什么？", # shirt
         "这是什么？", # boy
-        "这是什么？"  # friend/classmate
+        "这是什么？", # 大/肚子
+        "这是什么？"  # 楼梯/地面
       ),
       acceptable_en = list(
-        c("turkey","bird"),
-        c("kitchen","stove","counter"),
-        c("plate","dish","tray"),
-        c("boy","kid"),
-        c("friend","classmate","girl","boy")
+        c("ball","soccer ball","football"),
+        c("shirt","clothing","top"),
+        c("boy","kid","little boy"),
+        c("big","large","belly","stomach"),
+        c("stairs","steps","ground","floor")
       )
     ),
     gfa_items = tibble(
-      item = 1:4,
+      item = 1:7,
       passage_en = c(
-        "Tommy wanted to share the special ___ with his friends at lunch.",
-        "He put the turkey on a ___ and carried it to the cafeteria.",
-        "When the cafeteria lady saw the turkey, she said, 'That belongs to ___!'",
-        "Tommy felt ___ because he had taken something that was not his."
+        "Will the big boys share their ball with the little boys? How do you know?",
+        "What are the little boys thinking here?",
+        "Why don't the big boys see that the little boys are playing with the ball?",
+        "What are the big boys thinking now?",
+        "What do you think the big boys will do if the ball falls out of the shirt?",
+        "What would you say to try to get out of trouble if you were the little boy?",
+        "Have you ever gotten into big trouble like this? What happened?"
       ),
       passage_zh = c(
-        "汤米想在午餐时和朋友们分享特别的___。",
-        "他把火鸡放在___上，拿到自助餐厅。",
-        "当自助餐厅的阿姨看到火鸡时说：'那是___的！'",
-        "汤米感到___，因为他拿了不属于自己的东西。"
+        "大男孩会把球分享给小男孩吗？你怎么知道？",
+        "小男孩们在这里想什么？",
+        "为什么大男孩没看到小男孩们在玩球？",
+        "现在大男孩在想什么？",
+        "如果球从衣服里掉出来，你觉得大男孩会怎么做？",
+        "如果你是那个小男孩，你会说什么来摆脱麻烦？",
+        "你有没有遇到过这样的麻烦？发生了什么？"
       ),
-      answers = list(c("turkey","food","chicken"), c("plate","tray","dish","bowl"), c("the kitchen","Mrs. Lee","the school","someone else"), c("embarrassed","bad","sorry","guilty","sad")),
+      answers = list(c("no","won't share"), c("they want to play","excited","the ball is fun"), c("they are distracted","looking elsewhere","not paying attention"), c("they think they still have the ball","they don't know it's gone"), c("they will be embarrassed","they will look for it","they will be surprised"), c("make an excuse","blame someone else","tell the truth"), c("personal narrative","yes or no with explanation")),
       max_score = 2
     ),
     narrative_rubric = list(
@@ -164,32 +170,32 @@ STORIES <- list(
     )
   ),
 
-  the_girl_who_loved_horses = list(
-    id   = "the_girl_who_loved_horses",
-    name = "The Girl Who Loved Horses",
-    name_zh = "爱马的女孩",
+  lost_cellphone = list(
+    id   = "lost_cellphone",
+    name = "Lost Cellphone",
+    name_zh = "丢失的手机",
     age_range = "13-17岁",
     n_images = 6,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. SLAM Lost Cellphone_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. GFA - Lost Cellphone.pdf",
-    synopsis = "一个女孩在便利店结账时，不小心把手机忘在了柜台上，被后面的人拿走了。\nA girl forgets her cellphone on the convenience store counter while paying. Someone behind her takes it.",
+    synopsis = "一个男孩在便利店结账时被女孩分散了注意力，手机忘在柜台上被后面的人拿走。\nA boy gets distracted by a girl at the store and leaves his cellphone on the counter. Someone behind him takes it.",
     word_finding = tibble(
       item   = 1:6,
       prompt_en = c(
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?"
+        "What is this?",  # cellphone
+        "What is this?",  # counter
+        "What is this?",  # store/shop
+        "What is this?",  # girl/woman
+        "What is this?",  # receipt
+        "What is this?"   # person behind
       ),
       prompt_zh = c(
         "这是什么？", # cellphone
         "这是什么？", # counter
         "这是什么？", # store/shop
-        "这是什么？", # girl
+        "这是什么？", # girl/woman
         "这是什么？", # receipt
-        "这是什么？"  # person/thief
+        "这是什么？"  # person behind
       ),
       acceptable_en = list(
         c("cellphone","phone","mobile phone","smartphone"),
@@ -201,20 +207,30 @@ STORIES <- list(
       )
     ),
     gfa_items = tibble(
-      item = 1:4,
+      item = 1:9,
       passage_en = c(
-        "The girl was paying for her items at the ___ when she put her phone on the counter.",
-        "She was so busy ___ that she forgot her phone entirely.",
-        "A person behind her saw the phone and ___ it instead of returning it.",
-        "The girl realized her mistake only when she reached for her ___ in her pocket."
+        "Can you put these in order?",
+        "Tell me the story of what happened.",
+        "How did the boy lose his cellphone?",
+        "Why did he leave his cellphone?",
+        "What made him remember he forgot his cellphone?",
+        "What is he thinking here?",
+        "What does he think will happen when he goes back to the store?",
+        "What is going to happen when he goes back to the store?",
+        "Did anything like this ever happen to you?"
       ),
       passage_zh = c(
-        "女孩在___结账时，把手机放在了柜台上。",
-        "她太忙于___，完全忘记了手机。",
-        "后面的人看到手机后，把它___而不是归还。",
-        "女孩只在伸手去口袋里拿___时才意识到自己的错误。"
+        "你能把这些按顺序排好吗？",
+        "告诉我发生了什么。",
+        "男孩是怎么丢失手机的？",
+        "他为什么把手机落在那里？",
+        "什么让他想起自己忘了带手机？",
+        "他现在在想什么？",
+        "他觉得回到店里会发生什么？",
+        "当他回到店里时会发生什么？",
+        "你有没有遇到过类似的事情？"
       ),
-      answers = list(c("store","counter","checkout","register","shop"), c("paying","checking out","packing","looking","talking"), c("took","stole","grabbed","pocketed","kept"), c("phone","cellphone","hand","pocket","bag")),
+      answers = list(c("ordering task - 0 pts"), c("narrative retelling"), c("he put it down and forgot it","distracted by girl"), c("he was distracted","looking at girl","paying attention to something else"), c("reached for it","couldn't find it","checked pocket"), c("worried","upset","I forgot my phone"), c("he might get it back","the person will be gone","he hopes"), c("he won't get it back","phone is gone","the thief leaves"), c("personal narrative")),
       max_score = 2
     ),
     narrative_rubric = list(
@@ -224,54 +240,62 @@ STORIES <- list(
     )
   ),
 
-  wallace_and_batty = list(
-    id   = "wallace_and_batty",
-    name = "Wallace and Batty",
-    name_zh = "华莱士与巴蒂",
+  kittens_love_milk = list(
+    id   = "kittens_love_milk",
+    name = "Kittens Love Milk Cards",
+    name_zh = "小猫爱牛奶",
     age_range = "7-14岁",
     n_images = 5,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/4. SLAM Kittens Love Milk Cards (English).pdf",
     gfa_path = NULL,
-    synopsis = "一只名叫Wallace的小狗和一只名叫Batty的小猫之间的故事。\nA story about a dog named Wallace and a cat named Batty.",
+    synopsis = "一个女人买完东西上楼时，口袋里装了一只小猫她自己却不知道。\nA woman carrying groceries goes upstairs when a little kitten secretly jumps into her bag.",
     word_finding = tibble(
       item   = 1:5,
       prompt_en = c(
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?",
-        "What is this?"
+        "What is this?",  # kitten/cat
+        "What is this?",  # milk
+        "What is this?",  # woman
+        "What is this?",  # bag
+        "What is this?"   # stairs
       ),
       prompt_zh = c(
-        "这是什么？", # dog/Wallace
-        "这是什么？", # cat/Batty
-        "这是什么？", # milk/bowl
-        "这是什么？", # stairs/steps
-        "这是什么？"  # bag/box
+        "这是什么？", # kitten/cat
+        "这是什么？", # milk
+        "这是什么？", # woman
+        "这是什么？", # bag
+        "这是什么？"  # stairs
       ),
       acceptable_en = list(
-        c("dog","puppy","canine","doggy"),
-        c("cat","kitten","feline","kitty"),
-        c("milk","bowl","food","water","dish"),
-        c("stairs","steps","staircase","ladder"),
-        c("bag","sack","backpack","purse")
+        c("kitten","cat","kitty","feline"),
+        c("milk","spilled milk","milk puddle"),
+        c("woman","lady","mom","mother"),
+        c("bag","grocery bag","shopping bag","sack"),
+        c("stairs","steps","staircase")
       )
     ),
     gfa_items = tibble(
-      item = 1:4,
+      item = 1:8,
       passage_en = c(
-        "Wallace the dog followed Batty the cat up the ___.",
-        "Batty jumped into the woman's ___ and fell asleep.",
-        "Wallace could not follow because the bag was too ___.",
-        "The woman did not know Batty was in her ___ until she felt something move."
+        "Can you put these in order with me?",
+        "Tell me the story",
+        "What are the kittens thinking here?",
+        "Why don't these cats (the ones with filled bellies) follow the woman up the stairs?",
+        "What was the little kitten's idea when she followed the woman up the stairs and then jumped into her bag?",
+        "Why doesn't the woman know that the kitten is in her bag?",
+        "What do you think the woman is going to do now that she sees the kitten in her bag?",
+        "What would you do if you found a kitten in your grocery bag?"
       ),
       passage_zh = c(
-        "小狗华莱士跟着小猫巴蒂上了___。",
-        "巴蒂跳进女人的___里睡着了。",
-        "华莱士因为袋子太___而无法进去。",
-        "女人直到感觉到有东西在___动才知道巴蒂在里面。"
+        "你能和我一起把这些按顺序排好吗？",
+        "给我讲讲这个故事",
+        "小猫们在这里想什么？",
+        "为什么这些猫（吃饱了的）不跟着女人上楼？",
+        "当小猫跟着女人上楼然后跳进她的包里时，它有什么主意？",
+        "为什么女人不知道小猫在她的包里？",
+        "当她看到包里有小猫时，你觉得她会怎么做？",
+        "如果你在购物袋里发现一只小猫，你会怎么做？"
       ),
-      answers = list(c("stairs","steps","staircase"), c("bag","backpack","purse","sack","basket"), c("small","tight","tiny","little","narrow"), c("bag","backpack","purse","sack","basket")),
+      answers = list(c("ordering task - 0 pts"), c("narrative"), c("they want to drink milk","milk is spilling","hungry for milk"), c("they are full","they already ate","satisfied"), c("hide in bag","get free food","go for a ride","sneak out"), c("she wasn't looking","she didn't see","she didn't feel it","bag is dark"), c("surprised","laugh","take kitten out","keep it","give it milk"), c("keep it","feed it","return it","call owner","take to shelter")),
       max_score = 2
     ),
     narrative_rubric = list(
@@ -546,24 +570,24 @@ ui <- fluidPage(
     ),
 
     # ═══════════════════════════════════════════════════════════
-    # TAB 3: The Best Turkey
+    # TAB 3: The Ball Mystery
     # ═══════════════════════════════════════════════════════════
-    tabPanel("🦃 The Best Turkey",
+    tabPanel("🔵 The Ball Mystery",
       div(class = "story-card",
         div(class = "story-card-header",
-          span("🦃"), "The Best Turkey / 最好的火鸡",
+          span("🔵"), "The Ball Mystery / 神秘小球",
           span(class = "progress-story", "10-14岁 · 5张图 · Word Finding + GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
             p(strong("故事概要 Story Synopsis:"), br()),
-            p(STORIES$the_best_turkey$synopsis)
+            p(STORIES$the_ball_mystery$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("the_best_turkey", 5),
+          story_img_carousel("the_ball_mystery", 5),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
           lapply(1:5, function(i) {
-            wf <- STORIES$the_best_turkey$word_finding
+            wf <- STORIES$the_ball_mystery$word_finding
             div(class = "wf-item", id = sprintf("wf_tbt_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
               fluidRow(
@@ -577,8 +601,8 @@ ui <- fluidPage(
             )
           }),
           div(class = "section-label", "📝 GFA 语法填空"),
-          lapply(1:4, function(i) {
-            gfa <- STORIES$the_best_turkey$gfa_items
+          lapply(seq_along(STORIES$the_ball_mystery$gfa_items$item), function(i) {
+            gfa <- STORIES$the_ball_mystery$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
             div(class = "gfa-item", id = sprintf("gfa_tbt_%d", i),
@@ -603,8 +627,8 @@ ui <- fluidPage(
             p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
           ),
           div(class = "section-label", "📊 Narrative Rubric"),
-          lapply(seq_along(STORIES$the_best_turkey$narrative_rubric$dimensions), function(d) {
-            dim_name <- STORIES$the_best_turkey$narrative_rubric$dimensions[d]
+          lapply(seq_along(STORIES$the_ball_mystery$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$the_ball_mystery$narrative_rubric$dimensions[d]
             div(style = "margin-bottom: 14px;",
               div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
               div(class = "rubric-row",
@@ -615,7 +639,7 @@ ui <- fluidPage(
             )
           }),
           div(style = "margin-top: 20px; text-align: center;",
-            actionButton("save_tbt", "💾 保存 The Best Turkey 评分",
+            actionButton("save_tbt", "💾 保存 The Ball Mystery 评分",
               class = "btn-save-slam")
           )
         )
@@ -623,24 +647,24 @@ ui <- fluidPage(
     ),
 
     # ═══════════════════════════════════════════════════════════
-    # TAB 4: The Girl Who Loved Horses
+    # TAB 4: Lost Cellphone
     # ═══════════════════════════════════════════════════════════
-    tabPanel("🐴 The Girl Who Loved Horses",
+    tabPanel("📱 Lost Cellphone",
       div(class = "story-card",
         div(class = "story-card-header",
-          span("🐴"), "The Girl Who Loved Horses / 爱马的女孩",
+          span("📱"), "Lost Cellphone / 丢失的手机",
           span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
             p(strong("故事概要 Story Synopsis:"), br()),
-            p(STORIES$the_girl_who_loved_horses$synopsis)
+            p(STORIES$lost_cellphone$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("the_girl_who_loved_horses", 6),
+          story_img_carousel("lost_cellphone", 6),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
           lapply(1:6, function(i) {
-            wf <- STORIES$the_girl_who_loved_horses$word_finding
+            wf <- STORIES$lost_cellphone$word_finding
             div(class = "wf-item", id = sprintf("wf_gwh_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
               fluidRow(
@@ -653,9 +677,9 @@ ui <- fluidPage(
               )
             )
           }),
-          div(class = "section-label", "📝 GFA 语法填空"),
-          lapply(1:4, function(i) {
-            gfa <- STORIES$the_girl_who_loved_horses$gfa_items
+          div(class = "section-label", "📝 GFA 语法问答"),
+          lapply(seq_along(STORIES$lost_cellphone$gfa_items$item), function(i) {
+            gfa <- STORIES$lost_cellphone$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
             div(class = "gfa-item", id = sprintf("gfa_gwh_%d", i),
@@ -680,8 +704,8 @@ ui <- fluidPage(
             p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
           ),
           div(class = "section-label", "📊 Narrative Rubric"),
-          lapply(seq_along(STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions), function(d) {
-            dim_name <- STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions[d]
+          lapply(seq_along(STORIES$lost_cellphone$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$lost_cellphone$narrative_rubric$dimensions[d]
             div(style = "margin-bottom: 14px;",
               div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
               div(class = "rubric-row",
@@ -692,7 +716,7 @@ ui <- fluidPage(
             )
           }),
           div(style = "margin-top: 20px; text-align: center;",
-            actionButton("save_gwh", "💾 保存 The Girl Who Loved Horses 评分",
+            actionButton("save_gwh", "💾 保存 Lost Cellphone 评分",
               class = "btn-save-slam")
           )
         )
@@ -700,24 +724,24 @@ ui <- fluidPage(
     ),
 
     # ═══════════════════════════════════════════════════════════
-    # TAB 5: Wallace and Batty
+    # TAB 5: Kittens Love Milk Cards
     # ═══════════════════════════════════════════════════════════
-    tabPanel("🐕 Wallace and Batty",
+    tabPanel("🐱 Kittens Love Milk Cards",
       div(class = "story-card",
         div(class = "story-card-header",
-          span("🐕"), "Wallace and Batty / 华莱士与巴蒂",
+          span("🐱"), "Kittens Love Milk Cards / 小猫爱牛奶",
           span(class = "progress-story", "7-14岁 · 5张图 · Word Finding + GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
             p(strong("故事概要 Story Synopsis:"), br()),
-            p(STORIES$wallace_and_batty$synopsis)
+            p(STORIES$kittens_love_milk$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("wallace_and_batty", 5),
+          story_img_carousel("kittens_love_milk", 5),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
           lapply(1:5, function(i) {
-            wf <- STORIES$wallace_and_batty$word_finding
+            wf <- STORIES$kittens_love_milk$word_finding
             div(class = "wf-item", id = sprintf("wf_wb_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
               fluidRow(
@@ -730,9 +754,9 @@ ui <- fluidPage(
               )
             )
           }),
-          div(class = "section-label", "📝 GFA 语法填空"),
-          lapply(1:4, function(i) {
-            gfa <- STORIES$wallace_and_batty$gfa_items
+          div(class = "section-label", "📝 GFA 语法问答"),
+          lapply(seq_along(STORIES$kittens_love_milk$gfa_items$item), function(i) {
+            gfa <- STORIES$kittens_love_milk$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
             div(class = "gfa-item", id = sprintf("gfa_wb_%d", i),
@@ -757,8 +781,8 @@ ui <- fluidPage(
             p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
           ),
           div(class = "section-label", "📊 Narrative Rubric"),
-          lapply(seq_along(STORIES$wallace_and_batty$narrative_rubric$dimensions), function(d) {
-            dim_name <- STORIES$wallace_and_batty$narrative_rubric$dimensions[d]
+          lapply(seq_along(STORIES$kittens_love_milk$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$kittens_love_milk$narrative_rubric$dimensions[d]
             div(style = "margin-bottom: 14px;",
               div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
               div(class = "rubric-row",
@@ -769,7 +793,7 @@ ui <- fluidPage(
             )
           }),
           div(style = "margin-top: 20px; text-align: center;",
-            actionButton("save_wb", "💾 保存 Wallace and Batty 评分",
+            actionButton("save_wb", "💾 保存 Kittens Love Milk Cards 评分",
               class = "btn-save-slam")
           )
         )
