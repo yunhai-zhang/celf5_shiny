@@ -317,9 +317,9 @@ get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
 # ─────────────────────────────────────────────────────────────
 slam_css <- function() {
   HTML(paste0(
-"body { background: ", SLAM_GOLD, "; font-family: 'Segoe UI', Arial, sans-serif; }
+"body { background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
 .container-fluid { padding: 0; }
-.tab-content { padding: 20px; background: ", SLAM_GOLD, "; min-height: 100vh; }
+.tab-content { padding: 20px; background: #ffffff; min-height: 100vh; }
 .nav-tabs { border-bottom: 2px solid #e2e8f0; }
 .nav-tabs > li > a { border-radius: 8px 8px 0 0; font-weight: 600; color: ", SLAM_GRAY, "; }
 .nav-tabs > li.active > a { color: ", SLAM_BLUE, "; border-color: #e2e8f0 #e2e8f0 white; border-bottom: 3px solid ", SLAM_GOLD, "; }
@@ -1142,11 +1142,10 @@ server <- function(input, output, session) {
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
     patients_df <- dbGetQuery(con, "
-      SELECT DISTINCT p.id, p.name, p.dob,
+      SELECT DISTINCT p.id, p.name, p.dob, p.gender, p.examiner,
              MAX(a.assessment_date) AS most_recent_date
       FROM patients p
-      JOIN assessments a ON a.patient_id = p.id
-      WHERE a.assessment_type = 'SLAM'
+      LEFT JOIN assessments a ON a.patient_id = p.id
       GROUP BY p.id, p.name, p.dob
       ORDER BY most_recent_date DESC")
     if (nrow(patients_df) == 0) {
