@@ -758,7 +758,12 @@ ui <- fluidPage(
               class = "btn-save-slam")
           )
         )
-      )
+      ),
+
+    # ── Report Tab ──────────────────────────────────────────────
+    tabPanel("📋 Report / 报告", value = "slam_report_tab",
+      uiOutput("slam_report")
+    )
   ),  # end tabsetPanel
 
   # Footer
@@ -1166,6 +1171,233 @@ server <- function(input, output, session) {
 
   # ── AI Report — Selected Patient Report ─────────────────────
   # (removed — AI tab was removed)
+
+  # ── SLAM Report Tab ─────────────────────────────────────────────
+  output$slam_report <- renderUI({
+    # Get most recent SLAM assessment for current patient
+    pid <- rv$patient_id
+    if (is.null(pid) || is.na(pid)) {
+      return(div(
+        style = "text-align:center; padding:60px 20px; color:#6b7280;",
+        icon("clipboard-list", class = "fa-3x"),
+        h3("暂无评估数据 / No Assessment Data"),
+        p('请在"受试者信息"标签页选择或创建受试者，然后完成至少一个故事的评分保存。')
+      ))
+    }
+
+    con <- get_con()
+    on.exit(dbDisconnect(con))
+
+    # Get most recent SLAM assessment for this patient
+    aid_row <- dbGetQuery(con, "
+      SELECT id, assessment_date FROM assessments
+      WHERE patient_id = ? AND assessment_type = 'SLAM'
+      ORDER BY assessment_date DESC LIMIT 1",
+      params = list(pid))
+    if (nrow(aid_row) == 0) {
+      return(div(style="text-align:center; padding:40px;",
+        p("该受试者暂无SLAM评估记录 / No SLAM assessments yet")))
+    }
+    aid <- aid_row$id[1]
+
+    # Helper: GFA rubric description
+    gfa_desc <- function(score, item_num, story_id) {
+      # 0-2 scale with qualitative descriptions
+      desc <- switch(as.character(score),
+        "0" = "无回应或回答完全不符题意 / No response or entirely off-topic",
+        "0.5" = "部分相关但语法/内容错误明显 / Partially relevant with significant errors",
+        "1" = "基本正确但有轻微语法问题 / Generally correct with minor grammar issues",
+        "1.5" = "较完整，偶有细节缺失 / Mostly complete, occasional missing details",
+        "2" = "完整准确 / Complete and accurate",
+        "未评分"
+      )
+      score_label <- if (score %% 1 == 0) paste0(score, ".0") else as.character(score)
+      sprintf("<b>%s分</b> — %s", score_label, desc)
+    }
+
+    # Fetch responses
+    res <- dbGetQuery(con, "
+      SELECT subtest, item_number, response_text, score
+      FROM responses WHERE assessment_id = ? ORDER BY subtest, item_number",
+      params = list(aid))
+
+    # Fetch subtest scores
+    sts <- dbGetQuery(con, "
+      SELECT subtest, raw_score, scaled_score
+      FROM subtest_scores WHERE assessment_id = ?",
+      params = list(aid))
+
+    # Build story blocks
+    stories <- list(
+      list(id = "baseball_troubles",  db_id = "BaseballTroubles",  name = "🏇 Baseball Troubles",   name_zh = "棒球烦恼"),
+      list(id = "the_ball_mystery",   db_id = "TheBestTurkey",    name = "🔵 The Ball Mystery",     name_zh = "神秘小球"),
+      list(id = "lost_cellphone",      db_id = "GirlWhoLovedHorses",name = "📱 Lost Cellphone",       name_zh = "丢失的手机"),
+      list(id = "kittens_love_milk",  db_id = "WallaceAndBatty",   name = "🐱 Kittens Love Milk",   name_zh = "小猫爱牛奶")
+    )
+
+    story_blocks <- lapply(stories, function(s) {
+      wf_sub  <- paste0(s$db_id, "_WordFinding")
+      gfa_sub <- paste0(s$db_id, "_GFA")
+      nar_sub <- paste0(s$db_id, "_Narrative")
+
+      # Raw scores
+      wf_raw  <- sts$raw_score[sts$subtest == wf_sub][1]
+      gfa_raw <- sts$raw_score[sts$subtest == gfa_sub][1]
+      wf_std  <- sts$scaled_score[sts$subtest == wf_sub][1]
+      gfa_std <- sts$scaled_score[sts$subtest == gfa_sub][1]
+
+      wf_pr <- std_to_pr(wf_std)
+      gfa_pr <- std_to_pr(gfa_std)
+
+      # GFA responses
+      gfa_rows <- res[res$subtest == gfa_sub, ]
+      gfa_items <- STORIES[[s$id]]$gfa_items
+      n_gfa <- nrow(gfa_items)
+
+      # WF responses
+      wf_rows <- res[res$subtest == wf_sub, ]
+
+      # Narrative
+      nar_row <- res[res$subtest == nar_sub, ]
+      nar_text <- if (nrow(nar_row) > 0) nar_row$response_text[1] else ""
+
+      # Build GFA item list
+      gfa_item_html <- lapply(seq_len(n_gfa), function(i) {
+        item_score_val <- if (i <= nrow(gfa_rows)) as.numeric(gfa_rows$score[i]) else NA
+        item_text_val <- if (i <= nrow(gfa_rows)) gfa_rows$response_text[i] else ""
+        score_display <- if (!is.na(item_score_val)) {
+          if (item_score_val %% 1 == 0) paste0(as.integer(item_score_val), ".0") else as.character(item_score_val)
+        } else "—"
+        item_desc <- if (!is.na(item_score_val)) {
+          switch(as.character(item_score_val),
+            "0" = "无回应或明显错误",
+            "0.5" = "部分相关，语法/内容错误",
+            "1" = "基本正确，轻微问题",
+            "1.5" = "较完整，偶有缺失",
+            "2" = "完整准确",
+            "未评分"
+          )
+        } else ""
+        tags$div(class = "gfa-item",
+          tags$div(class = "gfa-passage",
+            HTML(gsub("\\{\\{blank\\}\\}", sprintf("<b>___%d</b>", i),
+              if (grepl("___", gfa_items$passage_en[i])) gfa_items$passage_en[i]
+              else gfa_items$passage_en[i])),
+            p(style = "margin-top:4px; font-size:12px; color:#6b7280;", gfa_items$passage_zh[i])
+          ),
+          fluidRow(
+            column(8,
+              textInput(sprintf("rpt_gfa_%s_%d_text", s$db_id, i),
+                "学生回答 / Response:", value = item_text_val, width = "100%"))
+          ),
+          tags$div(style = "margin-top:4px;",
+            span("评分: ", class = "badge", score_display),
+            span(if (!is.na(item_score_val)) item_desc, style = "font-size:12px; color:#374151;")
+          )
+        )
+      })
+
+      tags$div(class = "story-card", style = "margin-bottom:30px;",
+        tags$div(class = "story-card-header",
+          span(s$name), paste0(s$name_zh, " / ", s$id)
+        ),
+        tags$div(class = "story-card-body",
+          # Score summary row
+          fluidRow(
+            column(4,
+              tags$div(style = "text-align:center; padding:12px; background:#f0f9ff; border-radius:10px;",
+                p("Word Finding", style = "font-weight:700; margin:0; color:#EA580C;"),
+                p(sprintf("原始分: %s", if (length(wf_raw)) wf_raw else "—"), style = "font-size:13px; margin:4px 0;"),
+                p(sprintf("标准化: %s", if (length(wf_std) && !is.na(wf_std)) wf_std else "—"), style = "font-size:13px; margin:4px 0;"),
+                p(sprintf("百分位: %s%%", if (length(wf_pr) && !is.na(wf_pr)) round(wf_pr, 1) else "—"), style = "font-size:13px; margin:4px 0;")
+              )
+            ),
+            column(4,
+              tags$div(style = "text-align:center; padding:12px; background:#fff7ed; border-radius:10px;",
+                p("GFA", style = "font-weight:700; margin:0; color:#EA580C;"),
+                p(sprintf("原始分: %s", if (length(gfa_raw)) gfa_raw else "—"), style = "font-size:13px; margin:4px 0;"),
+                p(sprintf("标准化: %s", if (length(gfa_std) && !is.na(gfa_std)) gfa_std else "—"), style = "font-size:13px; margin:4px 0;"),
+                p(sprintf("百分位: %s%%", if (length(gfa_pr) && !is.na(gfa_pr)) round(gfa_pr, 1) else "—"), style = "font-size:13px; margin:4px 0;")
+              )
+            ),
+            column(4,
+              tags$div(style = "text-align:center; padding:12px; background:#f5f3ff; border-radius:10px;",
+                p("Narrative", style = "font-weight:700; margin:0; color:#7c3aed;"),
+                p(sprintf("叙事字数: %d字", nchar(nar_text)), style = "font-size:13px; margin:4px 0;"),
+                p(sprintf("评估日期: %s", aid_row$assessment_date[1]), style = "font-size:12px; margin:4px 0; color:#6b7280;")
+              )
+            )
+          ),
+
+          # GFA Items
+          tags$div(class = "section-label", "📝 GFA 语法问答 — Scoring Commentary"),
+          gfa_item_html,
+
+          # Narrative text
+          tags$div(class = "section-label", "🎤 自由叙事 / Free Narrative"),
+          tags$div(class = "narrative-box",
+            textAreaInput(sprintf("rpt_narr_%s", s$db_id), NULL,
+              value = nar_text, width = "100%", rows = 4,
+              placeholder = "学生叙事内容...")
+          )
+        )
+      )
+    })
+
+    # Feedback section
+    feedback_section <- tags$div(
+      tags$div(class = "section-label", "💬 评估师反馈 / Examiner Feedback"),
+      textAreaInput("slam_report_feedback", NULL,
+        value = "", width = "100%", rows = 4,
+        placeholder = "在此输入评估师评语、观察、建议..."),
+      div(style = "margin-top:20px; text-align:center;",
+        actionButton("save_slam_report", "💾 保存报告 / Save Report",
+          class = "btn-save-slam")
+      )
+    )
+
+    tagList(
+      div(style = "max-width:900px; margin:0 auto; padding:20px;",
+        tags$div(style = "text-align:center; margin-bottom:30px;",
+          h2("📋 SLAM 评估报告 / Assessment Report"),
+          p(sprintf("评估日期: %s | Assessment ID: %d", aid_row$assessment_date[1], aid),
+            style = "color:#6b7280;")
+        ),
+        story_blocks,
+        feedback_section
+      )
+    )
+  })
+
+  # Save report feedback
+  observeEvent(input$save_slam_report, {
+    pid <- rv$patient_id
+    if (is.null(pid)) {
+      showNotification("请先选择受试者 / Please select a subject first", type = "error")
+      return()
+    }
+    feedback <- input$slam_report_feedback
+    if (nzchar(feedback)) {
+      tryCatch({
+        con <- get_con()
+        on.exit(dbDisconnect(con))
+        aid_row <- dbGetQuery(con, "
+          SELECT id FROM assessments
+          WHERE patient_id = ? AND assessment_type = 'SLAM'
+          ORDER BY assessment_date DESC LIMIT 1",
+          params = list(pid))
+        if (nrow(aid_row) > 0) {
+          dbExecute(con,
+            "UPDATE assessments SET notes = ? WHERE id = ?",
+            params = list(feedback, aid_row$id[1]))
+          showNotification("报告已保存 / Report saved", type = "message")
+        }
+      }, error = function(e) {
+        showNotification(sprintf("保存失败: %s", e$message), type = "error")
+      })
+    }
+  })
+
 }
 
 # ─────────────────────────────────────────────────────────────
