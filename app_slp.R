@@ -31,72 +31,70 @@ ui <- fluidPage(
 
   tags$head(
     tags$style(HTML(paste0(
-    "body { background: linear-gradient(135deg, #f8f9fa 0%%, #e8ecf3 100%%); font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }",
+    "body { background: #e8ecf3 !important; font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }",
     ".main-container { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }",
-    ".home-hero { background: linear-gradient(135deg, #1B3A6B 0%%, #2a5ab3 100%%); color: white; border-radius: 20px; padding: 56px 40px; margin-bottom: 40px; text-align: center; box-shadow: 0 12px 40px rgba(27,58,107,0.3); }",
-    ".home-hero h1 { color: white; font-size: 36px; font-weight: 700; margin-bottom: 10px; }",
-    ".home-hero .subtitle { color: rgba(255,255,255,0.85); font-size: 16px; margin: 0; letter-spacing: 0.5px; }",
-    ".home-hero .gold-accent { color: #C8A951; font-weight: 600; }",
+    ".home-hero { background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%) !important; color: white !important; border-radius: 20px; padding: 56px 40px; margin-bottom: 40px; text-align: center; box-shadow: 0 12px 40px rgba(27,58,107,0.3); }",
+    ".home-hero h1 { color: #1B3A6B !important; font-size: 36px; font-weight: 700; margin-bottom: 10px; text-shadow: 0 1px 3px rgba(255,255,255,0.8); }",
+    ".home-hero .subtitle { color: rgba(255,255,255,0.85) !important; font-size: 16px; margin: 0; letter-spacing: 0.5px; }",
+    ".home-hero .gold-accent { color: #C8A951 !important; font-weight: 600; }",
     ".cards-row { display: flex; gap: 24px; margin-bottom: 36px; }",
-    ".entry-card { flex: 1; border-radius: 18px; border: 2px solid #e8eaf0; padding: 32px 24px; text-align: center; transition: all 0.3s ease; background: white; cursor: pointer; text-decoration: none; display: flex; flex-direction: column; align-items: center; min-height: 320px; }",
-    ".entry-card:hover { border-color: #C8A951; box-shadow: 0 10px 32px rgba(27,58,107,0.18); transform: translateY(-4px); text-decoration: none; }",
+    ".entry-card { background: white !important; flex: 1; border-radius: 18px; border: 2px solid #e8eaf0; padding: 32px 24px; text-align: center; transition: all 0.3s ease; cursor: pointer; text-decoration: none; display: flex; flex-direction: column; align-items: center; min-height: 320px; }",
+    ".entry-card:hover { border-color: #C8A951 !important; box-shadow: 0 10px 32px rgba(27,58,107,0.18); transform: translateY(-4px); text-decoration: none; }",
     ".entry-card:active { transform: translateY(-1px); }",
     ".entry-icon { font-size: 56px; margin-bottom: 18px; display: block; }",
-    ".entry-title { font-size: 22px; font-weight: 700; color: #1B3A6B; margin-bottom: 12px; }",
-    ".entry-desc { font-size: 14px; color: #666; line-height: 1.7; margin-bottom: 20px; flex-grow: 1; }",
+    ".entry-title { font-size: 22px; font-weight: 700; color: #1B3A6B !important; margin-bottom: 12px; }",
+    ".entry-desc { font-size: 14px; color: #666 !important; line-height: 1.7; margin-bottom: 20px; flex-grow: 1; }",
     ".entry-badge { display: inline-block; padding: 5px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }",
-    ".badge-celf5  { background: #e8f0fe; color: #1B3A6B; }",
-    ".badge-slam   { background: #fff3e0; color: #e65100; }",
-    ".entry-btn { display: inline-block; padding: 10px 28px; border-radius: 25px; font-size: 14px; font-weight: 600; transition: all 0.2s ease; color: #1B3A6B; }",
-    ".btn-celf5 { background: #1B3A6B; color: white; border: none; }",
-    ".btn-celf5:hover { background: #1452a3; color: white; box-shadow: 0 4px 12px rgba(27,58,107,0.35); }",
-    ".btn-slam { background: white; color: #C8A951; border: 2px solid #C8A951; }",
-    ".btn-slam:hover { background: #C8A951; color: #1B3A6B; }",
-    ".home-footer { text-align: center; margin-top: 40px; padding: 20px; color: #666; font-size: 13px; }",
-    ".footer-brand { color: #1B3A6B; font-weight: 600; }",
-    ".student-panel { background: white; border-radius: 18px; border: 1px solid #e0e4ef; box-shadow: 0 4px 16px rgba(0,0,0,0.06); overflow: hidden; }",
-    ".student-panel-header { background: linear-gradient(135deg, #1B3A6B 0%%, #2a5ab3 100%%); color: white; padding: 18px 28px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }",
+    ".badge-celf5  { background: #e8f0fe !important; color: #1B3A6B !important; }",
+    ".badge-slam   { background: #fff3e0 !important; color: #e65100 !important; }",
+    ".entry-btn { display: inline-block; padding: 10px 28px; border-radius: 25px; font-size: 14px; font-weight: 600; transition: all 0.2s ease; color: #1B3A6B !important; }",
+    ".btn-celf5 { background: #1B3A6B !important; color: white !important; border: none; }",
+    ".btn-celf5:hover { background: #1452a3 !important; color: white !important; box-shadow: 0 4px 12px rgba(27,58,107,0.35); }",
+    ".btn-slam { background: white !important; color: #C8A951 !important; border: 2px solid #C8A951 !important; }",
+    ".btn-slam:hover { background: #C8A951 !important; color: #1B3A6B !important; }",
+    ".home-footer { text-align: center; margin-top: 40px; padding: 20px; color: #666 !important; font-size: 13px; }",
+    ".footer-brand { color: #1B3A6B !important; font-weight: 600; }",
+    ".student-panel { background: white !important; border-radius: 18px; border: 1px solid #e0e4ef; box-shadow: 0 4px 16px rgba(0,0,0,0.06); overflow: hidden; }",
+    ".student-panel-header { background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%) !important; color: white !important; padding: 18px 28px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }",
     ".student-panel-body { padding: 28px; }",
     ".form-group { border-radius: 8px; border: 1.5px solid #d0d7e2; padding: 10px 14px; font-size: 14px; transition: border-color 0.2s ease; }",
-    ".form-group:focus-within { border-color: #1B3A6B; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }",
-    ".form-label { font-size: 13px; font-weight: 600; color: #1B3A6B; margin-bottom: 5px; }",
+    ".form-group:focus-within { border-color: #1B3A6B !important; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }",
+    ".form-label { font-size: 13px; font-weight: 600; color: #1B3A6B !important; margin-bottom: 5px; }",
     ".assessment-checkboxes { display: flex; gap: 16px; margin-top: 8px; }",
     ".assessment-chk { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }",
     ".assessment-chk input[type='checkbox'] { width: 16px; height: 16px; cursor: pointer; }",
-    ".student-selected-info { background: #f8f9fa; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; font-size: 14px; border-left: 4px solid #1B3A6B; }",
-    ".student-selected-info .student-name { font-weight: 700; color: #1B3A6B; font-size: 16px; }",
-    ".student-selected-info .student-meta { color: #444; font-size: 13px; margin-top: 2px; }",
-    ".new-student-form input::placeholder { color: #999; opacity: 1; }",
-    ".new-student-form select option[value=''] { color: #999; }",
-    ".ai-spin { width:18px; height:18px; border:2px solid #dee2e6; border-top:2px solid #1B3A6B; border-radius:50%%; display:inline-block; animation:ai-spin 0.7s linear infinite; }",
+    ".student-selected-info { background: #f8f9fa !important; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; font-size: 14px; border-left: 4px solid #1B3A6B !important; }",
+    ".student-selected-info .student-name { font-weight: 700; color: #1B3A6B !important; font-size: 16px; }",
+    ".student-selected-info .student-meta { color: #444 !important; font-size: 13px; margin-top: 2px; }",
+    ".new-student-form input::placeholder { color: #999 !important; opacity: 1; }",
+    ".new-student-form select option[value=''] { color: #999 !important; }",
+    ".ai-spin { width:18px; height:18px; border:2px solid #dee2e6; border-top:2px solid #1B3A6B; border-radius:50%; display:inline-block; animation:ai-spin 0.7s linear infinite; }",
     "@keyframes ai-spin { to { transform: rotate(360deg); } }",
     ".ai-msg  { display:inline; margin-left:8px; color:#6c757d; }",
-    ".ai-report-card { background:#fafafa; border:1px solid #e9ecef; border-radius:8px; padding:20px 24px; margin-top:12px; font-size:14px; line-height:1.75; max-height:600px; overflow-y:auto; }",
-    ".ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B; margin-top:14px; }",
+    ".ai-report-card { background:#fafafa !important; border:1px solid #e9ecef; border-radius:8px; padding:20px 24px; margin-top:12px; font-size:14px; line-height:1.75; max-height:600px; overflow-y:auto; }",
+    ".ai-report-card h1,.ai-report-card h2,.ai-report-card h3 { color:#1B3A6B !important; margin-top:14px; }",
     ".ai-report-card h1:first-child,.ai-report-card h2:first-child { margin-top:0; }",
     ".ai-report-card ul,.ai-report-card ol { padding-left:22px; }",
     ".ai-report-card li { margin-bottom:5px; }",
-    ".ai-report-card strong { color:#1B3A6B; }",
-    ".ai-report-card em { color:#666; font-style:italic; }",
+    ".ai-report-card strong { color:#1B3A6B !important; }",
+    ".ai-report-card em { color:#666 !important; font-style:italic; }",
     ".ai-report-card hr { border-top:1px solid #ddd; margin:12px 0; }",
     ".dataTables_wrapper { font-size: 13px; }",
     ".student-dt-table { border-radius: 10px; overflow: hidden; border: 1px solid #e0e4ef; }",
-    ".student-dt-table thead { background: #1B3A6B; color: white; }",
+    ".student-dt-table thead { background: #1B3A6B !important; color: white !important; }",
     ".student-dt-table thead th { font-weight: 600; border: none; padding: 12px 14px; }",
     ".student-dt-table tbody tr:hover { background: #f0f4ff !important; }",
     ".student-dt-table tbody tr.selected { background: #dce8ff !important; }",
-    ".dt-btn-select { background: #1B3A6B; color: white; border: none; border-radius: 16px; padding: 4px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }",
-    ".dt-btn-select:hover { background: #1452a3; }",
-    ".new-student-form { background: #f8f9fa; border-radius: 12px; padding: 20px; border: 1px solid #e0e4ef; }",
-    ".new-student-form .form-heading { font-size: 15px; font-weight: 700; color: #1B3A6B; background: #f0f4fa; margin: -20px -20px 18px -20px; padding: 14px 20px; border-radius: 12px 12px 0 0; border-bottom: 2px solid #C8A951; }",
+    ".dt-btn-select { background: #1B3A6B !important; color: white !important; border: none; border-radius: 16px; padding: 4px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }",
+    ".dt-btn-select:hover { background: #1452a3 !important; }",
+    ".new-student-form { background: #f8f9fa !important; border-radius: 12px; padding: 20px; border: 1px solid #e0e4ef; }",
+    ".new-student-form .form-heading { font-size: 15px; font-weight: 700; color: #1B3A6B !important; background: #f0f4fa !important; margin: -20px -20px 18px -20px; padding: 14px 20px; border-radius: 12px 12px 0 0; border-bottom: 2px solid #C8A951 !important; }",
     ".new-student-form .form-group { margin-bottom: 12px; }",
-    ".new-student-form .form-group input,.new-student-form .form-group select { border-radius: 6px; border: 1.5px solid #d0d7e2; padding: 8px 12px; font-size: 13px; width: 100%%; }",
-    ".new-student-form .form-group input:focus,.new-student-form .form-group select:focus { border-color: #1B3A6B; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); outline: none; }",
-    ".new-student-form label { font-size: 12px; font-weight: 600; color: #1B3A6B; margin-bottom: 4px; display: block; }",
-    ".new-student-form .btn-add { width: 100%%; margin-top: 8px; background: #1B3A6B; color: white; border: none; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 600; transition: background 0.2s; }",
-    ".new-student-form .btn-add:hover { background: #1452a3; color: white; }",
-    ".new-student-form .assessment-type-radios { display: flex; gap: 12px; margin: 8px 0 14px 0; }",
-    ".new-student-form .assessment-type-radios label { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; color: #333; cursor: pointer; }",
+    ".new-student-form .form-group input,.new-student-form .form-group select { border-radius: 6px; border: 1.5px solid #d0d7e2; padding: 8px 12px; font-size: 13px; width: 100%; color: #333; }",
+    ".new-student-form .form-group input:focus,.new-student-form .form-group select:focus { border-color: #1B3A6B !important; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); outline: none; }",
+    ".new-student-form label { font-size: 12px; font-weight: 600; color: #1B3A6B !important; margin-bottom: 4px; display: block; }",
+    ".new-student-form .btn-add { width: 100%; margin-top: 8px; background: #1B3A6B !important; color: white !important; border: none; border-radius: 8px; padding: 10px 16px; font-size: 14px; font-weight: 600; transition: background 0.2s; }",
+    ".new-student-form .btn-add:hover { background: #1452a3 !important; color: white !important; }",
     "@media (max-width: 768px) { .cards-row { flex-direction: column; } .entry-card { min-height: auto; } .home-hero h1 { font-size: 26px; } }",
     ""
     )))
@@ -199,14 +197,7 @@ ui <- fluidPage(
                 dateInput("slp_assessment_date", NULL, format = "yyyy-mm-dd",
                           value = Sys.Date())
               ),
-              div(class = "form-group",
-                tags$label("评估类型 / Assessment Type"),
-                div(class = "assessment-type-radios",
-                  radioButtons("slp_assessment_type", NULL,
-                    choices = c("CELF-5" = "CELF5", "SLAM" = "SLAM"),
-                    selected = "CELF5", inline = TRUE)
-                )
-              ),
+
               div(class = "form-group",
                 tags$label(" "),
                 actionButton("slp_btn_add_patient",
@@ -491,7 +482,6 @@ server <- function(input, output, session) {
     gender         <- input$slp_patient_gender
     school_name    <- trim(input$slp_school_name %||% "")
     grade_level    <- trim(input$slp_grade_level %||% "")
-    assessment_type <- input$slp_assessment_type %||% "CELF5"
 
     if (is.null(patient_name) || patient_name == "") {
       showNotification("请填写学生姓名 / Please enter student name", type = "error")
@@ -532,7 +522,7 @@ server <- function(input, output, session) {
       # Start assessment
       start_assessment(con, patient_id, assessment_date,
                        age_years, age_months, age_days,
-                       age_group, assessment_type)
+                       age_group)
 
       # Success
       showNotification("✅ 学生已添加 / Student added successfully", type = "message", duration = 3)
@@ -545,7 +535,6 @@ server <- function(input, output, session) {
       updateTextInput(session, "slp_examiner", value = "")
       updateDateInput(session, "slp_dob", value = Sys.Date())
       updateDateInput(session, "slp_assessment_date", value = Sys.Date())
-      updateRadioButtons(session, "slp_assessment_type", selected = "CELF5")
 
       # Reload page to refresh DT table
       shinyjs::delay(500, session$reload())
@@ -565,9 +554,9 @@ server <- function(input, output, session) {
     has_celf5 <- isTRUE(input$chk_celf5) && length(rv$celf5_ids) > 0
     has_slam  <- isTRUE(input$chk_slam)  && length(rv$slam_ids)  > 0
     if (has_celf5) {
-      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com/celf5?patient=%d'", pid))
+      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com:3838/celf5?patient=%d'", pid))
     } else if (has_slam) {
-      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com/slam?patient=%d'", pid))
+      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com:3838/slam?patient=%d'", pid))
     } else {
       showNotification("请先在右侧选择要加载的评估类型（CELF-5 或 SLAM）", type = "warning")
     }

@@ -375,7 +375,7 @@ slam_css <- function() {
 .badge-raw   { background: #e8f0fe; color: ", SLAM_BLUE, "; }
 .badge-std   { background: #fff3e0; color: #e65100; }
 .badge-pr    { background: #e8f5e9; color: #2e7d32; }
-.progress-story { font-size: 12px; color: rgba(255,255,255,0.7); }
+.progress-story { font-size: 12px !important; color: rgba(255,255,255,0.7) !important; }
 .nav-btn { background: white; color: ", SLAM_BLUE, "; border: 2px solid ", SLAM_BLUE, "; border-radius: 25px; padding: 8px 22px; font-size: 13px; font-weight: 600; transition: all 0.2s ease; cursor: pointer; }
 .nav-btn:hover { background: ", SLAM_BLUE, "; color: white; border-color: ", SLAM_BLUE, "; }
 .nav-btn.active { background: ", SLAM_BLUE, "; color: white; border-color: ", SLAM_BLUE, "; }
@@ -476,7 +476,7 @@ ui <- fluidPage(
       div(class = "story-card",
         div(class = "story-card-header",
           span("🏇"), "Baseball Troubles / 棒球烦恼",
-          span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
+          span(class = "progress-story", "13-17岁 · 6张图 · GFA + Narrative")
         ),
         div(class = "story-card-body",
 
@@ -489,27 +489,6 @@ ui <- fluidPage(
           # Images
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("baseball_troubles", 6),
-
-          # Word Finding
-          div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(seq_len(nrow(STORIES$baseball_troubles$word_finding)), function(i) {
-            wf <- STORIES$baseball_troubles$word_finding
-            div(class = "wf-item", id = sprintf("wf_bt_%d", i),
-              div(class = "wf-prompt",
-                sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-              fluidRow(
-                column(8,
-                  textInput(sprintf("wf_bt_%d_text", i), "回答 / Response:", width = "100%")
-                ),
-                column(4,
-                  tags$label("原始分 Raw Score", class = "form-label"),
-                  selectInput(sprintf("wf_bt_%d_score", i), NULL,
-                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                    selected = "", width = "100%")
-                )
-              )
-            )
-          }),
 
           # GFA
           div(class = "section-label", "📝 GFA 语法填空 / Grammar Fluency Assessment"),
@@ -582,7 +561,7 @@ ui <- fluidPage(
       div(class = "story-card",
         div(class = "story-card-header",
           span("🔵"), "The Ball Mystery / 神秘小球",
-          span(class = "progress-story", "10-14岁 · 5张图 · Word Finding + GFA + Narrative")
+          span(class = "progress-story", "10-14岁 · 5张图 · GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
@@ -591,21 +570,6 @@ ui <- fluidPage(
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("the_ball_mystery", 5),
-          div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(seq_len(nrow(STORIES$the_ball_mystery$word_finding)), function(i) {
-            wf <- STORIES$the_ball_mystery$word_finding
-            div(class = "wf-item", id = sprintf("wf_tbt_%d", i),
-              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-              fluidRow(
-                column(8, textInput(sprintf("wf_tbt_%d_text", i), "回答 / Response:", width = "100%")),
-                column(4,
-                  tags$label("原始分 Raw Score", class = "form-label"),
-                  selectInput(sprintf("wf_tbt_%d_score", i), NULL,
-                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                    selected = "", width = "100%"))
-              )
-            )
-          }),
           div(class = "section-label", "📝 GFA 语法填空"),
           lapply(seq_along(STORIES$the_ball_mystery$gfa_items$item), function(i) {
             gfa <- STORIES$the_ball_mystery$gfa_items
@@ -665,7 +629,7 @@ ui <- fluidPage(
       div(class = "story-card",
         div(class = "story-card-header",
           span("📱"), "Lost Cellphone / 丢失的手机",
-          span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
+          span(class = "progress-story", "13-17岁 · 6张图 · GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
@@ -674,21 +638,6 @@ ui <- fluidPage(
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("lost_cellphone", 6),
-          div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(seq_len(nrow(STORIES$lost_cellphone$word_finding)), function(i) {
-            wf <- STORIES$lost_cellphone$word_finding
-            div(class = "wf-item", id = sprintf("wf_gwh_%d", i),
-              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-              fluidRow(
-                column(8, textInput(sprintf("wf_gwh_%d_text", i), "回答 / Response:", width = "100%")),
-                column(4,
-                  tags$label("原始分 Raw Score", class = "form-label"),
-                  selectInput(sprintf("wf_gwh_%d_score", i), NULL,
-                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                    selected = "", width = "100%"))
-              )
-            )
-          }),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$lost_cellphone$gfa_items$item), function(i) {
             gfa <- STORIES$lost_cellphone$gfa_items
@@ -748,7 +697,7 @@ ui <- fluidPage(
       div(class = "story-card",
         div(class = "story-card-header",
           span("🐱"), "Kittens Love Milk Cards / 小猫爱牛奶",
-          span(class = "progress-story", "7-14岁 · 5张图 · Word Finding + GFA + Narrative")
+          span(class = "progress-story", "7-14岁 · 5张图 · GFA + Narrative")
         ),
         div(class = "story-card-body",
           div(class = "synopsis-box",
@@ -757,21 +706,6 @@ ui <- fluidPage(
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("kittens_love_milk", 5),
-          div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(seq_len(nrow(STORIES$kittens_love_milk$word_finding)), function(i) {
-            wf <- STORIES$kittens_love_milk$word_finding
-            div(class = "wf-item", id = sprintf("wf_wb_%d", i),
-              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-              fluidRow(
-                column(8, textInput(sprintf("wf_wb_%d_text", i), "回答 / Response:", width = "100%")),
-                column(4,
-                  tags$label("原始分 Raw Score", class = "form-label"),
-                  selectInput(sprintf("wf_wb_%d_score", i), NULL,
-                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                    selected = "", width = "100%"))
-              )
-            )
-          }),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$kittens_love_milk$gfa_items$item), function(i) {
             gfa <- STORIES$kittens_love_milk$gfa_items
@@ -822,27 +756,6 @@ ui <- fluidPage(
           )
         )
       )
-    ),
-
-    # ═══════════════════════════════════════════════════════════
-    # TAB 6: AI Report
-    # ═══════════════════════════════════════════════════════════
-    tabPanel("🤖 AI 综合报告 / AI Report",
-      div(class = "story-card",
-        div(class = "story-card-header",
-          span("🤖"), "AI 综合报告 / Hybrid CELF-5 + SLAM Report",
-          span(class = "progress-story", "选择学生 → 生成综合报告")
-        ),
-        div(class = "story-card-body",
-          p(strong("选择学生 / Select Student:"), " 点击下方表格选择一位有SLAM记录的学生",
-            style = "margin-bottom: 16px; font-size: 14px; color: #374151;"),
-          DT::dataTableOutput("slam_patient_dt"),
-          hr(),
-          uiOutput("slam_ai_report_content")
-        )
-      )
-    )
-
   ),  # end tabsetPanel
 
   # Footer
@@ -850,7 +763,7 @@ ui <- fluidPage(
     span(style = sprintf("color: %s; font-weight: 600;", SLAM_BLUE), "SLAM"),
     "© 2026  |  Columbia University Leaders Project — Free for Copying and Distribution  |  ",
     "Powered by R Shiny"
-  )
+  ))
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -1162,149 +1075,10 @@ server <- function(input, output, session) {
   })
 
   # ── AI Report — Patient DT ──────────────────────────────────
-  output$slam_patient_dt <- DT::renderDataTable({
-    con <- get_con()
-    on.exit(dbDisconnect(con), add = TRUE)
-    patients_df <- dbGetQuery(con, "
-      SELECT DISTINCT p.id, p.name, p.dob, p.gender, p.examiner,
-             MAX(a.assessment_date) AS most_recent_date
-      FROM patients p
-      LEFT JOIN assessments a ON a.patient_id = p.id
-      GROUP BY p.id, p.name, p.dob
-      ORDER BY most_recent_date DESC")
-    if (nrow(patients_df) == 0) {
-      return(DT::datatable(data.frame(
-        Message = "暂无SLAM记录 / No SLAM records yet"
-      ), options = list(dom = "t")))
-    }
-    DT::datatable(patients_df[, c("name", "dob", "most_recent_date")],
-      colnames = c("姓名 / Name" = "name", "出生日期 / DOB" = "dob",
-                   "最近评估日期 / Most Recent" = "most_recent_date"),
-      selection = "single",
-      options = list(
-        pageLength = 10,
-        dom = "frtip",
-        language = list(emptyTable = "暂无SLAM记录 / No SLAM records yet")
-      ))
-  })
+  # (removed — AI tab was removed)
 
   # ── AI Report — Selected Patient Report ─────────────────────
-  selected_slam_pid <- reactive({
-    input$slam_patient_dt_rows_selected
-  })
-
-  output$slam_ai_report_content <- renderUI({
-    req(selected_slam_pid())
-    con <- get_con()
-    on.exit(dbDisconnect(con), add = TRUE)
-    patients_df <- dbGetQuery(con, "
-      SELECT DISTINCT p.id, p.name, p.dob
-      FROM patients p
-      JOIN assessments a ON a.patient_id = p.id
-      WHERE a.assessment_type = 'SLAM'
-      ORDER BY MAX(a.assessment_date) DESC")
-    if (length(selected_slam_pid()) == 0 || selected_slam_pid()[1] > nrow(patients_df)) {
-      return(div("请在上方表格中选择一位学生 / Please select a student from the table above."))
-    }
-    pid <- patients_df$id[selected_slam_pid()[1]]
-    pname <- patients_df$name[selected_slam_pid()[1]]
-    pdob <- patients_df$dob[selected_slam_pid()[1]]
-
-    all_data <- dbGetQuery(con, "
-      SELECT a.*, p.name AS patient_name, p.dob, p.gender
-      FROM assessments a
-      JOIN patients p ON a.patient_id = p.id
-      WHERE a.patient_id = ? AND a.assessment_type IN ('CELF5','SLAM')
-      ORDER BY a.assessment_date DESC",
-      params = list(pid))
-
-    if (nrow(all_data) == 0) {
-      return(div("该患者没有评估记录 / No assessment records found for this patient."))
-    }
-
-    slam_data <- all_data[all_data$assessment_type == "SLAM", ]
-    celf_data <- all_data[all_data$assessment_type == "CELF5", ]
-
-    report_parts <- list()
-
-    report_parts[[length(report_parts) + 1]] <- div(
-      style = sprintf("background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%); color: white; border-radius: 14px; padding: 24px; margin-bottom: 20px;"),
-      h3(sprintf("综合评估报告 / Comprehensive Assessment Report: %s", pname), style = "margin:0 0 8px; color: white;"),
-      p(sprintf("出生日期 DOB: %s | Patient ID: %d", pdob, pid), style = "margin:0; opacity: 0.85;")
-    )
-
-    if (nrow(slam_data) > 0) {
-      slam_ids <- slam_data$id
-      slam_scores <- dbGetQuery(con, "
-        SELECT ss.* FROM subtest_scores ss
-        WHERE ss.assessment_id IN ({paste(slam_ids, collapse=',')})",
-        params = list())
-      slam_narratives <- dbGetQuery(con, "
-        SELECT r.* FROM responses r
-        WHERE r.assessment_id IN ({paste(slam_ids, collapse=',')}) AND r.subtest LIKE '%_Narrative'",
-        params = list())
-
-      slam_block <- div(style = "margin-bottom: 24px;",
-        h4(sprintf("📊 SLAM 叙事评估 / SLAM Narrative Assessment (%d次评估)", nrow(slam_data)),
-           style = sprintf("color: %s; border-bottom: 2px solid %s; padding-bottom: 8px;", SLAM_BLUE, SLAM_GOLD)),
-        lapply(seq_len(nrow(slam_data)), function(i) {
-          aid <- slam_data$id[i]
-          adate <- slam_data$assessment_date[i]
-          scores_i <- slam_scores[slam_scores$assessment_id == aid, ]
-          narratives_i <- slam_narratives[slam_narratives$assessment_id == aid, ]
-          div(style = "background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0;",
-            strong(sprintf("评估日期: %s | 年龄: %s岁", adate, slam_data$age_years[i] %||% "—")), br(),
-            if (nrow(scores_i) > 0) {
-              tagList(
-                lapply(seq_len(nrow(scores_i)), function(si) {
-                  row <- scores_i[si, ]
-                  div(style = "display: inline-block; margin-right: 16px;",
-                    span(class = "score-badge badge-raw",
-                      sprintf("%s: %d分", sub("^[^_]*_", "", row$subtest), row$raw_score %||% 0)),
-                    if (!is.na(row$scaled_score)) {
-                      span(class = "score-badge badge-std",
-                        sprintf("标准分: %d", row$scaled_score))
-                    }
-                  )
-                })
-              )
-            },
-            if (nrow(narratives_i) > 0 && nzchar(narratives_i$response_text[1] %||% "")) {
-              div(style = "margin-top: 10px; padding: 10px; background: #fefce8; border-radius: 8px; border-left: 3px solid #C8A951;",
-                strong("自由叙事文本 / Narrative: "), br(),
-                span(style = "font-style: italic; color: #374151;", substr(narratives_i$response_text[1] %||% "", 1, 300))
-              )
-            }
-          )
-        })
-      )
-      report_parts[[length(report_parts) + 1]] <- slam_block
-    }
-
-    if (nrow(celf_data) > 0) {
-      celf_block <- div(style = "margin-bottom: 24px;",
-        h4(sprintf("📋 CELF-5 语言评估 / CELF-5 Language Assessment (%d次评估)", nrow(celf_data)),
-           style = sprintf("color: %s; border-bottom: 2px solid %s; padding-bottom: 8px;", SLAM_BLUE, SLAM_GOLD)),
-        lapply(seq_len(nrow(celf_data)), function(i) {
-          adate <- celf_data$assessment_date[i]
-          div(style = "background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0;",
-            strong(sprintf("评估日期: %s | 年龄: %s岁", adate, celf_data$age_years[i] %||% "—"))
-          )
-        })
-      )
-      report_parts[[length(report_parts) + 1]] <- celf_block
-    }
-
-    if (length(report_parts) == 1) {
-      report_parts[[length(report_parts) + 1]] <- div(
-        style = "color: #6b7280; font-style: italic;",
-        "暂无详细分数记录 / No detailed score records found."
-      )
-    }
-
-    tagList(report_parts)
-  })
-
+  # (removed — AI tab was removed)
 }
 
 # ─────────────────────────────────────────────────────────────
