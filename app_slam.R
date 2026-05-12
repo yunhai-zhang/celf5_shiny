@@ -84,20 +84,26 @@ STORIES <- list(
       )
     ),
     gfa_items = tibble(
-      item = 1:4,
+      item = 1:7,
       passage_en = c(
-        "The two boys were playing ___ in the park when the ball went through Mr. Kim's window.",
-        "The boys thought the ___ girl broke the window because she was listening to music.",
-        "But the girl said she did not ___ the ball.",
-        "Finally, the boys apologized and helped ___ the window."
+        "Will the big boys share their ball with the little boys? How do you know?",
+        "What are the little boys thinking here?",
+        "Why don't the big boys see that the little boys are playing with the ball?",
+        "What are the big boys thinking now?",
+        "What do you think the big boys will do if the ball falls out of the shirt?",
+        "What would you say to try to get out of trouble if you were the little boy?",
+        "Have you ever gotten into big trouble like this? What happened? How did you get out of it?"
       ),
       passage_zh = c(
-        "两个男孩正在公园里打___，球飞进了金先生家的窗户。",
-        "男孩们认为那个___女孩打破了窗户，因为她在听音乐。",
-        "但女孩说她没有___球。",
-        "最后，男孩们道歉并帮忙___窗户。"
+        "大男孩会把球分享给小男孩吗？你怎么知道？",
+        "小男孩在这里想什么？",
+        "为什么大男孩没注意到小男孩在玩球？",
+        "大男孩现在在想什么？",
+        "你觉得如果球从衣服里掉出来，大男孩会怎么做？",
+        "如果你是那个被冤枉的小男孩，你会怎么说来摆脱麻烦？",
+        "你有没有遇到过类似的冤枉？你是怎么解决的？"
       ),
-      answers = list(c("baseball","ball"), c("headphone","headphones","girl","teen"), c("throw","hit","kick","break"), c("fix","repair","replace","pay for")),
+      answers = lapply(1:7, function(i) character(0)),
       max_score = 2
     ),
     narrative_rubric = list(
@@ -486,7 +492,7 @@ ui <- fluidPage(
 
           # Word Finding
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(1:6, function(i) {
+          lapply(seq_len(nrow(STORIES$baseball_troubles$word_finding)), function(i) {
             wf <- STORIES$baseball_troubles$word_finding
             div(class = "wf-item", id = sprintf("wf_bt_%d", i),
               div(class = "wf-prompt",
@@ -507,14 +513,19 @@ ui <- fluidPage(
 
           # GFA
           div(class = "section-label", "📝 GFA 语法填空 / Grammar Fluency Assessment"),
-          lapply(1:4, function(i) {
+          lapply(seq_len(nrow(STORIES$baseball_troubles$gfa_items)), function(i) {
             gfa <- STORIES$baseball_troubles$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-            blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+            passage_display <- if (grepl("___", gfa$passage_en[i])) {
+              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+              HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i]))
+            } else {
+              HTML(gsub("\\{\\{blank\\}\\}", gfa$passage_en[i], gfa$passage_en[i]))
+            }
             div(class = "gfa-item", id = sprintf("gfa_bt_%d", i),
               div(class = "gfa-passage",
-                HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i])),
+                passage_display,
                 p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;",
                   gfa$passage_zh[i])
               ),
@@ -581,7 +592,7 @@ ui <- fluidPage(
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("the_ball_mystery", 5),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(1:5, function(i) {
+          lapply(seq_len(nrow(STORIES$the_ball_mystery$word_finding)), function(i) {
             wf <- STORIES$the_ball_mystery$word_finding
             div(class = "wf-item", id = sprintf("wf_tbt_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
@@ -600,9 +611,15 @@ ui <- fluidPage(
             gfa <- STORIES$the_ball_mystery$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            passage_display <- if (grepl("___", gfa$passage_en[i])) {
+              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+              HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i]))
+            } else {
+              HTML(gsub("\\{\\{blank\\}\\}", gfa$passage_en[i], gfa$passage_en[i]))
+            }
             div(class = "gfa-item", id = sprintf("gfa_tbt_%d", i),
               div(class = "gfa-passage",
-                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                passage_display,
                 p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
               ),
               fluidRow(
@@ -658,7 +675,7 @@ ui <- fluidPage(
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("lost_cellphone", 6),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(1:6, function(i) {
+          lapply(seq_len(nrow(STORIES$lost_cellphone$word_finding)), function(i) {
             wf <- STORIES$lost_cellphone$word_finding
             div(class = "wf-item", id = sprintf("wf_gwh_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
@@ -677,9 +694,15 @@ ui <- fluidPage(
             gfa <- STORIES$lost_cellphone$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            passage_display <- if (grepl("___", gfa$passage_en[i])) {
+              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+              HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i]))
+            } else {
+              HTML(gsub("\\{\\{blank\\}\\}", gfa$passage_en[i], gfa$passage_en[i]))
+            }
             div(class = "gfa-item", id = sprintf("gfa_gwh_%d", i),
               div(class = "gfa-passage",
-                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                passage_display,
                 p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
               ),
               fluidRow(
@@ -735,7 +758,7 @@ ui <- fluidPage(
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("kittens_love_milk", 5),
           div(class = "section-label", "🔤 Word Finding / 图片命名"),
-          lapply(1:5, function(i) {
+          lapply(seq_len(nrow(STORIES$kittens_love_milk$word_finding)), function(i) {
             wf <- STORIES$kittens_love_milk$word_finding
             div(class = "wf-item", id = sprintf("wf_wb_%d", i),
               div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
@@ -754,9 +777,15 @@ ui <- fluidPage(
             gfa <- STORIES$kittens_love_milk$gfa_items
             ms <- gfa$max_score[i]
             choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            passage_display <- if (grepl("___", gfa$passage_en[i])) {
+              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+              HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i]))
+            } else {
+              HTML(gsub("\\{\\{blank\\}\\}", gfa$passage_en[i], gfa$passage_en[i]))
+            }
             div(class = "gfa-item", id = sprintf("gfa_wb_%d", i),
               div(class = "gfa-passage",
-                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                passage_display,
                 p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
               ),
               fluidRow(
