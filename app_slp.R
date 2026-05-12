@@ -9,6 +9,7 @@ library(DT)
 library(RSQLite)
 library(lubridate)
 library(stringr)
+library(shinyjs)
 
 # ─────────────────────────────────────────────────────────────
 # 加载 global.R 和 slam_report.R
@@ -389,6 +390,13 @@ ui <- fluidPage(
           )
         ),
 
+        # Load + Delete buttons (shown after selecting a student)
+        fluidRow(
+          column(12,
+            uiOutput("slp_load_btn_ui")
+          )
+        ),
+
         # Step 3: Generate Button + Language
         fluidRow(
           column(4,
@@ -556,6 +564,89 @@ server <- function(input, output, session) {
     rv$patient_name <- pname
     rv$celf5_ids    <- as.character(celf5_df$id)
     rv$slam_ids     <- as.character(slam_df$id)
+  })
+
+  # ─────────────────────────────────────────────────────────────
+  # Load + Delete Buttons UI (shown after selecting a student)
+  # ─────────────────────────────────────────────────────────────
+  output$slp_load_btn_ui <- renderUI({
+    req(!is.null(input$student_dt_rows_selected) && length(input$student_dt_rows_selected) > 0)
+    tagList(
+      hr(),
+      fluidRow(
+        column(4,
+          actionButton("btn_slp_load", "📂 加载 / Load",
+                       class = "btn-primary",
+                       style = sprintf("width:100%%; background:%s;", celf5_blue))
+        ),
+        column(4,
+          actionButton("btn_slp_delete_confirm", "🗑 删除 / Delete",
+                       class = "btn-danger",
+                       style = "width:100%;")
+        ),
+        column(4,
+          span(style = "color:#999;font-size:12px;padding-top:8px;display:inline-block;",
+               "⚠️ 删除学生将同时删除所有关联评估 / Deleting removes all linked assessments")
+        )
+      )
+    )
+  })
+
+  # ─────────────────────────────────────────────────────────────
+  # Two-step delete confirmation
+  # ─────────────────────────────────────────────────────────────
+  observeEvent(input$btn_slp_delete_confirm, {
+    req(!is.null(rv$patient_id))
+    pid  <- rv$patient_id
+    pname <- rv$patient_name
+    celf5_n <- length(rv$celf5_ids)
+    slam_n  <- length(rv$slam_ids)
+
+    showModal(modalDialog(
+      title = span(icon("exclamation-triangle"), "⚠️ 确认删除 / Confirm Delete"),
+      p(strong(paste0("学生：", pname, " (ID: ", pid, ")"))),
+      p(paste0("将同时删除所有关联评估（CELF-5: ", celf5_n, "套, SLAM: ", slam_n, "套）。此操作不可撤销。")),
+      p(strong("确定要继续吗？/ Are you sure?"), style = "color:#d00;"),
+      easyClose = FALSE,
+      footer = tagList(
+        actionButton("btn_slp_delete_confirmed",
+                     "🗑 确认删除 / Confirm Delete",
+                     class = "btn-danger"),
+        modalButton("取消 / Cancel")
+      )
+    ))
+  })
+
+  observeEvent(input$btn_slp_delete_confirmed, {
+    req(!is.null(rv$patient_id))
+    pid <- rv$patient_id
+    tryCatch({
+      delete_patient(pid)
+      rv$patient_id   <- NULL
+      rv$patient_name <- NULL
+      rv$celf5_ids    <- character()
+      rv$slam_ids     <- character()
+      showNotification(paste0("已删除学生 #", pid, " 及其所有评估"), type = "message")
+    }, error = function(e) {
+      showNotification(paste0("删除失败: ", e$message), type = "error")
+    })
+  })
+
+  # ─────────────────────────────────────────────────────────────
+  # Load: navigate to CELF-5 or SLAM app
+  # ─────────────────────────────────────────────────────────────
+  observeEvent(input$btn_slp_load, {
+    req(!is.null(rv$patient_id))
+    pid <- rv$patient_id
+    has_celf5 <- isTRUE(input$chk_celf5) && length(rv$celf5_ids) > 0
+    has_slam  <- isTRUE(input$chk_slam)  && length(rv$slam_ids)  > 0
+    if (has_celf5) {
+      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com/celf5?patient=%d'", pid))
+    } else if (has_slam) {
+      shinyjs::runjs(sprintf("window.location.href = 'http://www.zhangyunhai.com/slam?patient=%d'", pid))
+    } else {
+      showNotification("请先在右侧选择要加载的评估类型（CELF-5 或 SLAM）", type = "warning")
+    }
   })
 
   # ─────────────────────────────────────────────────────────────

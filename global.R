@@ -1023,6 +1023,24 @@ delete_assessment <- function(assessment_id) {
   invisible()
 }
 
+delete_patient <- function(patient_id) {
+  con <- get_con()
+  on.exit(dbDisconnect(con))
+  # 先删所有相关评估的分数和 responses
+  assessment_ids <- dbGetQuery(con, "SELECT id FROM assessments WHERE patient_id = ?",
+                                params = list(patient_id))$id
+  for (aid in assessment_ids) {
+    dbExecute(con, "DELETE FROM responses WHERE assessment_id = ?", params = list(aid))
+    dbExecute(con, "DELETE FROM subtest_scores WHERE assessment_id = ?", params = list(aid))
+    dbExecute(con, "DELETE FROM composite_scores WHERE assessment_id = ?", params = list(aid))
+    dbExecute(con, "DELETE FROM slam_composites WHERE assessment_id = ?", params = list(aid))
+    dbExecute(con, "DELETE FROM slam_stories WHERE assessment_id = ?", params = list(aid))
+  }
+  dbExecute(con, "DELETE FROM assessments WHERE patient_id = ?", params = list(patient_id))
+  dbExecute(con, "DELETE FROM patients WHERE id = ?", params = list(patient_id))
+  invisible()
+}
+
 # ─────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────
 # Item Analysis: 基于 Test Objectives 的分类诊断
