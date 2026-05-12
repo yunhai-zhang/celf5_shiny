@@ -2,6 +2,7 @@
 # Stories: Baseball Troubles / The Best Turkey / The Girl Who Loved Horses / Wallace and Batty
 # Scoring: Word Finding (raw→standardized) + GFA (0-2 rubric) + Free Narrative
 # Data saved to celf5_assessments.db
+# Layout: Matches CELF-5 tabPanel pattern with Subject Info tab, 4 story tabs, Report tab
 
 library(shiny)
 library(bslib)
@@ -29,7 +30,6 @@ get_con <- function() dbConnect(SQLite(), DB_PATH)
 # 0b. Story Image Carousel (served from www/story_images/)
 # ─────────────────────────────────────────────────────────────
 story_img_carousel <- function(story_id, n_images) {
-  # Shiny serves www/ folder at root, so relative path works
   img_tags <- lapply(seq_len(n_images), function(p) {
     page_num <- sprintf("p%d", p)
     img_path <- sprintf("story_images/%s_%s_img1.png", story_id, page_num)
@@ -284,7 +284,6 @@ STORIES <- list(
 
 # ─────────────────────────────────────────────────────────────
 # 2. SLAM Norms Table (age 7–17, simplified lookup)
-#    Source: SLAM normative data (Columbia University Leaders Project)
 # ─────────────────────────────────────────────────────────────
 build_slam_norms <- function() {
   ages   <- rep(7:17, each = 4)
@@ -314,529 +313,495 @@ get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
 }
 
 # ─────────────────────────────────────────────────────────────
-# 3. CSS
+# 3. CSS — CELF-5 brand style
 # ─────────────────────────────────────────────────────────────
 slam_css <- function() {
-  HTML("
-    body { background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%);
-           font-family: 'Segoe UI', Arial, sans-serif; }
-    .slam-hero {
-      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%);
-      color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px;
-      box-shadow: 0 8px 30px rgba(27,58,107,0.25); }
-    .slam-hero h2 { color: white; font-size: 28px; font-weight: 700; margin: 0 0 6px; }
-    .slam-hero p  { color: rgba(255,255,255,0.82); font-size: 14px; margin: 0; }
-    .story-card {
-      background: white; border-radius: 16px; border: 1.5px solid #e2e8f0;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; }
-    .story-card-header {
-      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%);
-      color: white; padding: 16px 24px; font-size: 17px; font-weight: 600;
-      display: flex; align-items: center; gap: 10px; }
-    .story-card-body { padding: 24px; }
-    .synopsis-box {
-      background: #F0F4FA; border-left: 4px solid #C8A951;
-      border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
-      font-size: 14px; color: #374151; line-height: 1.7; }
-    .section-label {
-      font-size: 13px; font-weight: 700; color: #1B3A6B; text-transform: uppercase;
-      letter-spacing: 0.8px; margin-bottom: 14px; padding-bottom: 6px;
-      border-bottom: 2px solid #1B3A6B; }
-    .wf-item, .gfa-item {
-      background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 14px;
-      border: 1px solid #e2e8f0; }
-    .wf-prompt { font-size: 15px; font-weight: 600; color: #1B3A6B; margin-bottom: 10px; }
-    .gfa-passage {
-      background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%);
-      border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
-      font-size: 15px; color: #1e293b; line-height: 1.9; font-style: italic; }
-    .gfa-passage .blank { color: #1B3A6B; font-weight: 700; text-decoration: none;
-                           border-bottom: 2px dashed #C8A951; }
-    .rubric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-    .rubric-btn { flex: 1; min-width: 60px; }
-    .btn-save-slam {
-      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%); color: white;
-      border: none; border-radius: 10px; padding: 13px 32px; font-size: 15px;
-      font-weight: 600; transition: all 0.2s ease; }
-    .btn-save-slam:hover { transform: translateY(-1px);
-                           box-shadow: 0 6px 20px rgba(27,58,107,0.35); color: white; }
-    .btn-save-slam:disabled { background: #ccc; transform: none; box-shadow: none; }
-    .score-badge { display: inline-block; padding: 5px 14px; border-radius: 20px;
-                   font-size: 13px; font-weight: 700; margin: 2px; }
-    .badge-raw   { background: #e8f0fe; color: #1B3A6B; }
-    .badge-std   { background: #fff3e0; color: #e65100; }
-    .badge-pr    { background: #e8f5e9; color: #2e7d32; }
-    .progress-story { font-size: 12px; color: #6B7280; }
-    .nav-btn {
-      background: white; color: #1B3A6B; border: 2px solid #1B3A6B;
-      border-radius: 25px; padding: 8px 22px; font-size: 13px; font-weight: 600;
-      transition: all 0.2s ease; cursor: pointer; }
-    .nav-btn:hover { background: #1B3A6B; color: white; border-color: #1B3A6B; }
-    .nav-btn.active { background: #1B3A6B; color: white; border-color: #1B3A6B; }
-    .story-carousel {
-      display: flex; gap: 12px; overflow-x: auto; padding: 10px 0;
-      scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
-    }
-    .carousel-slide { flex: 0 0 auto; scroll-snap-align: start; }
-    .story-img {
-      height: 260px; width: auto; border-radius: 10px;
-      border: 2px solid #e2e8f0; object-fit: cover;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-    .narrative-box {
-      background: #fefce8; border: 1.5px solid #fde68a; border-radius: 10px;
-      padding: 18px; margin-top: 14px; }
-    textarea.form-control { border-radius: 10px; border: 1.5px solid #d0d7e2;
-      padding: 12px 14px; font-size: 14px; }
-    textarea.form-control:focus { border-color: #1B3A6B;
-      box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }
-    .rubric-dim-label { font-size: 13px; font-weight: 600; color: #1B3A6B; margin-bottom: 6px; }
-    .results-card { background: white; border-radius: 14px; border: 1.5px solid #e2e8f0;
-                    padding: 20px; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-    .results-title { font-size: 16px; font-weight: 700; color: #1B3A6B; margin-bottom: 14px; }
-    .tab-success { background: #ecfdf5; border-radius: 10px; padding: 16px; margin-top: 12px;
-                   border: 1px solid #a7f3d0; }
-  ")
-}
+  HTML(paste0(
+"body { background: ", SLAM_GOLD, "; font-family: 'Segoe UI', Arial, sans-serif; }
+.container-fluid { padding: 0; }
+.tab-content { padding: 20px; background: ", SLAM_GOLD, "; min-height: 100vh; }
+.nav-tabs { border-bottom: 2px solid #e2e8f0; }
+.nav-tabs > li > a { border-radius: 8px 8px 0 0; font-weight: 600; color: ", SLAM_GRAY, "; }
+.nav-tabs > li.active > a { color: ", SLAM_BLUE, "; border-color: #e2e8f0 #e2e8f0 white; border-bottom: 3px solid ", SLAM_GOLD, "; }
+.nav-tabs > li > a:hover { color: ", SLAM_BLUE, "; }
+.slam-hero { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px; box-shadow: 0 8px 30px rgba(27,58,107,0.25); }
+.slam-hero h2 { color: white; font-size: 28px; font-weight: 700; margin: 0 0 6px; }
+.slam-hero p  { color: rgba(255,255,255,0.82); font-size: 14px; margin: 0; }
+.story-card { background: white; border-radius: 16px; border: 1.5px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; }
+.story-card-header { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; padding: 16px 24px; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.story-card-body { padding: 24px; }
+.synopsis-box { background: #F0F4FA; border-left: 4px solid #C8A951; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #374151; line-height: 1.7; }
+.section-label { font-size: 13px; font-weight: 700; color: ", SLAM_BLUE, "; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid ", SLAM_BLUE, "; }
+.wf-item, .gfa-item { background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 14px; border: 1px solid #e2e8f0; }
+.wf-prompt { font-size: 15px; font-weight: 600; color: ", SLAM_BLUE, "; margin-bottom: 10px; }
+.gfa-passage { background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%); border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; font-size: 15px; color: #1e293b; line-height: 1.9; font-style: italic; }
+.gfa-passage .blank { color: ", SLAM_BLUE, "; font-weight: 700; text-decoration: none; border-bottom: 2px dashed #C8A951; }
+.rubric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.rubric-btn { flex: 1; min-width: 60px; }
+.btn-save-slam { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; border: none; border-radius: 10px; padding: 13px 32px; font-size: 15px; font-weight: 600; transition: all 0.2s ease; }
+.btn-save-slam:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(27,58,107,0.35); color: white; }
+.btn-save-slam:disabled { background: #ccc; transform: none; box-shadow: none; }
+.score-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; margin: 2px; }
+.badge-raw   { background: #e8f0fe; color: ", SLAM_BLUE, "; }
+.badge-std   { background: #fff3e0; color: #e65100; }
+.badge-pr    { background: #e8f5e9; color: #2e7d32; }
+.progress-story { font-size: 12px; color: rgba(255,255,255,0.7); }
+.nav-btn { background: white; color: ", SLAM_BLUE, "; border: 2px solid ", SLAM_BLUE, "; border-radius: 25px; padding: 8px 22px; font-size: 13px; font-weight: 600; transition: all 0.2s ease; cursor: pointer; }
+.nav-btn:hover { background: ", SLAM_BLUE, "; color: white; border-color: ", SLAM_BLUE, "; }
+.nav-btn.active { background: ", SLAM_BLUE, "; color: white; border-color: ", SLAM_BLUE, "; }
+.story-carousel { display: flex; gap: 12px; overflow-x: auto; padding: 10px 0; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+.carousel-slide { flex: 0 0 auto; scroll-snap-align: start; }
+.story-img { height: 260px; width: auto; border-radius: 10px; border: 2px solid #e2e8f0; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.narrative-box { background: #fefce8; border: 1.5px solid #fde68a; border-radius: 10px; padding: 18px; margin-top: 14px; }
+textarea.form-control { border-radius: 10px; border: 1.5px solid #d0d7e2; padding: 12px 14px; font-size: 14px; }
+textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }
+.rubric-dim-label { font-size: 13px; font-weight: 600; color: ", SLAM_BLUE, "; margin-bottom: 6px; }
+.results-card { background: white; border-radius: 14px; border: 1.5px solid #e2e8f0; padding: 20px; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.results-title { font-size: 16px; font-weight: 700; color: ", SLAM_BLUE, "; margin-bottom: 14px; }
+.tab-success { background: #ecfdf5; border-radius: 10px; padding: 16px; margin-top: 12px; border: 1px solid #a7f3d0; }
+.panel { border-radius: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.panel-heading { background: ", SLAM_BLUE, "; color: white; border-radius: 10px 10px 0 0; font-weight: 600; padding: 12px 16px; }
+.panel-body { background: white; padding: 16px; }
+.form-control { border-radius: 6px; border: 1px solid #ccc; }
+.btn-primary { background: ", SLAM_BLUE, "; border-color: ", SLAM_BLUE, "; font-weight: 600; }
+.btn-primary:hover { background: #1452A3; border-color: #1452A3; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: ", SLAM_GRAY, "; }
+::-webkit-scrollbar-thumb { background: ", SLAM_BLUE, "; border-radius: 4px; }
+"))}
 
 # ─────────────────────────────────────────────────────────────
-# 4. UI
+# 4. UI — CELF-5 tabPanel layout pattern
 # ─────────────────────────────────────────────────────────────
 ui <- fluidPage(
   theme = bslib::bs_theme(version = 5, primary = SLAM_BLUE, secondary = SLAM_GOLD),
   tags$head(tags$style(slam_css())),
-  tags$head(tags$style(HTML(".nav-tabs { border-bottom: 2px solid #e2e8f0; }
-    .nav-tabs .nav-link { border-radius: 8px 8px 0 0; font-weight: 600; color: #6b7280; }
-    .nav-tabs .nav-link.active { color: #1B3A6B; border-color: #e2e8f0 #e2e8f0 white; border-bottom: 3px solid #C8A951; }"))),
 
-  div(style = "max-width: 1100px; margin: 0 auto; padding: 24px 16px;",
+  # Title
+  titlePanel(
+    div(h2("SLAM 叙事评估 / Narrative Assessment",
+            style = sprintf("color:%s; margin:0; font-weight:700;", SLAM_BLUE)),
+        p("Structured Language Assessment Measures — 图片叙事 · 词找 · 语法填空 · 自由叙事",
+          style = "color:#888; font-size:14px; margin:0;")),
+    windowTitle = "SLAM"
+  ),
 
-    # Hero
-    div(class = "slam-hero",
-      h2("SLAM 叙事评估 / Narrative Assessment"),
-      p("Structured Language Assessment Measures — 图片叙事 · 词找 · 语法填空 · 自由叙事")
-    ),
+  # Back-to-home link
+  div(
+    style = "padding: 10px 20px 0;",
+    actionLink("slam_btn_back_home", "‹ Back to Home SLP",
+               style = sprintf("color:%s; font-weight:600; font-size:14px; text-decoration:none; cursor:pointer;", SLAM_BLUE),
+               onclick = "window.location.href='https://www.zhangyunhai.com/slp/';"),
+    hr(style = sprintf("margin:8px 0 0; border-top:1px solid %s;", SLAM_BLUE))
+  ),
 
-    # Student info bar
-    div(class = "story-card",
-      div(class = "story-card-header", span("👤"), "受试者信息 / Student Information"),
-      div(class = "story-card-body",
-        fluidRow(
-          column(4,
-            div(class = "form-group",
-              tags$label("姓名 / Name *", class = "form-label"),
-              textInput("slam_student_name", NULL, placeholder = "受试者姓名", width = "100%")
-            )
-          ),
-          column(2,
-            div(class = "form-group",
-              tags$label("年龄 / Age *", class = "form-label"),
-              numericInput("slam_student_age", NULL, value = NULL, min = 5, max = 21, width = "100%")
-            )
-          ),
-          column(2,
-            div(class = "form-group",
-              tags$label("性别 / Gender", class = "form-label"),
-              selectInput("slam_student_gender", NULL,
-                choices = c("—" = "", "男 / M" = "M", "女 / F" = "F"),
-                selected = "", width = "100%")
-            )
-          ),
-          column(3,
-            div(class = "form-group",
-              tags$label("评估日期 / Date", class = "form-label"),
-              dateInput("slam_assessment_date", NULL,
-                value = Sys.Date(), format = "yyyy-mm-dd", width = "100%")
-            )
-          ),
-          column(1,
-            div(class = "form-group",
-              tags$label("&nbsp;", class = "form-label"),
-              actionButton("slam_info_submit", "✔",
-                title = "确认学生信息 / Confirm Student Info",
-                style = sprintf("margin-top: 24px; background:%s; color:white; border-color:%s; font-size:18px; padding:6px 14px;", SLAM_BLUE, SLAM_BLUE))
+  # Main tabset — matches CELF-5 pattern
+  tabsetPanel(id = "slam_main_tabs", type = "tabs",
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 1: Subject Info — form + DT assessment history
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("受试者信息 / Subject Info",
+      fluidRow(
+        # Left: Subject info form (4 cols)
+        column(4,
+          div(class = "panel",
+            div(class = "panel-heading", "基本信息 / Basic Info"),
+            div(class = "panel-body",
+              textInput("slam_patient_name", "姓名 * / Name *", placeholder = "受试者姓名"),
+              selectInput("slam_patient_gender", "性别 / Gender",
+                choices = c("—" = "",
+                            "男 / Male"   = "M",
+                            "女 / Female" = "F"),
+                selected = "", width = "100%"),
+              textInput("slam_school_name", "学校 / School", placeholder = "就读学校"),
+              textInput("slam_grade_level", "年级 / Grade", placeholder = "如：小一、初二、高一"),
+              textInput("slam_examiner", "评估师 / Examiner", placeholder = "评估师姓名"),
+              dateInput("slam_dob", "出生日期 * / Date of Birth *", format = "yyyy-mm-dd", value = NA),
+              dateInput("slam_assessment_date", "评估日期 * / Assessment Date *",
+                format = "yyyy-mm-dd", value = Sys.Date()),
+              actionButton("slam_start_assessment", "▶ 开始评估 / Start Assessment",
+                class = "btn-primary",
+                style = sprintf("width:100%%; background:%s; border-color:%s;", SLAM_BLUE, SLAM_BLUE))
             )
           )
         ),
-        uiOutput("slam_info_status")
+        # Right: Assessment history table (8 cols)
+        column(8,
+          div(class = "panel",
+            div(class = "panel-heading", "SLAM 历史评估记录 / SLAM Assessment History"),
+            div(class = "panel-body",
+              selectInput("slam_filter_status", "筛选状态 / Filter Status",
+                choices = c("全部 / All" = "all",
+                            "进行中 / In Progress" = "in_progress",
+                            "已完成 / Complete" = "complete"),
+                selected = "all", width = "40%"),
+              DT::dataTableOutput("slam_assessments_dt"),
+              uiOutput("slam_load_assessment_btn")
+            )
+          )
+        )
       )
     ),
 
-    # Story tabs
-    tabsetPanel(id = "slam_story_tabs", type = "tabs",
-
-      # ── Tab 1: Baseball Troubles ──────────────────────────
-      tabPanel("🏇 Baseball Troubles",
-        div(class = "story-card",
-          div(class = "story-card-header",
-            span("🏇"), "Baseball Troubles / 棒球烦恼",
-            span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
-          ),
-          div(class = "story-card-body",
-
-            # Synopsis
-            div(class = "synopsis-box",
-              p(strong("故事概要 Story Synopsis:"), br()),
-              p(STORIES$baseball_troubles$synopsis)
-            ),
-
-            # Images placeholder
-            div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            story_img_carousel("baseball_troubles", 8),
-
-            # Word Finding
-            div(class = "section-label", "🔤 Word Finding / 图片命名"),
-            lapply(1:6, function(i) {
-              wf <- STORIES$baseball_troubles$word_finding
-              div(class = "wf-item", id = sprintf("wf_bt_%d", i),
-                div(class = "wf-prompt",
-                  sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-                fluidRow(
-                  column(8,
-                    textInput(sprintf("wf_bt_%d_text", i), "回答 / Response:", width = "100%")
-                  ),
-                  column(4,
-                    tags$label("原始分 Raw Score", class = "form-label"),
-                    selectInput(sprintf("wf_bt_%d_score", i), NULL,
-                      choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                      selected = "", width = "100%")
-                  )
-                )
-              )
-            }),
-
-            # GFA
-            div(class = "section-label", "📝 GFA 语法填空 / Grammar Fluency Assessment"),
-            lapply(1:4, function(i) {
-              gfa <- STORIES$baseball_troubles$gfa_items
-              ms <- gfa$max_score[i]
-              choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
-              div(class = "gfa-item", id = sprintf("gfa_bt_%d", i),
-                div(class = "gfa-passage",
-                  HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i])),
-                  p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;",
-                    gfa$passage_zh[i])
-                ),
-                fluidRow(
-                  column(8,
-                    textInput(sprintf("gfa_bt_%d_text", i), "回答 / Response:", width = "100%")
-                  ),
-                  column(4,
-                    tags$label("评分 Score", class = "form-label"),
-                    selectInput(sprintf("gfa_bt_%d_score", i), NULL,
-                      choices = choices,
-                      selected = "", width = "100%")
-                  )
-                )
-              )
-            }),
-
-            # Free Narrative
-            div(class = "section-label", "🎤 Free Narrative / 自由叙事"),
-            div(class = "narrative-box",
-              p(strong("指示 Instruction: "), "请学生看着图片讲述故事。/ Ask student to tell the story using the pictures."),
-              textAreaInput("narr_bt", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
-              p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;",
-                "📝 请评估者在评估时记录学生叙事，并在下方评分。")
-            ),
-
-            # Narrative Rubric
-            div(class = "section-label", "📊 Narrative Rubric / 叙事评分"),
-            lapply(seq_along(STORIES$baseball_troubles$narrative_rubric$dimensions), function(d) {
-              dim_name <- STORIES$baseball_troubles$narrative_rubric$dimensions[d]
-              div(style = "margin-bottom: 14px;",
-                div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
-                div(class = "rubric-row",
-                  radioButtons(sprintf("nr_bt_dim%d", d), NULL,
-                    choices = c("0分"="0","1分"="1","2分"="2"),
-                    selected = character(0), inline = TRUE,
-                    width = "100%")
-                )
-              )
-            }),
-
-            div(style = "margin-top: 20px; text-align: center;",
-              actionButton("save_bt", "💾 保存 Baseball Troubles 评分",
-                class = "btn-save-slam")
-            )
-          )
-        )
-      ),
-
-      # ── Tab 2: The Best Turkey ────────────────────────────
-      tabPanel("🦃 The Best Turkey",
-        div(class = "story-card",
-          div(class = "story-card-header",
-            span("🦃"), "The Best Turkey / 最好的火鸡",
-            span(class = "progress-story", "10-14岁 · 5张图 · Word Finding + GFA + Narrative")
-          ),
-          div(class = "story-card-body",
-            div(class = "synopsis-box",
-              p(strong("故事概要 Story Synopsis:"), br()),
-              p(STORIES$the_best_turkey$synopsis)
-            ),
-            div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            story_img_carousel("the_best_turkey", 8),
-            div(class = "section-label", "🔤 Word Finding / 图片命名"),
-            lapply(1:5, function(i) {
-              wf <- STORIES$the_best_turkey$word_finding
-              div(class = "wf-item", id = sprintf("wf_tbt_%d", i),
-                div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-                fluidRow(
-                  column(8, textInput(sprintf("wf_tbt_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("原始分 Raw Score", class = "form-label"),
-                    selectInput(sprintf("wf_tbt_%d_score", i), NULL,
-                      choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "📝 GFA 语法填空"),
-            lapply(1:4, function(i) {
-              gfa <- STORIES$the_best_turkey$gfa_items
-              ms <- gfa$max_score[i]
-              choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-              div(class = "gfa-item", id = sprintf("gfa_tbt_%d", i),
-                div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
-                  p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
-                ),
-                fluidRow(
-                  column(8, textInput(sprintf("gfa_tbt_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("评分 Score", class = "form-label"),
-                    selectInput(sprintf("gfa_tbt_%d_score", i), NULL,
-                      choices = choices,
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "🎤 Free Narrative"),
-            div(class = "narrative-box",
-              p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
-              textAreaInput("narr_tbt", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
-              p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
-            ),
-            div(class = "section-label", "📊 Narrative Rubric"),
-            lapply(seq_along(STORIES$the_best_turkey$narrative_rubric$dimensions), function(d) {
-              dim_name <- STORIES$the_best_turkey$narrative_rubric$dimensions[d]
-              div(style = "margin-bottom: 14px;",
-                div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
-                div(class = "rubric-row",
-                  radioButtons(sprintf("nr_tbt_dim%d", d), NULL,
-                    choices = c("0分"="0","1分"="1","2分"="2"),
-                    selected = character(0), inline = TRUE, width = "100%")
-                )
-              )
-            }),
-            div(style = "margin-top: 20px; text-align: center;",
-              actionButton("save_tbt", "💾 保存 The Best Turkey 评分",
-                class = "btn-save-slam")
-            )
-          )
-        )
-      ),
-
-      # ── Tab 3: The Girl Who Loved Horses ─────────────────
-      tabPanel("🐴 The Girl Who Loved Horses",
-        div(class = "story-card",
-          div(class = "story-card-header",
-            span("🐴"), "The Girl Who Loved Horses / 爱马的女孩",
-            span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
-          ),
-          div(class = "story-card-body",
-            div(class = "synopsis-box",
-              p(strong("故事概要 Story Synopsis:"), br()),
-              p(STORIES$the_girl_who_loved_horses$synopsis)
-            ),
-            div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            story_img_carousel("the_girl_who_loved_horses", 6),
-            div(class = "section-label", "🔤 Word Finding / 图片命名"),
-            lapply(1:6, function(i) {
-              wf <- STORIES$the_girl_who_loved_horses$word_finding
-              div(class = "wf-item", id = sprintf("wf_gwh_%d", i),
-                div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-                fluidRow(
-                  column(8, textInput(sprintf("wf_gwh_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("原始分 Raw Score", class = "form-label"),
-                    selectInput(sprintf("wf_gwh_%d_score", i), NULL,
-                      choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "📝 GFA 语法填空"),
-            lapply(1:4, function(i) {
-              gfa <- STORIES$the_girl_who_loved_horses$gfa_items
-              ms <- gfa$max_score[i]
-              choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-              div(class = "gfa-item", id = sprintf("gfa_gwh_%d", i),
-                div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
-                  p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
-                ),
-                fluidRow(
-                  column(8, textInput(sprintf("gfa_gwh_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("评分 Score", class = "form-label"),
-                    selectInput(sprintf("gfa_gwh_%d_score", i), NULL,
-                      choices = choices,
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "🎤 Free Narrative"),
-            div(class = "narrative-box",
-              p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
-              textAreaInput("narr_gwh", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
-              p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
-            ),
-            div(class = "section-label", "📊 Narrative Rubric"),
-            lapply(seq_along(STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions), function(d) {
-              dim_name <- STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions[d]
-              div(style = "margin-bottom: 14px;",
-                div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
-                div(class = "rubric-row",
-                  radioButtons(sprintf("nr_gwh_dim%d", d), NULL,
-                    choices = c("0分"="0","1分"="1","2分"="2"),
-                    selected = character(0), inline = TRUE, width = "100%")
-                )
-              )
-            }),
-            div(style = "margin-top: 20px; text-align: center;",
-              actionButton("save_gwh", "💾 保存 The Girl Who Loved Horses 评分",
-                class = "btn-save-slam")
-            )
-          )
-        )
-      ),
-
-      # ── Tab 4: Wallace and Batty ───────────────────────────
-      tabPanel("🐕 Wallace and Batty",
-        div(class = "story-card",
-          div(class = "story-card-header",
-            span("🐕"), "Wallace and Batty / 华莱士与巴蒂",
-            span(class = "progress-story", "7-14岁 · 5张图 · Word Finding + GFA + Narrative")
-          ),
-          div(class = "story-card-body",
-            div(class = "synopsis-box",
-              p(strong("故事概要 Story Synopsis:"), br()),
-              p(STORIES$wallace_and_batty$synopsis)
-            ),
-            div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            story_img_carousel("wallace_and_batty", 6),
-            div(class = "section-label", "🔤 Word Finding / 图片命名"),
-            lapply(1:5, function(i) {
-              wf <- STORIES$wallace_and_batty$word_finding
-              div(class = "wf-item", id = sprintf("wf_wb_%d", i),
-                div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
-                fluidRow(
-                  column(8, textInput(sprintf("wf_wb_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("原始分 Raw Score", class = "form-label"),
-                    selectInput(sprintf("wf_wb_%d_score", i), NULL,
-                      choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "📝 GFA 语法填空"),
-            lapply(1:4, function(i) {
-              gfa <- STORIES$wallace_and_batty$gfa_items
-              ms <- gfa$max_score[i]
-              choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-              div(class = "gfa-item", id = sprintf("gfa_wb_%d", i),
-                div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
-                  p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
-                ),
-                fluidRow(
-                  column(8, textInput(sprintf("gfa_wb_%d_text", i), "回答 / Response:", width = "100%")),
-                  column(4,
-                    tags$label("评分 Score", class = "form-label"),
-                    selectInput(sprintf("gfa_wb_%d_score", i), NULL,
-                      choices = choices,
-                      selected = "", width = "100%"))
-                )
-              )
-            }),
-            div(class = "section-label", "🎤 Free Narrative"),
-            div(class = "narrative-box",
-              p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
-              textAreaInput("narr_wb", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
-              p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
-            ),
-            div(class = "section-label", "📊 Narrative Rubric"),
-            lapply(seq_along(STORIES$wallace_and_batty$narrative_rubric$dimensions), function(d) {
-              dim_name <- STORIES$wallace_and_batty$narrative_rubric$dimensions[d]
-              div(style = "margin-bottom: 14px;",
-                div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
-                div(class = "rubric-row",
-                  radioButtons(sprintf("nr_wb_dim%d", d), NULL,
-                    choices = c("0分"="0","1分"="1","2分"="2"),
-                    selected = character(0), inline = TRUE, width = "100%")
-                )
-              )
-            }),
-            div(style = "margin-top: 20px; text-align: center;",
-              actionButton("save_wb", "💾 保存 Wallace and Batty 评分",
-                class = "btn-save-slam")
-            )
-          )
-        )
-      ),
-
-      # ── Tab 5: AI Report ──────────────────────────────────
-      tabPanel("🤖 AI 综合报告 / AI Report",
-        div(class = "story-card",
-          div(class = "story-card-header",
-            span("🤖"), "AI 综合报告 / Hybrid CELF-5 + SLAM Report",
-            span(class = "progress-story", "选择学生 → 生成综合报告")
-          ),
-          div(class = "story-card-body",
-            p(strong("选择学生 / Select Student:"), " 点击下方表格选择一位有SLAM记录的学生",
-              style = "margin-bottom: 16px; font-size: 14px; color: #374151;"),
-            DT::dataTableOutput("slam_patient_dt"),
-            hr(),
-            uiOutput("slam_ai_report_content")
-          )
-        )
-      )
-
-    ),  # end tabsetPanel
-
-    # ── Summary Panel ──────────────────────────────────────
-    div(class = "story-card",
-      div(class = "story-card-header", span("📋"), "SLAM 综合结果 / Summary Results"),
-      div(class = "story-card-body",
-        fluidRow(
-          column(6,
-            p(strong("各故事得分概览 / Score Overview by Story:"), style = "margin-bottom: 12px;"),
-            uiOutput("slam_summary_table")
-          ),
-          column(6,
-            p(strong("说明 / Notes:"), style = "margin-bottom: 8px;"),
-            textAreaInput("slam_notes", NULL, width = "100%", rows = 5,
-              placeholder = "评估者备注 / Examiner notes...")
-          )
+    # ═══════════════════════════════════════════════════════════
+    # TAB 2: Baseball Troubles
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("🏇 Baseball Troubles",
+      div(class = "story-card",
+        div(class = "story-card-header",
+          span("🏇"), "Baseball Troubles / 棒球烦恼",
+          span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
         ),
-        div(style = "margin-top: 16px; text-align: center;",
-          actionButton("save_all_slam", "💾 保存完整评估报告",
-            class = "btn-save-slam", style = "font-size: 16px; padding: 14px 40px;")
-        ),
-        uiOutput("slam_save_result")
+        div(class = "story-card-body",
+
+          # Synopsis
+          div(class = "synopsis-box",
+            p(strong("故事概要 Story Synopsis:"), br()),
+            p(STORIES$baseball_troubles$synopsis)
+          ),
+
+          # Images
+          div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+          story_img_carousel("baseball_troubles", 6),
+
+          # Word Finding
+          div(class = "section-label", "🔤 Word Finding / 图片命名"),
+          lapply(1:6, function(i) {
+            wf <- STORIES$baseball_troubles$word_finding
+            div(class = "wf-item", id = sprintf("wf_bt_%d", i),
+              div(class = "wf-prompt",
+                sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
+              fluidRow(
+                column(8,
+                  textInput(sprintf("wf_bt_%d_text", i), "回答 / Response:", width = "100%")
+                ),
+                column(4,
+                  tags$label("原始分 Raw Score", class = "form-label"),
+                  selectInput(sprintf("wf_bt_%d_score", i), NULL,
+                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
+                    selected = "", width = "100%")
+                )
+              )
+            )
+          }),
+
+          # GFA
+          div(class = "section-label", "📝 GFA 语法填空 / Grammar Fluency Assessment"),
+          lapply(1:4, function(i) {
+            gfa <- STORIES$baseball_troubles$gfa_items
+            ms <- gfa$max_score[i]
+            choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
+            div(class = "gfa-item", id = sprintf("gfa_bt_%d", i),
+              div(class = "gfa-passage",
+                HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i])),
+                p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;",
+                  gfa$passage_zh[i])
+              ),
+              fluidRow(
+                column(8,
+                  textInput(sprintf("gfa_bt_%d_text", i), "回答 / Response:", width = "100%")
+                ),
+                column(4,
+                  tags$label("评分 Score", class = "form-label"),
+                  selectInput(sprintf("gfa_bt_%d_score", i), NULL,
+                    choices = choices,
+                    selected = "", width = "100%")
+                )
+              )
+            )
+          }),
+
+          # Free Narrative
+          div(class = "section-label", "🎤 Free Narrative / 自由叙事"),
+          div(class = "narrative-box",
+            p(strong("指示 Instruction: "), "请学生看着图片讲述故事。/ Ask student to tell the story using the pictures."),
+            textAreaInput("narr_bt", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+            p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;",
+              "📝 请评估者在评估时记录学生叙事，并在下方评分。")
+          ),
+
+          # Narrative Rubric
+          div(class = "section-label", "📊 Narrative Rubric / 叙事评分"),
+          lapply(seq_along(STORIES$baseball_troubles$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$baseball_troubles$narrative_rubric$dimensions[d]
+            div(style = "margin-bottom: 14px;",
+              div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+              div(class = "rubric-row",
+                radioButtons(sprintf("nr_bt_dim%d", d), NULL,
+                  choices = c("0分"="0","1分"="1","2分"="2"),
+                  selected = character(0), inline = TRUE,
+                  width = "100%")
+              )
+            )
+          }),
+
+          div(style = "margin-top: 20px; text-align: center;",
+            actionButton("save_bt", "💾 保存 Baseball Troubles 评分",
+              class = "btn-save-slam")
+          )
+        )
       )
     ),
 
-    # Footer
-    div(style = "text-align: center; margin-top: 36px; padding: 20px; color: #aaa; font-size: 13px;",
-      span(style = sprintf("color: %s; font-weight: 600;", SLAM_BLUE), "SLAM"),
-      "© 2026  |  Columbia University Leaders Project — Free for Copying and Distribution  |  ",
-      "Powered by R Shiny"
+    # ═══════════════════════════════════════════════════════════
+    # TAB 3: The Best Turkey
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("🦃 The Best Turkey",
+      div(class = "story-card",
+        div(class = "story-card-header",
+          span("🦃"), "The Best Turkey / 最好的火鸡",
+          span(class = "progress-story", "10-14岁 · 5张图 · Word Finding + GFA + Narrative")
+        ),
+        div(class = "story-card-body",
+          div(class = "synopsis-box",
+            p(strong("故事概要 Story Synopsis:"), br()),
+            p(STORIES$the_best_turkey$synopsis)
+          ),
+          div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+          story_img_carousel("the_best_turkey", 5),
+          div(class = "section-label", "🔤 Word Finding / 图片命名"),
+          lapply(1:5, function(i) {
+            wf <- STORIES$the_best_turkey$word_finding
+            div(class = "wf-item", id = sprintf("wf_tbt_%d", i),
+              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
+              fluidRow(
+                column(8, textInput(sprintf("wf_tbt_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("原始分 Raw Score", class = "form-label"),
+                  selectInput(sprintf("wf_tbt_%d_score", i), NULL,
+                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "📝 GFA 语法填空"),
+          lapply(1:4, function(i) {
+            gfa <- STORIES$the_best_turkey$gfa_items
+            ms <- gfa$max_score[i]
+            choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            div(class = "gfa-item", id = sprintf("gfa_tbt_%d", i),
+              div(class = "gfa-passage",
+                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+              ),
+              fluidRow(
+                column(8, textInput(sprintf("gfa_tbt_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("评分 Score", class = "form-label"),
+                  selectInput(sprintf("gfa_tbt_%d_score", i), NULL,
+                    choices = choices,
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "🎤 Free Narrative"),
+          div(class = "narrative-box",
+            p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
+            textAreaInput("narr_tbt", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+            p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
+          ),
+          div(class = "section-label", "📊 Narrative Rubric"),
+          lapply(seq_along(STORIES$the_best_turkey$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$the_best_turkey$narrative_rubric$dimensions[d]
+            div(style = "margin-bottom: 14px;",
+              div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+              div(class = "rubric-row",
+                radioButtons(sprintf("nr_tbt_dim%d", d), NULL,
+                  choices = c("0分"="0","1分"="1","2分"="2"),
+                  selected = character(0), inline = TRUE, width = "100%")
+              )
+            )
+          }),
+          div(style = "margin-top: 20px; text-align: center;",
+            actionButton("save_tbt", "💾 保存 The Best Turkey 评分",
+              class = "btn-save-slam")
+          )
+        )
+      )
+    ),
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 4: The Girl Who Loved Horses
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("🐴 The Girl Who Loved Horses",
+      div(class = "story-card",
+        div(class = "story-card-header",
+          span("🐴"), "The Girl Who Loved Horses / 爱马的女孩",
+          span(class = "progress-story", "13-17岁 · 6张图 · Word Finding + GFA + Narrative")
+        ),
+        div(class = "story-card-body",
+          div(class = "synopsis-box",
+            p(strong("故事概要 Story Synopsis:"), br()),
+            p(STORIES$the_girl_who_loved_horses$synopsis)
+          ),
+          div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+          story_img_carousel("the_girl_who_loved_horses", 6),
+          div(class = "section-label", "🔤 Word Finding / 图片命名"),
+          lapply(1:6, function(i) {
+            wf <- STORIES$the_girl_who_loved_horses$word_finding
+            div(class = "wf-item", id = sprintf("wf_gwh_%d", i),
+              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
+              fluidRow(
+                column(8, textInput(sprintf("wf_gwh_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("原始分 Raw Score", class = "form-label"),
+                  selectInput(sprintf("wf_gwh_%d_score", i), NULL,
+                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "📝 GFA 语法填空"),
+          lapply(1:4, function(i) {
+            gfa <- STORIES$the_girl_who_loved_horses$gfa_items
+            ms <- gfa$max_score[i]
+            choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            div(class = "gfa-item", id = sprintf("gfa_gwh_%d", i),
+              div(class = "gfa-passage",
+                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+              ),
+              fluidRow(
+                column(8, textInput(sprintf("gfa_gwh_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("评分 Score", class = "form-label"),
+                  selectInput(sprintf("gfa_gwh_%d_score", i), NULL,
+                    choices = choices,
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "🎤 Free Narrative"),
+          div(class = "narrative-box",
+            p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
+            textAreaInput("narr_gwh", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+            p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
+          ),
+          div(class = "section-label", "📊 Narrative Rubric"),
+          lapply(seq_along(STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$the_girl_who_loved_horses$narrative_rubric$dimensions[d]
+            div(style = "margin-bottom: 14px;",
+              div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+              div(class = "rubric-row",
+                radioButtons(sprintf("nr_gwh_dim%d", d), NULL,
+                  choices = c("0分"="0","1分"="1","2分"="2"),
+                  selected = character(0), inline = TRUE, width = "100%")
+              )
+            )
+          }),
+          div(style = "margin-top: 20px; text-align: center;",
+            actionButton("save_gwh", "💾 保存 The Girl Who Loved Horses 评分",
+              class = "btn-save-slam")
+          )
+        )
+      )
+    ),
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 5: Wallace and Batty
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("🐕 Wallace and Batty",
+      div(class = "story-card",
+        div(class = "story-card-header",
+          span("🐕"), "Wallace and Batty / 华莱士与巴蒂",
+          span(class = "progress-story", "7-14岁 · 5张图 · Word Finding + GFA + Narrative")
+        ),
+        div(class = "story-card-body",
+          div(class = "synopsis-box",
+            p(strong("故事概要 Story Synopsis:"), br()),
+            p(STORIES$wallace_and_batty$synopsis)
+          ),
+          div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+          story_img_carousel("wallace_and_batty", 5),
+          div(class = "section-label", "🔤 Word Finding / 图片命名"),
+          lapply(1:5, function(i) {
+            wf <- STORIES$wallace_and_batty$word_finding
+            div(class = "wf-item", id = sprintf("wf_wb_%d", i),
+              div(class = "wf-prompt", sprintf("Item %d — %s (%s)", i, wf$prompt_en[i], wf$prompt_zh[i])),
+              fluidRow(
+                column(8, textInput(sprintf("wf_wb_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("原始分 Raw Score", class = "form-label"),
+                  selectInput(sprintf("wf_wb_%d_score", i), NULL,
+                    choices = c("—"="","1分 (正确)"="1","0分 (错误)"="0"),
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "📝 GFA 语法填空"),
+          lapply(1:4, function(i) {
+            gfa <- STORIES$wallace_and_batty$gfa_items
+            ms <- gfa$max_score[i]
+            choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+            div(class = "gfa-item", id = sprintf("gfa_wb_%d", i),
+              div(class = "gfa-passage",
+                HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
+                p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+              ),
+              fluidRow(
+                column(8, textInput(sprintf("gfa_wb_%d_text", i), "回答 / Response:", width = "100%")),
+                column(4,
+                  tags$label("评分 Score", class = "form-label"),
+                  selectInput(sprintf("gfa_wb_%d_score", i), NULL,
+                    choices = choices,
+                    selected = "", width = "100%"))
+              )
+            )
+          }),
+          div(class = "section-label", "🎤 Free Narrative"),
+          div(class = "narrative-box",
+            p(strong("指示 Instruction: "), "请学生看着图片讲述故事。"),
+            textAreaInput("narr_wb", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+            p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者记录学生叙事并评分。")
+          ),
+          div(class = "section-label", "📊 Narrative Rubric"),
+          lapply(seq_along(STORIES$wallace_and_batty$narrative_rubric$dimensions), function(d) {
+            dim_name <- STORIES$wallace_and_batty$narrative_rubric$dimensions[d]
+            div(style = "margin-bottom: 14px;",
+              div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+              div(class = "rubric-row",
+                radioButtons(sprintf("nr_wb_dim%d", d), NULL,
+                  choices = c("0分"="0","1分"="1","2分"="2"),
+                  selected = character(0), inline = TRUE, width = "100%")
+              )
+            )
+          }),
+          div(style = "margin-top: 20px; text-align: center;",
+            actionButton("save_wb", "💾 保存 Wallace and Batty 评分",
+              class = "btn-save-slam")
+          )
+        )
+      )
+    ),
+
+    # ═══════════════════════════════════════════════════════════
+    # TAB 6: AI Report
+    # ═══════════════════════════════════════════════════════════
+    tabPanel("🤖 AI 综合报告 / AI Report",
+      div(class = "story-card",
+        div(class = "story-card-header",
+          span("🤖"), "AI 综合报告 / Hybrid CELF-5 + SLAM Report",
+          span(class = "progress-story", "选择学生 → 生成综合报告")
+        ),
+        div(class = "story-card-body",
+          p(strong("选择学生 / Select Student:"), " 点击下方表格选择一位有SLAM记录的学生",
+            style = "margin-bottom: 16px; font-size: 14px; color: #374151;"),
+          DT::dataTableOutput("slam_patient_dt"),
+          hr(),
+          uiOutput("slam_ai_report_content")
+        )
+      )
     )
+
+  ),  # end tabsetPanel
+
+  # Footer
+  div(style = "text-align: center; margin-top: 36px; padding: 20px; color: #aaa; font-size: 13px;",
+    span(style = sprintf("color: %s; font-weight: 600;", SLAM_BLUE), "SLAM"),
+    "© 2026  |  Columbia University Leaders Project — Free for Copying and Distribution  |  ",
+    "Powered by R Shiny"
   )
 )
 
@@ -845,17 +810,141 @@ ui <- fluidPage(
 # ─────────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
-  # Reactive: get current student info
+  # ── Reactive: current student info from Subject Info tab ────
   student_info <- reactive({
     list(
-      name   = trim(input$slam_student_name %||% ""),
-      age    = as.integer(input$slam_student_age %||% NA_integer_),
-      gender = input$slam_student_gender %||% "",
+      name   = trim(input$slam_patient_name %||% ""),
+      gender = input$slam_patient_gender %||% "",
+      dob    = input$slam_dob,
       date   = as.character(input$slam_assessment_date %||% Sys.Date())
     )
   })
 
-  # ── Scoring helpers ────────────────────────────────────
+  # ── SLAM Assessment History DT (Subject Info tab) ────────────
+  output$slam_assessments_dt <- DT::renderDataTable({
+    filter_status <- input$slam_filter_status %||% "all"
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+
+    if (filter_status == "all") {
+      status_clause <- ""
+    } else {
+      status_clause <- sprintf("AND a.status = '%s'", filter_status)
+    }
+
+    sql <- sprintf("
+      SELECT a.id, p.name, p.dob, p.gender,
+             a.assessment_date, a.age_years, a.status, a.assessment_type
+      FROM assessments a
+      JOIN patients p ON a.patient_id = p.id
+      WHERE a.assessment_type = 'SLAM' %s
+      ORDER BY a.assessment_date DESC", status_clause)
+
+    df <- dbGetQuery(con, sql)
+    if (nrow(df) == 0) {
+      return(DT::datatable(data.frame(
+        Message = "暂无SLAM记录 / No SLAM records yet"
+      ), options = list(dom = "t")))
+    }
+
+    df$gender_display <- sapply(df$gender, function(g) {
+      switch(g, M = "男 / M", F = "女 / F", "—")
+    })
+
+    DT::datatable(
+      df[, c("name","dob","gender_display","assessment_date","age_years","status")],
+      colnames = c("姓名" = "name", "出生日期" = "dob", "性别" = "gender_display",
+                   "评估日期" = "assessment_date", "年龄" = "age_years", "状态" = "status"),
+      selection = "single",
+      options = list(
+        pageLength = 10,
+        dom = "frtip",
+        language = list(emptyTable = "暂无SLAM记录 / No SLAM records yet")
+      )
+    )
+  })
+
+  # ── Load assessment button (when row selected) ───────────────
+  output$slam_load_assessment_btn <- renderUI({
+    req(input$slam_assessments_dt_rows_selected)
+    tagList(
+      hr(),
+      actionButton("slam_load_btn", "📂 加载选中评估 / Load Selected Assessment",
+        class = "btn-primary",
+        style = sprintf("background:%s; border-color:%s;", SLAM_BLUE, SLAM_BLUE))
+    )
+  })
+
+  # ── Load assessment — populate form ──────────────────────────
+  observeEvent(input$slam_load_btn, {
+    req(input$slam_assessments_dt_rows_selected)
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+
+    filter_status <- input$slam_filter_status %||% "all"
+    if (filter_status == "all") {
+      status_clause <- ""
+    } else {
+      status_clause <- sprintf("AND a.status = '%s'", filter_status)
+    }
+    sql <- sprintf("
+      SELECT a.id, p.name, p.dob, p.gender, p.school, p.grade, p.examiner,
+             a.assessment_date, a.age_years, a.status
+      FROM assessments a
+      JOIN patients p ON a.patient_id = p.id
+      WHERE a.assessment_type = 'SLAM' %s
+      ORDER BY a.assessment_date DESC", status_clause)
+    df <- dbGetQuery(con, sql)
+
+    row_idx <- input$slam_assessments_dt_rows_selected[1]
+    if (row_idx > nrow(df)) return()
+
+    row <- df[row_idx, ]
+    updateTextInput(session, "slam_patient_name", value = row$name %||% "")
+    updateSelectInput(session, "slam_patient_gender", selected = row$gender %||% "")
+    updateTextInput(session, "slam_school_name", value = row$school %||% "")
+    updateTextInput(session, "slam_grade_level", value = row$grade %||% "")
+    updateTextInput(session, "slam_examiner", value = row$examiner %||% "")
+
+    if (!is.na(row$dob) && nzchar(row$dob)) {
+      updateDateInput(session, "slam_dob", value = as.Date(row$dob))
+    }
+    if (!is.na(row$assessment_date) && nzchar(row$assessment_date)) {
+      updateDateInput(session, "slam_assessment_date", value = as.Date(row$assessment_date))
+    }
+
+    showNotification(
+      tagList(icon("check-circle"), sprintf(" 已加载评估 ID %d — %s", row$id, row$name)),
+      type = "message", duration = 3
+    )
+  })
+
+  # ── Start Assessment button ──────────────────────────────────
+  observeEvent(input$slam_start_assessment, {
+    si <- student_info()
+    if (si$name == "") {
+      showNotification(
+        tagList(icon("exclamation-triangle"), "请输入学生姓名 / Please enter student name"),
+        type = "error", duration = 4
+      )
+      return()
+    }
+    if (is.null(si$dob) || is.na(si$dob)) {
+      showNotification(
+        tagList(icon("exclamation-triangle"), "请输入出生日期 / Please enter date of birth"),
+        type = "error", duration = 4
+      )
+      return()
+    }
+    # Switch to first story tab
+    updateTabsetPanel(session, "slam_main_tabs", selected = "🏇 Baseball Troubles")
+    showNotification(
+      tagList(icon("check-circle"), sprintf(" 已开始评估: %s", si$name)),
+      type = "message", duration = 3
+    )
+  })
+
+  # ── Scoring helpers ──────────────────────────────────────────
 
   calc_wf_raw <- function(prefix, n) {
     scores <- lapply(seq_len(n), function(i) {
@@ -879,15 +968,29 @@ server <- function(input, output, session) {
   }
 
   build_scores_df <- function(story_id, wf_prefix, gfa_prefix, narr_prefix, n_wf, n_gfa) {
-    age <- student_info()$age
-    if (is.na(age)) age <- 10L
+    si <- student_info()
+    age_years <- if (!is.null(input$slam_assessment_date) && !is.na(si$dob)) {
+      calc_age <- function(dob, ad) {
+        dob <- as.Date(dob); ad <- as.Date(ad)
+        years <- year(ad) - year(dob)
+        months <- month(ad) - month(dob)
+        days <- day(ad) - day(dob)
+        if (days < 0) { months <- months - 1; days <- days + 30 }
+        if (months < 0) { years <- years - 1; months <- months + 12 }
+        as.integer(years)
+      }
+      calc_age(si$dob, si$date)
+    } else {
+      10L
+    }
+    if (is.na(age_years)) age_years <- 10L
 
     wf_raw   <- calc_wf_raw(wf_prefix, n_wf)
     gfa_raw  <- calc_gfa_raw(gfa_prefix, n_gfa)
     narr_raw <- calc_narr_rubric(narr_prefix)
 
-    wf_std  <- get_slam_standard_score(wf_raw,  "word_finding", age)
-    gfa_std <- get_slam_standard_score(gfa_raw, "gfa",          age)
+    wf_std  <- get_slam_standard_score(wf_raw,  "word_finding", age_years)
+    gfa_std <- get_slam_standard_score(gfa_raw, "gfa",          age_years)
 
     tibble(
       assessment_id = NA_integer_,
@@ -903,8 +1006,28 @@ server <- function(input, output, session) {
     )
   }
 
-  # ── Save individual story ──────────────────────────────
+  # ── Get or create patient ────────────────────────────────────
+  get_or_create_patient <- function(si) {
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+    dob_str <- if (!is.null(si$dob) && !is.na(si$dob)) {
+      as.character(si$dob)
+    } else {
+      as.character(Sys.Date())
+    }
+    pid <- dbGetQuery(con,
+      "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
+      params = list(si$name, dob_str))$id[1]
+    if (is.na(pid)) {
+      dbExecute(con,
+        "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
+        params = list(si$name, dob_str, si$gender, input$slam_examiner %||% "", ""))
+      pid <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+    }
+    pid
+  }
 
+  # ── Save individual story ────────────────────────────────────
   save_one_story <- function(story_id, wf_prefix, gfa_prefix, narr_prefix, n_wf, n_gfa, btn_id) {
     si <- student_info()
     if (si$name == "") {
@@ -919,27 +1042,29 @@ server <- function(input, output, session) {
       con <- get_con()
       on.exit(dbDisconnect(con), add = TRUE)
 
-      # Get or create patient — match by name AND dob to avoid duplicates
-      dob_calc <- if (!is.na(si$age)) {
-        as.character(Sys.Date() - years(si$age))
-      } else { as.character(Sys.Date()) }
-      patient_id <- dbGetQuery(con,
-        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
-        params = list(si$name, dob_calc))$id[1]
-      if (is.na(patient_id)) {
-        dbExecute(con,
-          "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
-          params = list(si$name, dob_calc, si$gender, "", ""))
-        patient_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
-      }
+      pid <- get_or_create_patient(si)
 
-      # Create assessment
-      ag <- sprintf("%d:0-%d:11", floor(age_to_group(si$age)), floor(age_to_group(si$age)) + 1)
+      # Calculate age
+      age_years <- if (!is.null(si$dob) && !is.na(si$dob)) {
+        calc_age <- function(dob, ad) {
+          dob <- as.Date(dob); ad <- as.Date(ad)
+          years <- year(ad) - year(dob)
+          months <- month(ad) - month(dob)
+          days <- day(ad) - day(dob)
+          if (days < 0) { months <- months - 1; days <- days + 30 }
+          if (months < 0) { years <- years - 1; months <- months + 12 }
+          as.integer(years)
+        }
+        calc_age(si$dob, si$date)
+      } else { 10L }
+      if (is.na(age_years)) age_years <- 10L
+
+      ag <- sprintf("%d:0-%d:11", floor(age_years), floor(age_years) + 1)
 
       dbExecute(con,
         "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status, assessment_type)
          VALUES (?, ?, ?, ?, 'in_progress', 'SLAM')",
-        params = list(patient_id, si$date, si$age, ag))
+        params = list(pid, si$date, age_years, ag))
 
       assessment_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
 
@@ -998,8 +1123,7 @@ server <- function(input, output, session) {
     })
   }
 
-  # ── Save buttons ────────────────────────────────────────
-
+  # ── Save buttons ─────────────────────────────────────────────
   observeEvent(input$save_bt, {
     save_one_story("BaseballTroubles", "wf_bt", "gfa_bt", "narr_bt", 6, 4)
   })
@@ -1013,46 +1137,7 @@ server <- function(input, output, session) {
     save_one_story("WallaceAndBatty", "wf_wb", "gfa_wb", "narr_wb", 5, 4)
   })
 
-  # ── Student Info Submit ─────────────────────────────────
-  observeEvent(input$slam_info_submit, {
-    si <- student_info()
-    if (si$name == "") {
-      output$slam_info_status <- renderUI({
-        div(style = "color: #dc2626; font-size: 13px; margin-top: 4px;",
-          icon("exclamation-triangle"), " 请输入学生姓名 / Please enter student name")
-      })
-      return()
-    }
-    tryCatch({
-      con <- get_con()
-      on.exit(dbDisconnect(con), add = TRUE)
-      dob_calc <- if (!is.na(si$age)) as.character(Sys.Date() - years(si$age)) else as.character(Sys.Date())
-      pid <- dbGetQuery(con,
-        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
-        params = list(si$name, dob_calc))$id[1]
-      if (is.na(pid)) {
-        dbExecute(con,
-          "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
-          params = list(si$name, dob_calc, si$gender, "", ""))
-        pid <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
-      }
-      age_display <- if (!is.na(si$age)) sprintf("%d岁", si$age) else "—"
-      gender_display <- switch(si$gender, M = "男 / M", F = "女 / F", "—")
-      output$slam_info_status <- renderUI({
-        div(style = sprintf("color: %s; font-size: 13px; margin-top: 4px; font-weight: 600;", SLAM_BLUE),
-          icon("check-circle"),
-          sprintf(" ✓ %s | %s | %s | %s (Patient ID: %d)",
-            si$name, age_display, gender_display, si$date, pid))
-      })
-    }, error = function(e) {
-      output$slam_info_status <- renderUI({
-        div(style = "color: #dc2626; font-size: 13px; margin-top: 4px;",
-          icon("exclamation-triangle"), sprintf(" 错误: %s", e$message))
-      })
-    })
-  })
-
-  # ── AI Report — Patient DT ──────────────────────────────
+  # ── AI Report — Patient DT ──────────────────────────────────
   output$slam_patient_dt <- DT::renderDataTable({
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
@@ -1066,7 +1151,7 @@ server <- function(input, output, session) {
       ORDER BY most_recent_date DESC")
     if (nrow(patients_df) == 0) {
       return(DT::datatable(data.frame(
-        Message = character("暂无SLAM记录 / No SLAM records yet")
+        Message = "暂无SLAM记录 / No SLAM records yet"
       ), options = list(dom = "t")))
     }
     DT::datatable(patients_df[, c("name", "dob", "most_recent_date")],
@@ -1080,7 +1165,7 @@ server <- function(input, output, session) {
       ))
   })
 
-  # ── AI Report — Selected Patient Report ─────────────────
+  # ── AI Report — Selected Patient Report ─────────────────────
   selected_slam_pid <- reactive({
     input$slam_patient_dt_rows_selected
   })
@@ -1102,7 +1187,6 @@ server <- function(input, output, session) {
     pname <- patients_df$name[selected_slam_pid()[1]]
     pdob <- patients_df$dob[selected_slam_pid()[1]]
 
-    # Fetch ALL assessments (CELF5 + SLAM) for this patient
     all_data <- dbGetQuery(con, "
       SELECT a.*, p.name AS patient_name, p.dob, p.gender
       FROM assessments a
@@ -1115,21 +1199,17 @@ server <- function(input, output, session) {
       return(div("该患者没有评估记录 / No assessment records found for this patient."))
     }
 
-    # Separate SLAM vs CELF5
     slam_data <- all_data[all_data$assessment_type == "SLAM", ]
     celf_data <- all_data[all_data$assessment_type == "CELF5", ]
 
-    # Build report sections
     report_parts <- list()
 
-    # Header
     report_parts[[length(report_parts) + 1]] <- div(
       style = sprintf("background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%); color: white; border-radius: 14px; padding: 24px; margin-bottom: 20px;"),
       h3(sprintf("综合评估报告 / Comprehensive Assessment Report: %s", pname), style = "margin:0 0 8px; color: white;"),
-      p(sprintf("出生日期 DOB: %s | 性别 Gender: %s | Patient ID: %d", pdob, slam_data$gender[1] %||% "—", pid), style = "margin:0; opacity: 0.85;")
+      p(sprintf("出生日期 DOB: %s | Patient ID: %d", pdob, pid), style = "margin:0; opacity: 0.85;")
     )
 
-    # SLAM Summary
     if (nrow(slam_data) > 0) {
       slam_ids <- slam_data$id
       slam_scores <- dbGetQuery(con, "
@@ -1178,7 +1258,6 @@ server <- function(input, output, session) {
       report_parts[[length(report_parts) + 1]] <- slam_block
     }
 
-    # CELF5 Summary
     if (nrow(celf_data) > 0) {
       celf_block <- div(style = "margin-bottom: 24px;",
         h4(sprintf("📋 CELF-5 语言评估 / CELF-5 Language Assessment (%d次评估)", nrow(celf_data)),
@@ -1203,129 +1282,6 @@ server <- function(input, output, session) {
     tagList(report_parts)
   })
 
-  # ── Summary Table ───────────────────────────────────────
-
-  output$slam_summary_table <- renderUI({
-    si <- student_info()
-    age <- if (is.na(si$age)) 10L else si$age
-
-    stories <- list(
-      list(id = "BaseballTroubles",    name = "Baseball Troubles",    prefix_wf = "wf_bt",  prefix_gfa = "gfa_bt",  prefix_nr = "nr_bt",  n_wf = 6, n_gfa = 4),
-      list(id = "TheBestTurkey",        name = "The Best Turkey",       prefix_wf = "wf_tbt", prefix_gfa = "gfa_tbt", prefix_nr = "nr_tbt", n_wf = 5, n_gfa = 4),
-      list(id = "GirlWhoLovedHorses",   name = "Girl Who Loved Horses", prefix_wf = "wf_gwh", prefix_gfa = "gfa_gwh", prefix_nr = "nr_gwh", n_wf = 6, n_gfa = 4),
-      list(id = "WallaceAndBatty",      name = "Wallace and Batty",     prefix_wf = "wf_wb",  prefix_gfa = "gfa_wb",  prefix_nr = "nr_wb",  n_wf = 5, n_gfa = 4)
-    )
-
-    rows <- lapply(stories, function(s) {
-      wf_raw  <- calc_wf_raw(s$prefix_wf, s$n_wf)
-      gfa_raw <- calc_gfa_raw(s$prefix_gfa, s$n_gfa)
-      nr_raw  <- calc_narr_rubric(s$prefix_nr)
-      wf_std  <- get_slam_standard_score(wf_raw,  "word_finding", age)
-      gfa_std <- get_slam_standard_score(gfa_raw, "gfa",          age)
-
-      wf_pr  <- std_to_pr(wf_std)
-      gfa_pr <- std_to_pr(gfa_std)
-
-      div(style = "margin-bottom: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;",
-        strong(sprintf("%s:", s$name)), br(),
-        span(class = "score-badge badge-raw",
-          sprintf("Word Finding 原始: %d", wf_raw)),
-        span(class = "score-badge badge-raw",
-          sprintf("GFA 原始: %d", gfa_raw)),
-        span(class = "score-badge badge-raw",
-          sprintf("Narrative: %d/10", nr_raw)),
-        if (!is.na(wf_std)) {
-          span(class = "score-badge badge-std",
-            sprintf("Word Finding 标准: %d", wf_std))
-        },
-        if (!is.na(gfa_std)) {
-          span(class = "score-badge badge-std",
-            sprintf("GFA 标准: %d", gfa_std))
-        }
-      )
-    })
-
-    tagList(rows)
-  })
-
-  # ── Save All ────────────────────────────────────────────
-
-  observeEvent(input$save_all_slam, {
-    si <- student_info()
-    if (si$name == "") {
-      showNotification(
-        tagList(icon("exclamation-triangle"), "请先输入学生姓名 / Please enter student name"),
-        type = "error", duration = 4
-      )
-      return()
-    }
-
-    tryCatch({
-      con <- get_con()
-      on.exit(dbDisconnect(con), add = TRUE)
-
-      # Get or create patient — match by name AND dob
-      dob_for_lookup <- if (!is.na(si$age)) {
-        as.character(Sys.Date() - years(si$age))
-      } else { as.character(Sys.Date()) }
-      patient_id <- dbGetQuery(con,
-        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
-        params = list(si$name, dob_for_lookup))$id[1]
-      if (is.na(patient_id)) {
-        dbExecute(con,
-          "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
-          params = list(si$name, dob_for_lookup, si$gender, "", ""))
-        patient_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
-      }
-
-      age <- si$age
-      if (is.na(age)) age <- 10L
-
-      ag <- sprintf("%d:0-%d:11", floor(age_to_group(age)), floor(age_to_group(age)) + 1)
-
-      dbExecute(con,
-        "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status, assessment_type)
-         VALUES (?, ?, ?, ?, 'completed', 'SLAM')",
-        params = list(patient_id, si$date, age, ag))
-      assessment_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
-
-      # Save all story scores
-      all_scores <- bind_rows(
-        build_scores_df("BaseballTroubles",  "wf_bt",  "gfa_bt",  "narr_bt",  6, 4),
-        build_scores_df("TheBestTurkey",      "wf_tbt", "gfa_tbt", "narr_tbt", 5, 4),
-        build_scores_df("GirlWhoLovedHorses", "wf_gwh", "gfa_gwh", "narr_gwh", 6, 4),
-        build_scores_df("WallaceAndBatty",    "wf_wb",  "gfa_wb",  "narr_wb",  5, 4)
-      )
-      all_scores$assessment_id <- assessment_id
-
-      lapply(seq_len(nrow(all_scores)), function(r) {
-        row <- all_scores[r, ]
-        dbExecute(con,
-          "INSERT OR REPLACE INTO subtest_scores (assessment_id, subtest, raw_score, scaled_score)
-           VALUES (?, ?, ?, ?)",
-          params = list(assessment_id, row$subtest, row$raw_score, row$scaled_score))
-      })
-
-      # Save notes
-      if (!is.null(input$slam_notes) && nzchar(input$slam_notes)) {
-        dbExecute(con,
-          "UPDATE assessments SET notes = ? WHERE id = ?",
-          params = list(input$slam_notes, assessment_id))
-      }
-
-      output$slam_save_result <- renderUI({
-        div(class = "tab-success",
-          icon("check-circle"), sprintf(" 完整评估报告已保存 (Assessment ID: %d, Patient: %s)",
-            assessment_id, si$name))
-      })
-
-    }, error = function(e) {
-      output$slam_save_result <- renderUI({
-        div(style = "color: #dc2626; margin-top: 12px;",
-          icon("exclamation-triangle"), sprintf(" 保存失败: %s", e$message))
-      })
-    })
-  })
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -1342,7 +1298,6 @@ age_to_group <- function(age) {
 }
 
 std_to_pr <- function(std) {
-  # Approximate percentile rank from standard score (mean=100, sd=15 for composite; here 10,15)
   if (is.na(std) || std < 50) return(NA_real_)
   pnorm((std - 100) / 15) * 100
 }
