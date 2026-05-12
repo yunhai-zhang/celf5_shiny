@@ -313,7 +313,205 @@ STORIES <- list(
 )
 
 # ─────────────────────────────────────────────────────────────
-# 2. SLAM Norms Table (age 7–17, simplified lookup)
+# 2. PreK-Elementary Stories (ages 3-12)
+# ─────────────────────────────────────────────────────────────
+STORIES_ELEM <- list(
+  dog_comes_home = list(
+    id   = "dog_comes_home",
+    name = "Dog Comes Home",
+    name_zh = "狗回家",
+    age_range = "3-6岁",
+    n_images = 6,
+    pdf_path = NULL,
+    gfa_path = NULL,
+    synopsis = "一个小女孩偷偷把一只脏狗带回家藏进包里，被发现后给狗洗澡，妈妈回来看到又惊又气。\nA girl secretly hides a dirty dog in her bag to take it home. When discovered, she bathes the dog. Mom returns shocked and upset.",
+    word_finding = tibble(
+      item   = 1:6,
+      prompt_en = c(
+        "What is this?",  # dog
+        "What is this?",  # girl
+        "What is this?",  # bag
+        "What is this?",  # mother/mom
+        "What is this?",  # bathtub
+        "What is this?"   # water
+      ),
+      prompt_zh = c(
+        "这是什么？", # dog
+        "这是什么？", # girl
+        "这是什么？", # bag
+        "这是什么？", # mother/mom
+        "这是什么？", # bathtub
+        "这是什么？"  # water
+      ),
+      acceptable_en = list(
+        c("dog","puppy","doggy"),
+        c("girl","kid","child"),
+        c("bag","backpack","purse"),
+        c("mom","mother","mama"),
+        c("bathtub","bath","tub"),
+        c("water")
+      )
+    ),
+    gfa_items = tibble(
+      item = 1:6,
+      passage_en = c(
+        "What is the girl thinking here?",
+        "Why is she putting the dog in her bag?",
+        "Why is the girl getting so dirty?",
+        "Why is she in the bathtub with a white dog now?",
+        "What is the mother going to do now?",
+        "What would you say to your mom if you were the girl?"
+      ),
+      passage_zh = c(
+        "小女孩在想什么？",
+        "她为什么把小狗放进包里？",
+        "小女孩为什么变脏了？",
+        "她为什么现在和一只小白狗一起在浴缸里？",
+        "妈妈现在会做什么？",
+        "如果你是小女孩，你会对妈妈说什么？"
+      ),
+      answers = lapply(1:6, function(i) character(0)),
+      max_score = 2
+    ),
+    narrative_rubric = list(
+      dimensions = c("叙事结构 Narrative Structure","复杂句 Complex Clauses",
+                     "推论能力 Inferencing","语用 Pragmatic","理论心智 Theory of Mind"),
+      max_per_dim = 2
+    )
+  ),
+
+  bunny_goes_school = list(
+    id   = "bunny_goes_school",
+    name = "Bunny Goes to School",
+    name_zh = "小兔子去学校",
+    age_range = "7-12岁",
+    n_images = 6,
+    pdf_path = NULL,
+    gfa_path = NULL,
+    synopsis = "一只小兔子偷偷钻进书包跟男孩去学校，被发现后全班惊慌，男孩用胡萝卜引诱抓住兔子，妈妈被叫到学校。\nA bunny secretly hops into a boy's backpack to follow him to school. Discovered, the class panics. The boy lures it with a carrot. Mom is called to school.",
+    word_finding = tibble(
+      item   = 1:6,
+      prompt_en = c(
+        "What is this?",  # bunny/rabbit
+        "What is this?",  # backpack
+        "What is this?",  # teacher
+        "What is this?",  # carrot
+        "What is this?",  # desk
+        "What is this?"   # phone
+      ),
+      prompt_zh = c(
+        "这是什么？", # bunny/rabbit
+        "这是什么？", # backpack
+        "这是什么？", # teacher
+        "这是什么？", # carrot
+        "这是什么？", # desk
+        "这是什么？"  # phone
+      ),
+      acceptable_en = list(
+        c("bunny","rabbit","rabbit"),
+        c("backpack","bag","schoolbag"),
+        c("teacher","teacher"),
+        c("carrot","carrot"),
+        c("desk","table"),
+        c("phone","cellphone","mobile")
+      )
+    ),
+    gfa_items = tibble(
+      item = 1:9,
+      passage_en = c(
+        "Why did the bunny jump out of the backpack?",
+        "Why are some students afraid? Why are some laughing?",
+        "What would you do if a bunny started hopping around your classroom?",
+        "What was the boy's idea?",
+        "How did the mom know she had to come to school?",
+        "Why did she come to school?",
+        "What do you think will happen when the boy goes home?",
+        "What is the teacher thinking now?",
+        "Have you ever been in trouble like this?"
+      ),
+      passage_zh = c(
+        "小兔子为什么从书包里跳出来？",
+        "为什么有的学生害怕，有的在笑？",
+        "如果有一只兔子在你们教室里跳，你会怎么做？",
+        "男孩想了什么办法？",
+        "妈妈怎么知道要来学校？",
+        "妈妈为什么要来学校？",
+        "你觉得男孩回家后会发生什么？",
+        "老师现在在想什么？",
+        "你有没有遇到过类似的麻烦？"
+      ),
+      answers = lapply(1:9, function(i) character(0)),
+      max_score = 2
+    ),
+    narrative_rubric = list(
+      dimensions = c("叙事结构 Narrative Structure","复杂句 Complex Clauses",
+                     "推论能力 Inferencing","语用 Pragmatic","理论心智 Theory of Mind"),
+      max_per_dim = 2
+    )
+  ),
+
+  the_crayons = list(
+    id   = "the_crayons",
+    name = "The Crayons",
+    name_zh = "蜡笔大战",
+    age_range = "4-12岁",
+    n_images = 4,
+    pdf_path = NULL,
+    gfa_path = NULL,
+    synopsis = "红色蜡笔在墙上乱画后嫁祸给小蓝蜡笔，紫色蜡笔很生气。\nThe red crayon draws on the wall and blames the little blue crayon. The purple crayon is angry at blue.",
+    word_finding = tibble(
+      item   = 1:5,
+      prompt_en = c(
+        "What is this?",  # red crayon
+        "What is this?",  # blue crayon
+        "What is this?",  # purple crayon
+        "What is this?",  # wall
+        "What is this?"   # coloring/drawing
+      ),
+      prompt_zh = c(
+        "这是什么？", # red crayon
+        "这是什么？", # blue crayon
+        "这是什么？", # purple crayon
+        "这是什么？", # wall
+        "这是什么？"  # coloring/drawing
+      ),
+      acceptable_en = list(
+        c("red crayon","red","crayon"),
+        c("blue crayon","blue","crayon"),
+        c("purple crayon","purple","crayon"),
+        c("wall"),
+        c("coloring","drawing","picture")
+      )
+    ),
+    gfa_items = tibble(
+      item = 1:5,
+      passage_en = c(
+        "What happened here?",
+        "Why is the red crayon pointing to the little blue crayon?",
+        "What would you say to the big crayon if you were the little blue crayon?",
+        "What do you think is going to happen next?",
+        "Were you ever blamed for something you didn't do?"
+      ),
+      passage_zh = c(
+        "这里发生了什么事？",
+        "红色蜡笔为什么指着小蓝蜡笔？",
+        "如果你是小蓝蜡笔，你会对大红蜡笔说什么？",
+        "你觉得接下来会发生什么？",
+        "你有没有被冤枉过？"
+      ),
+      answers = lapply(1:5, function(i) character(0)),
+      max_score = 2
+    ),
+    narrative_rubric = list(
+      dimensions = c("叙事结构 Narrative Structure","复杂句 Complex Clauses",
+                     "推论能力 Inferencing","语用 Pragmatic","理论心智 Theory of Mind"),
+      max_per_dim = 2
+    )
+  )
+)
+
+# ─────────────────────────────────────────────────────────────
+# 2b. SLAM Norms Table (age 7–17, simplified lookup)
 # ─────────────────────────────────────────────────────────────
 build_slam_norms <- function() {
   ages   <- rep(7:17, each = 4)
@@ -333,13 +531,75 @@ build_slam_norms <- function() {
 
 SLAM_NORMS <- build_slam_norms()
 
-get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
+# PreK-Elementary norms (ages 3-12)
+build_slam_norms_elem <- function() {
+  # Ages 3-6: PreK norms (approximate from clinical experience)
+  ages_preschool <- rep(3:6, each = 4)
+  raw_scores <- rep(c(0, 3, 6, 9), 4)
+  std_wf_elem <- c(
+    50,60,70,82,  # age 3
+    50,61,72,83,  # age 4
+    51,62,73,84,  # age 5
+    52,63,74,85   # age 6
+  )
+  std_gfa_elem <- c(
+    50,58,66,78,  # age 3
+    50,59,68,80,  # age 4
+    51,60,70,82,  # age 5
+    52,61,71,83   # age 6
+  )
+  # Ages 7-12: merge with JH-HS norms
+  ages_jh <- rep(7:12, each = 4)
+  raw_jh <- rep(c(0,5,10,15), 6)
+  std_wf_jh <- c(
+    50,62,74,86,  # 7
+    51,64,76,88,  # 8
+    52,65,78,89,  # 9
+    53,66,79,90,  # 10
+    54,67,80,91,  # 11
+    55,68,81,92   # 12
+  )
+  std_gfa_jh <- c(
+    50,60,70,82,  # 7
+    51,62,72,84,  # 8
+    52,63,73,85,  # 9
+    53,64,74,86,  # 10
+    54,65,75,87,  # 11
+    55,66,76,88   # 12
+  )
+  tibble(
+    age = c(ages_preschool, ages_jh),
+    raw_score = c(raw_scores, raw_jh),
+    std_word_finding = c(std_wf_elem, std_wf_jh),
+    std_gfa = c(std_gfa_elem, std_gfa_jh)
+  )
+}
+
+SLAM_NORMS_ELEM <- build_slam_norms_elem()
+
+get_slam_standard_score_elem <- function(raw, type = c("word_finding","gfa"), age) {
   type <- match.arg(type)
   col  <- if (type == "word_finding") "std_word_finding" else "std_gfa"
-  row  <- SLAM_NORMS %>% filter(.data$age == !!age, .data$raw_score <= !!raw) %>%
+  row  <- SLAM_NORMS_ELEM %>% filter(.data$age == !!age, .data$raw_score <= !!raw) %>%
     summarise(s = max(.data[[col]]), .groups = "drop")
   if (nrow(row) == 0) return(NA_integer_)
   row$s[1]
+}
+
+get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
+  type <- match.arg(type)
+  if (age <= 6) {
+    get_slam_standard_score_elem(raw, type, age)
+  } else {
+    get_slam_standard_score_jh <- function(raw, type, age) {
+      col  <- if (type == "word_finding") "std_word_finding" else "std_gfa"
+      row  <- SLAM_NORMS %>% filter(.data$age == !!age, .data$raw_score <= !!raw) %>%
+        summarise(s = max(.data[[col]]), .groups = "drop")
+      if (nrow(row) == 0) return(NA_integer_)
+      row$s[1]
+    }
+    get_slam_standard_score_jh(raw, type, age)
+  }
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -472,10 +732,239 @@ ui <- fluidPage(
       )
     ),
 
-    # ═══════════════════════════════════════════════════════════
-    # TAB 2: Baseball Troubles
-    # ═══════════════════════════════════════════════════════════
-    tabPanel("🏇 Baseball Troubles",
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB: PreK-Elementary (PreK-小学，3-12岁)
+    # ═══════════════════════════════════════════════════════════════════
+    tabPanel("🧒 PreK-小学 / PreK-Elem",
+      tabsetPanel(id = "preK_elem_tabs", type = "tabs",
+
+        # ── Dog Comes Home (3-6岁) ─────────────────────────────────
+        tabPanel("🏠 Dog Comes Home",
+          div(class = "story-card",
+            div(class = "story-card-header",
+              span("🏠"), "Dog Comes Home / 狗回家",
+              span(class = "progress-story", "3-6岁 · 6张图 · GFA + Narrative")
+            ),
+            div(class = "story-card-body",
+              div(class = "synopsis-box",
+                p(strong("故事概要 Story Synopsis:"), br()),
+                p(STORIES_ELEM$dog_comes_home$synopsis)
+              ),
+              div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+              story_img_carousel("dog_comes_home", 6),
+              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
+              lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$word_finding)), function(i) {
+                wf <- STORIES_ELEM$dog_comes_home$word_finding
+                div(class = "wf-item",
+                  div(class = "wf-prompt", wf$prompt_en[i],
+                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("wf_dog_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("wf_dog_%d_score", i), NULL,
+                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
+              lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$gfa_items)), function(i) {
+                gfa <- STORIES_ELEM$dog_comes_home$gfa_items
+                ms <- gfa$max_score[i]
+                choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+                div(class = "gfa-item",
+                  div(class = "gfa-passage",
+                    p(gfa$passage_en[i]),
+                    p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("gfa_dog_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("gfa_dog_%d_score", i), NULL,
+                        choices = choices, selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "🎤 Free Narrative / 自由叙事"),
+              div(class = "narrative-box",
+                p(strong("指示 Instruction: "), "请学生看着图片讲述故事。/ Ask student to tell the story using the pictures."),
+                textAreaInput("narr_dog", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+                p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者在评估时记录学生叙事，并在下方评分。")
+              ),
+              div(class = "section-label", "📊 Narrative Rubric / 叙事评分"),
+              lapply(seq_along(STORIES_ELEM$dog_comes_home$narrative_rubric$dimensions), function(d) {
+                dim_name <- STORIES_ELEM$dog_comes_home$narrative_rubric$dimensions[d]
+                div(style = "margin-bottom: 14px;",
+                  div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+                  div(class = "rubric-row",
+                    radioButtons(sprintf("nr_dog_dim%d", d), NULL,
+                      choices = c("0分"="0","1分"="1","2分"="2"),
+                      selected = character(0), inline = TRUE, width = "100%")
+                  )
+                )
+              }),
+              div(style = "margin-top: 20px; text-align: center;",
+                actionButton("save_dog", "💾 保存 Dog Comes Home 评分", class = "btn-save-slam")
+              )
+            )
+          )
+        ),
+
+        # ── Bunny Goes to School (7-12岁) ───────────────────────────
+        tabPanel("🐰 Bunny Goes to School",
+          div(class = "story-card",
+            div(class = "story-card-header",
+              span("🐰"), "Bunny Goes to School / 小兔子去学校",
+              span(class = "progress-story", "7-12岁 · 6张图 · GFA + Narrative")
+            ),
+            div(class = "story-card-body",
+              div(class = "synopsis-box",
+                p(strong("故事概要 Story Synopsis:"), br()),
+                p(STORIES_ELEM$bunny_goes_school$synopsis)
+              ),
+              div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+              story_img_carousel("bunny_goes_school", 6),
+              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
+              lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$word_finding)), function(i) {
+                wf <- STORIES_ELEM$bunny_goes_school$word_finding
+                div(class = "wf-item",
+                  div(class = "wf-prompt", wf$prompt_en[i],
+                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("wf_bunny_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("wf_bunny_%d_score", i), NULL,
+                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
+              lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$gfa_items)), function(i) {
+                gfa <- STORIES_ELEM$bunny_goes_school$gfa_items
+                ms <- gfa$max_score[i]
+                choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+                div(class = "gfa-item",
+                  div(class = "gfa-passage",
+                    p(gfa$passage_en[i]),
+                    p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("gfa_bunny_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("gfa_bunny_%d_score", i), NULL,
+                        choices = choices, selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "🎤 Free Narrative / 自由叙事"),
+              div(class = "narrative-box",
+                p(strong("指示 Instruction: "), "请学生看着图片讲述故事。/ Ask student to tell the story using the pictures."),
+                textAreaInput("narr_bunny", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+                p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者在评估时记录学生叙事，并在下方评分。")
+              ),
+              div(class = "section-label", "📊 Narrative Rubric / 叙事评分"),
+              lapply(seq_along(STORIES_ELEM$bunny_goes_school$narrative_rubric$dimensions), function(d) {
+                dim_name <- STORIES_ELEM$bunny_goes_school$narrative_rubric$dimensions[d]
+                div(style = "margin-bottom: 14px;",
+                  div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+                  div(class = "rubric-row",
+                    radioButtons(sprintf("nr_bunny_dim%d", d), NULL,
+                      choices = c("0分"="0","1分"="1","2分"="2"),
+                      selected = character(0), inline = TRUE, width = "100%")
+                  )
+                )
+              }),
+              div(style = "margin-top: 20px; text-align: center;",
+                actionButton("save_bunny", "💾 保存 Bunny Goes to School 评分", class = "btn-save-slam")
+              )
+            )
+          )
+        ),
+
+        # ── The Crayons (4-12岁) ────────────────────────────────────
+        tabPanel("🖍️ The Crayons",
+          div(class = "story-card",
+            div(class = "story-card-header",
+              span("🖍️"), "The Crayons / 蜡笔大战",
+              span(class = "progress-story", "4-12岁 · 4张图 · GFA + Narrative")
+            ),
+            div(class = "story-card-body",
+              div(class = "synopsis-box",
+                p(strong("故事概要 Story Synopsis:"), br()),
+                p(STORIES_ELEM$the_crayons$synopsis)
+              ),
+              div(class = "section-label", "📷 图片卡片 / Picture Cards"),
+              story_img_carousel("the_crayons", 4),
+              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
+              lapply(seq_len(nrow(STORIES_ELEM$the_crayons$word_finding)), function(i) {
+                wf <- STORIES_ELEM$the_crayons$word_finding
+                div(class = "wf-item",
+                  div(class = "wf-prompt", wf$prompt_en[i],
+                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("wf_crayons_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("wf_crayons_%d_score", i), NULL,
+                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
+              lapply(seq_len(nrow(STORIES_ELEM$the_crayons$gfa_items)), function(i) {
+                gfa <- STORIES_ELEM$the_crayons$gfa_items
+                ms <- gfa$max_score[i]
+                choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
+                div(class = "gfa-item",
+                  div(class = "gfa-passage",
+                    p(gfa$passage_en[i]),
+                    p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
+                  ),
+                  fluidRow(
+                    column(8, textInput(sprintf("gfa_crayons_%d_text", i), "回答 / Response:", width = "100%")),
+                    column(4, tags$label("评分 Score", class = "form-label"),
+                      selectInput(sprintf("gfa_crayons_%d_score", i), NULL,
+                        choices = choices, selected = "", width = "100%"))
+                  )
+                )
+              }),
+              div(class = "section-label", "🎤 Free Narrative / 自由叙事"),
+              div(class = "narrative-box",
+                p(strong("指示 Instruction: "), "请学生看着图片讲述故事。/ Ask student to tell the story using the pictures."),
+                textAreaInput("narr_crayons", "学生回答 / Student Response:", width = "100%", rows = 5, placeholder = "学生在评估时的叙事内容..."),
+                p(style = "margin-top: 10px; font-size: 13px; color: #6b7280;", "📝 请评估者在评估时记录学生叙事，并在下方评分。")
+              ),
+              div(class = "section-label", "📊 Narrative Rubric / 叙事评分"),
+              lapply(seq_along(STORIES_ELEM$the_crayons$narrative_rubric$dimensions), function(d) {
+                dim_name <- STORIES_ELEM$the_crayons$narrative_rubric$dimensions[d]
+                div(style = "margin-bottom: 14px;",
+                  div(class = "rubric-dim-label", sprintf("%s (0-2分)", dim_name)),
+                  div(class = "rubric-row",
+                    radioButtons(sprintf("nr_crayons_dim%d", d), NULL,
+                      choices = c("0分"="0","1分"="1","2分"="2"),
+                      selected = character(0), inline = TRUE, width = "100%")
+                  )
+                )
+              }),
+              div(style = "margin-top: 20px; text-align: center;",
+                actionButton("save_crayons", "💾 保存 The Crayons 评分", class = "btn-save-slam")
+              )
+            )
+          )
+        )
+
+      )  # end preK_elem_tabs
+    ),    # end PreK-Elem tabPanel
+
+    # ═══════════════════════════════════════════════════════════════════
+    # TAB: Junior High-High School (初中-高中，13-17岁)
+    # ═══════════════════════════════════════════════════════════════════
+    tabPanel("📚 初中-高中 / JH-HS",
+      tabsetPanel(id = "jh_hs_tabs", type = "tabs",
+
+        # ── Baseball Troubles ────────────────────────────────────────
+        tabPanel("🏇 Baseball Troubles", value = "baseball_troubles_tab",
       div(class = "story-card",
         div(class = "story-card-header",
           span("🏇"), "Baseball Troubles / 棒球烦恼",
@@ -758,9 +1247,12 @@ ui <- fluidPage(
               class = "btn-save-slam")
           )
         )
-      ),
+      )
 
-    # ── Report Tab ──────────────────────────────────────────────
+      )  # end jh_hs_tabs
+    ),    # end JH-HS tabPanel
+
+    # ── Report Tab ──────────────────────────────────────────────────
     tabPanel("📋 Report / 报告", value = "slam_report_tab",
       uiOutput("slam_report")
     )
@@ -965,8 +1457,9 @@ server <- function(input, output, session) {
       )
       return()
     }
-    # Switch to first story tab
-    updateTabsetPanel(session, "slam_main_tabs", selected = "🏇 Baseball Troubles")
+    # Switch to first story tab (JH-HS section, first story)
+    updateTabsetPanel(session, "slam_main_tabs", selected = "📚 初中-高中 / JH-HS")
+    updateTabsetPanel(session, "jh_hs_tabs", selected = "baseball_troubles_tab")
     showNotification(
       tagList(icon("check-circle"), sprintf(" 已开始评估: %s", si$name)),
       type = "message", duration = 3
@@ -1166,6 +1659,17 @@ server <- function(input, output, session) {
     save_one_story("WallaceAndBatty", "wf_wb", "gfa_wb", "narr_wb", 5, 4)
   })
 
+  # PreK-Elementary save handlers
+  observeEvent(input$save_dog, {
+    save_one_story("DogComesHome", "wf_dog", "gfa_dog", "narr_dog", 6, 6)
+  })
+  observeEvent(input$save_bunny, {
+    save_one_story("BunnyGoesSchool", "wf_bunny", "gfa_bunny", "narr_bunny", 6, 9)
+  })
+  observeEvent(input$save_crayons, {
+    save_one_story("TheCrayons", "wf_crayons", "gfa_crayons", "narr_crayons", 5, 5)
+  })
+
   # ── AI Report — Patient DT ──────────────────────────────────
   # (removed — AI tab was removed)
 
@@ -1227,13 +1731,24 @@ server <- function(input, output, session) {
       FROM subtest_scores WHERE assessment_id = ?",
       params = list(aid))
 
-    # Build story blocks
-    stories <- list(
+    # Build story blocks — PreK-Elem stories
+    stories_prek <- list(
+      list(id = "dog_comes_home",   db_id = "DogComesHome",   name = "🏠 Dog Comes Home",      name_zh = "狗回家"),
+      list(id = "bunny_goes_school",db_id = "BunnyGoesSchool",name = "🐰 Bunny Goes to School",  name_zh = "小兔子去学校"),
+      list(id = "the_crayons",       db_id = "TheCrayons",     name = "🖍️ The Crayons",          name_zh = "蜡笔大战")
+    )
+    # JH-HS stories
+    stories_jh <- list(
       list(id = "baseball_troubles",  db_id = "BaseballTroubles",  name = "🏇 Baseball Troubles",   name_zh = "棒球烦恼"),
       list(id = "the_ball_mystery",   db_id = "TheBestTurkey",    name = "🔵 The Ball Mystery",     name_zh = "神秘小球"),
       list(id = "lost_cellphone",      db_id = "GirlWhoLovedHorses",name = "📱 Lost Cellphone",       name_zh = "丢失的手机"),
       list(id = "kittens_love_milk",  db_id = "WallaceAndBatty",   name = "🐱 Kittens Love Milk",   name_zh = "小猫爱牛奶")
     )
+
+    # Report group selector
+    report_group <- input$slam_report_group %||% "elem"
+
+    stories <- if (report_group == "elem") stories_prek else stories_jh
 
     story_blocks <- lapply(stories, function(s) {
       wf_sub  <- paste0(s$db_id, "_WordFinding")
@@ -1251,7 +1766,11 @@ server <- function(input, output, session) {
 
       # GFA responses
       gfa_rows <- res[res$subtest == gfa_sub, ]
-      gfa_items <- STORIES[[s$id]]$gfa_items
+      gfa_items <- if (report_group == "elem") {
+        STORIES_ELEM[[s$id]]$gfa_items
+      } else {
+        STORIES[[s$id]]$gfa_items
+      }
       n_gfa <- nrow(gfa_items)
 
       # WF responses
@@ -1361,7 +1880,16 @@ server <- function(input, output, session) {
         tags$div(style = "text-align:center; margin-bottom:30px;",
           h2("📋 SLAM 评估报告 / Assessment Report"),
           p(sprintf("评估日期: %s | Assessment ID: %d", aid_row$assessment_date[1], aid),
-            style = "color:#6b7280;")
+            style = "color:#6b7280;"),
+          # Group selector
+          div(style = "margin-top: 15px;",
+            radioButtons("slam_report_group", NULL,
+              choices = c("🧒 PreK-小学 / PreK-Elem" = "elem",
+                          "📚 初中-高中 / JH-HS" = "jh"),
+              selected = input$slam_report_group %||% "elem",
+              inline = TRUE
+            )
+          )
         ),
         story_blocks,
         feedback_section
