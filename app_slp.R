@@ -373,8 +373,6 @@ ui <- fluidPage(
         # Step 1: DT Student Table
         fluidRow(
           column(12,
-            tags$h5("第一步：选择学生 / Step 1: Select Student", 
-                    style = sprintf("color:%s; font-weight:700; margin-bottom:12px;", celf5_blue)),
             div(class = "student-dt-table",
               DT::dataTableOutput("student_dt")
             )
