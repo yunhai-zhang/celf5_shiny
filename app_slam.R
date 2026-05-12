@@ -750,6 +750,26 @@ ui <- fluidPage(
                 p(strong("故事概要 Story Synopsis:"), br()),
                 p(STORIES_ELEM$dog_comes_home$synopsis)
               ),
+
+              div(class = "scoring-guide",
+                details(
+                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                  tags$h4("Language Characteristics / 语言特点 (3-6 yrs)"),
+                  tags$ul(
+                    tags$li("Short, simple sentences; basic connectors: then/and/but"),
+                    tags$li("Describes what happened in basic sequence"),
+                    tags$li("Limited mental state vocabulary; simple cause-effect")
+                  ),
+                  tags$h4("Narrative Example / 叙事范例"),
+                  tags$p(tags$i("One day, a little girl found a puppy outside. She really liked the puppy, and then they played together. Then she held the puppy and thought her mom said no dogs at home. But she still put the puppy in her bag to bring home. Then her mom saw her because she was dirty, a little surprised. Then mom told her to take a bath. Finally, her mom saw her and the white dog taking a bath together and was very confused.")),
+                  tags$h4("Sample Q&A / 问答示例"),
+                  tags$ul(
+                    tags$li(tags$strong("Q: What is the girl thinking?"), " She likes the puppy but mom says no."),
+                    tags$li(tags$strong("Q: Why put the dog in the bag?"), " She loves the puppy and wants to take it home."),
+                    tags$li(tags$strong("Q: Why is the girl dirty?"), " The puppy was dirty, she played with it and got dirty too.")
+                  )
+                )
+              ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
               story_img_carousel("dog_comes_home", 6),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
@@ -822,6 +842,28 @@ ui <- fluidPage(
                 p(strong("故事概要 Story Synopsis:"), br()),
                 p(STORIES_ELEM$bunny_goes_school$synopsis)
               ),
+
+              div(class = "scoring-guide",
+                details(
+                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                  tags$h4("Language Characteristics / 语言特点 (7-12 yrs)"),
+                  tags$ul(
+                    tags$li("Complete narrative structure: beginning, middle, end, clear sequence"),
+                    tags$li("Richer connectors: then, so, because, but, after"),
+                    tags$li("Describes characters' thoughts, feelings, and motivations"),
+                    tags$li("Vocabulary expansion: sneakily, anxiously, confused"),
+                    tags$li("Simple causal reasoning")
+                  ),
+                  tags$h4("Narrative Example / 叙事范例"),
+                  tags$p(tags$i("One day, a boy was heading to school with his lunchbox and backpack, secretly hiding a little bunny inside. During English class, the teacher was teaching the letter C and gave the example of carrot. Just then, the bunny jumped out of the backpack and was discovered by everyone. The bunny hopped around the classroom causing chaos. Some students were scared and躲开, some laughed, and one student was so frightened he climbed onto the desk crying. The teacher had no choice but to call the boy's parent. The boy thought quickly - he remembered his lunchbox had carrots and decided to lure the bunny. He took out the carrot and fed it to the bunny, and the bunny calmed down. Then mom and the teacher walked in together...")),
+                  tags$h4("Sample Q&A / 问答示例"),
+                  tags$ul(
+                    tags$li(tags$strong("Q: Why did the bunny jump out?"), " It wanted to come out and play, or it was too hot in the backpack."),
+                    tags$li(tags$strong("Q: Why are some scared, some laughing?"), " Some are afraid of rabbits, others think it is cute and funny."),
+                    tags$li(tags$strong("Q: What was the boy's idea?"), " He thought to use the carrot to lure the bunny to come to him.")
+                  )
+                )
+              ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
               story_img_carousel("bunny_goes_school", 6),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
@@ -893,6 +935,28 @@ ui <- fluidPage(
               div(class = "synopsis-box",
                 p(strong("故事概要 Story Synopsis:"), br()),
                 p(STORIES_ELEM$the_crayons$synopsis)
+              ),
+
+              div(class = "scoring-guide",
+                details(
+                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                  tags$h4("Language Characteristics / 语言特点"),
+                  tags$ul(
+                    tags$li(tags$span(class = "tier-label", "4-6 yrs"), "Short sentences, repetitive, uses and/then/but; describes what happened"),
+                    tags$li(tags$span(class = "tier-label", "7-9 yrs"), "Cause-effect, because/so/after; describes emotions"),
+                    tags$li(tags$span(class = "tier-label", "10-12 yrs"), "Longer sentences, to avoid blame / innocent / blames / lies; complete logic and mental state words")
+                  ),
+                  tags$h4("Narrative Examples / 叙事范例"),
+                  tags$p(tags$span(class = "tier-label", "4-6"), tags$i(" Version 1 (short, simple): One day the crayons were in the classroom. The red crayon drew on the wall. Then he pointed at the blue crayon and said it was him. The blue crayon felt sad. The purple crayon was angry.")),
+                  tags$p(tags$span(class = "tier-label", "7-9"), tags$i(" Version 2 (cause-effect): One day, the red crayon drew on the wall when no one was looking. After that, he pointed at the blue crayon and said the blue crayon did it. The blue crayon did not do anything wrong, so he looks very upset. The purple crayon is the teacher and she is very angry.")),
+                  tags$p(tags$span(class = "tier-label", "10-12"), tags$i(" Version 3 (complete narrative): To avoid getting in trouble, the red crayon quickly pointed at the innocent blue crayon and lied to the teacher, saying the blue crayon made the mess. The blue crayon feels very sad and unfair because he is blamed for something he did not do.")),
+                  tags$h4("Sample Q&A / 问答示例"),
+                  tags$ul(
+                    tags$li(tags$strong("Q: What happened?"), " The red crayon drew on the wall, then blamed the blue crayon."),
+                    tags$li(tags$strong("Q: Why is red pointing at blue?"), " Red drew on the wall and wants to blame someone else."),
+                    tags$li(tags$strong("Q: What would you say if you were blue?"), " I would say: I did not draw on the wall! You did it! Do not blame me!")
+                  )
+                )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
               story_img_carousel("the_crayons", 4),
@@ -1060,6 +1124,26 @@ ui <- fluidPage(
             p(strong("故事概要 Story Synopsis:"), br()),
             p(STORIES$the_ball_mystery$synopsis)
           ),
+
+              div(class = "scoring-guide",
+                details(
+                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                  tags$h4("Language Characteristics / 语言特点"),
+                  tags$ul(
+                    tags$li(tags$span(class = "tier-label", "JH"), "Clear structure, logical sequence, describes events coherently"),
+                    tags$li(tags$span(class = "tier-label", "HS"), "Mature expression, smooth transitions, complete psychological description")
+                  ),
+                  tags$h4("Narrative Examples / 叙事范例"),
+                  tags$p(tags$span(class = "tier-label", "JH"), tags$i("Two big boys were playing soccer happily on the playground. Two little boys sat on the steps nearby, watching eagerly but too afraid to join. The boy in yellow told the boy in blue that he had gotten the soccer ball first, but the big boys took it away because they said he was not good. Then a parent called the big boys away. The two little boys were happy and started playing with the ball when the big boys were not looking. But they kicked too hard and the ball flew into the air and popped. The little boys were very scared. When the big boys came back and found the ball was gone, they looked confused. The little boys got nervous quickly.")),
+                  tags$p(tags$span(class = "tier-label", "HS"), tags$i("On the playground, two older boys were playing soccer happily, while two younger boys on the nearby steps watched longingly but dared not join. The boy in yellow explained to his friend that he had gotten the soccer ball first, but the older boys had taken it away saying he was too bad. Just then, an adult called the big boys away, leaving the ball behind. Seizing the chance, the two little boys took the ball and played happily while the big boys were distracted. Unfortunately, they kicked too hard and the ball flew up and burst. The two boys were immediately filled with panic.")),
+                  tags$h4("Sample Q&A / 问答示例"),
+                  tags$ul(
+                    tags$li(tags$strong("Q: Will the big boys share?"), " No, they took the ball away and said the little boys were not good at playing."),
+                    tags$li(tags$strong("Q: What are the little boys thinking?"), " They really want to play soccer. They think it is unfair and hope they can get a chance."),
+                    tags$li(tags$strong("Q: What would you say to get out of trouble?"), " I would say sorry and explain I did not mean to break it.")
+                  )
+                )
+              ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("the_ball_mystery", 5),
           div(class = "section-label", "📝 GFA 语法填空"),
@@ -1128,6 +1212,26 @@ ui <- fluidPage(
             p(strong("故事概要 Story Synopsis:"), br()),
             p(STORIES$lost_cellphone$synopsis)
           ),
+
+              div(class = "scoring-guide",
+                details(
+                  summary("Scoring Guide / 评分参考 (click to expand)"),
+                  tags$h4("Language Characteristics / 语言特点"),
+                  tags$ul(
+                    tags$li(tags$span(class = "tier-label", "JH"), "Clear sequence, natural connectors, describes events in order"),
+                    tags$li(tags$span(class = "tier-label", "HS"), "Complete logic, natural psychological description, mature expression")
+                  ),
+                  tags$h4("Narrative Examples / 叙事范例"),
+                  tags$p(tags$span(class = "tier-label", "JH"), tags$i("After school, two boys met a girl sitting on a bench reading a book. The boy in orange looked at the girl and both blushed a little. He was holding his cellphone and a red folder. Later, he went into a convenience store to buy snacks and put his cellphone on the counter while paying. Just then, the same girl walked into the store. He took his food and went out to greet her, completely forgetting his cellphone on the counter. He walked and talked with the girl and did not remember his phone. When the girl took out her cellphone and shyly asked for his number, he looked everywhere but could not find it. He suddenly remembered he left it on the counter. He felt very worried and hurried back to the store to get it.")),
+                  tags$p(tags$span(class = "tier-label", "HS"), tags$i("After school, two boys encountered a female classmate sitting on a bench reading. The boy in orange made eye contact with her, and both seemed a little shy. He was holding his cellphone and a red folder. Soon after, he went into a convenience store to buy snacks and placed his cellphone on the counter while checking out. Coincidentally, the girl he had just met also entered the store. Thinking only of greeting her, he took his food and left, completely leaving his cellphone behind. He walked and talked with the girl, totally unaware that he had lost his phone. It was not until the girl took out her cellphone and shyly asked for his contact information that he nervously checked his pockets but could not find it. He immediately realized he had left it on the counter.")),
+                  tags$h4("Sample Q&A / 问答示例"),
+                  tags$ul(
+                    tags$li(tags$strong("Q: How did he lose his phone?"), " He put his phone on the counter at the store and got distracted, so he forgot to take it."),
+                    tags$li(tags$strong("Q: Why did he leave his phone?"), " He got distracted by the girl and was focused on greeting her, so he forgot about his phone."),
+                    tags$li(tags$strong("Q: What made him remember?"), " When the girl took out her phone to ask for his number, he realized his phone was missing.")
+                  )
+                )
+              ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
           story_img_carousel("lost_cellphone", 3),
           div(class = "section-label", "📝 GFA 语法问答"),
