@@ -999,6 +999,18 @@ start_assessment <- function(patient_id, assessment_date, age_years, age_months,
   upsert_assessment(patient_id, assessment_date, age_years, age_months, age_days, age_group)
 }
 
+# ── SLAM age_to_group (used by app_slam.R) ─────────────────────────────
+# Maps integer age → lower bound of CELF-5/SLAM norms age band
+age_to_group <- function(age) {
+  age <- as.integer(age)
+  if (age <= 8)  7L
+  else if (age <= 10)  9L
+  else if (age <= 12)  11L
+  else if (age <= 14)  13L
+  else if (age <= 16)  15L
+  else 17L
+}
+
 # ── 删除评估 ───────────────────────────────────────────────
 delete_assessment <- function(assessment_id) {
   con <- get_con()
@@ -2305,7 +2317,7 @@ generate_slam_narrative <- function(assessment_id, lang = "zh") {
      JOIN patients p ON a.patient_id = p.id
      WHERE a.id = %d", assessment_id))
 
-  if (nrow(ass) == 0) stop("Assessment not found: ", assessment_id)
+if (nrow(ass) == 0) stop("Assessment not found: ", assessment_id)
 
   pat <- ass[1, ]
 
