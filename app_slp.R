@@ -176,14 +176,6 @@ ui <- fluidPage(
                   selected = "", width = "100%")
               ),
               div(class = "form-group",
-                tags$label("学校 / School"),
-                textInput("slp_school_name", NULL, placeholder = "就读学校 / School name (optional)")
-              ),
-              div(class = "form-group",
-                tags$label("年级 / Grade"),
-                textInput("slp_grade_level", NULL, placeholder = "如：小一、初二 / Grade (optional)")
-              ),
-              div(class = "form-group",
                 tags$label("评估师 * / Examiner *"),
                 textInput("slp_examiner", NULL, placeholder = "评估师姓名 / Examiner name")
               ),
@@ -480,9 +472,6 @@ server <- function(input, output, session) {
     dob            <- input$slp_dob
     assessment_date <- input$slp_assessment_date
     gender         <- input$slp_patient_gender
-    school_name    <- trim(input$slp_school_name %||% "")
-    grade_level    <- trim(input$slp_grade_level %||% "")
-
     if (is.null(patient_name) || patient_name == "") {
       showNotification("请填写学生姓名 / Please enter student name", type = "error")
       return()
@@ -530,8 +519,6 @@ server <- function(input, output, session) {
       # Reset form fields
       updateTextInput(session, "slp_patient_name", value = "")
       updateSelectInput(session, "slp_patient_gender", selected = "")
-      updateTextInput(session, "slp_school_name", value = "")
-      updateTextInput(session, "slp_grade_level", value = "")
       updateTextInput(session, "slp_examiner", value = "")
       updateDateInput(session, "slp_dob", value = Sys.Date())
       updateDateInput(session, "slp_assessment_date", value = Sys.Date())

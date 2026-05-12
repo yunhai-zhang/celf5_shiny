@@ -18,8 +18,8 @@ source("/home/yzhang/clawfiles/celf5_shiny/global.R")
 # ─────────────────────────────────────────────────────────────
 # 0. Constants & Colors
 # ─────────────────────────────────────────────────────────────
-SLAM_BLUE   <- "#1B3A6B"
-SLAM_GOLD   <- "#C8A951"
+SLAM_BLUE   <- "#EA580C"
+SLAM_GOLD   <- "#F59E0B"
 SLAM_LIGHT  <- "#F0F4FA"
 SLAM_GRAY   <- "#6B7280"
 DB_PATH     <- "/home/yzhang/clawfiles/celf5_shiny/celf5_assessments.db"
@@ -354,25 +354,25 @@ slam_css <- function() {
 .nav-tabs > li > a { border-radius: 8px 8px 0 0; font-weight: 600; color: ", SLAM_GRAY, "; }
 .nav-tabs > li.active > a { color: ", SLAM_BLUE, "; border-color: #e2e8f0 #e2e8f0 white; border-bottom: 3px solid ", SLAM_GOLD, "; }
 .nav-tabs > li > a:hover { color: ", SLAM_BLUE, "; }
-.slam-hero { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px; box-shadow: 0 8px 30px rgba(27,58,107,0.25); }
+.slam-hero { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #b45309 100%); color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px; box-shadow: 0 8px 30px rgba(217,119,6,0.25); }
 .slam-hero h2 { color: white; font-size: 28px; font-weight: 700; margin: 0 0 6px; }
 .slam-hero p  { color: rgba(255,255,255,0.82); font-size: 14px; margin: 0; }
 .story-card { background: white; border-radius: 16px; border: 1.5px solid #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; }
-.story-card-header { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; padding: 16px 24px; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.story-card-header { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #b45309 100%); color: white; padding: 16px 24px; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .story-card-body { padding: 24px; }
-.synopsis-box { background: #F0F4FA; border-left: 4px solid #C8A951; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #374151; line-height: 1.7; }
+.synopsis-box { background: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #374151; line-height: 1.7; }
 .section-label { font-size: 13px; font-weight: 700; color: ", SLAM_BLUE, "; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 2px solid ", SLAM_BLUE, "; }
 .wf-item, .gfa-item { background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 14px; border: 1px solid #e2e8f0; }
 .wf-prompt { font-size: 15px; font-weight: 600; color: ", SLAM_BLUE, "; margin-bottom: 10px; }
 .gfa-passage { background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%); border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; font-size: 15px; color: #1e293b; line-height: 1.9; font-style: italic; }
-.gfa-passage .blank { color: ", SLAM_BLUE, "; font-weight: 700; text-decoration: none; border-bottom: 2px dashed #C8A951; }
+.gfa-passage .blank { color: ", SLAM_BLUE, "; font-weight: 700; text-decoration: none; border-bottom: 2px dashed #F59E0B; }
 .rubric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .rubric-btn { flex: 1; min-width: 60px; }
-.btn-save-slam { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #2a5ab3 100%); color: white; border: none; border-radius: 10px; padding: 13px 32px; font-size: 15px; font-weight: 600; transition: all 0.2s ease; }
+.btn-save-slam { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #b45309 100%); color: white; border: none; border-radius: 10px; padding: 13px 32px; font-size: 15px; font-weight: 600; transition: all 0.2s ease; }
 .btn-save-slam:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(27,58,107,0.35); color: white; }
 .btn-save-slam:disabled { background: #ccc; transform: none; box-shadow: none; }
 .score-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; margin: 2px; }
-.badge-raw   { background: #e8f0fe; color: ", SLAM_BLUE, "; }
+.badge-raw   { background: #FEF3C7; color: ", SLAM_BLUE, "; }
 .badge-std   { background: #fff3e0; color: #e65100; }
 .badge-pr    { background: #e8f5e9; color: #2e7d32; }
 .progress-story { font-size: 12px !important; color: rgba(255,255,255,0.7) !important; }
@@ -382,9 +382,9 @@ slam_css <- function() {
 .story-carousel { display: flex; gap: 12px; overflow-x: auto; padding: 10px 0; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
 .carousel-slide { flex: 0 0 auto; scroll-snap-align: start; }
 .story-img { height: 260px; width: auto; border-radius: 10px; border: 2px solid #e2e8f0; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.narrative-box { background: #fefce8; border: 1.5px solid #fde68a; border-radius: 10px; padding: 18px; margin-top: 14px; }
+.narrative-box { background: #FEF3C7; border: 1.5px solid #FDE68A; border-radius: 10px; padding: 18px; margin-top: 14px; }
 textarea.form-control { border-radius: 10px; border: 1.5px solid #d0d7e2; padding: 12px 14px; font-size: 14px; }
-textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }
+textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3px rgba(217,119,6,0.1); }
 .rubric-dim-label { font-size: 13px; font-weight: 600; color: ", SLAM_BLUE, "; margin-bottom: 6px; }
 .results-card { background: white; border-radius: 14px; border: 1.5px solid #e2e8f0; padding: 20px; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
 .results-title { font-size: 16px; font-weight: 700; color: ", SLAM_BLUE, "; margin-bottom: 14px; }
@@ -394,7 +394,7 @@ textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3
 .panel-body { background: white; padding: 16px; }
 .form-control { border-radius: 6px; border: 1px solid #ccc; }
 .btn-primary { background: ", SLAM_BLUE, "; border-color: ", SLAM_BLUE, "; font-weight: 600; }
-.btn-primary:hover { background: #1452A3; border-color: #1452A3; }
+.btn-primary:hover { background: #B45309; border-color: #B45309; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: ", SLAM_GRAY, "; }
 ::-webkit-scrollbar-thumb { background: ", SLAM_BLUE, "; border-radius: 4px; }
@@ -444,8 +444,6 @@ ui <- fluidPage(
                             "男 / Male"   = "M",
                             "女 / Female" = "F"),
                 selected = "", width = "100%"),
-              textInput("slam_school_name", "学校 / School", placeholder = "就读学校"),
-              textInput("slam_grade_level", "年级 / Grade", placeholder = "如：小一、初二、高一"),
               textInput("slam_examiner", "评估师 / Examiner", placeholder = "评估师姓名"),
               dateInput("slam_dob", "出生日期 * / Date of Birth *", format = "yyyy-mm-dd", value = NA),
               dateInput("slam_assessment_date", "评估日期 * / Assessment Date *",
@@ -456,13 +454,18 @@ ui <- fluidPage(
             )
           )
         ),
-        # Right: Existing patients table (8 cols)
+        # Right: SLAM assessments history (8 cols)
         column(8,
           div(class = "panel",
-            div(class = "panel-heading", "选择受试者 / Select Subject"),
+            div(class = "panel-heading", "SLAM 评估历史 / Assessment History"),
             div(class = "panel-body",
-              DT::dataTableOutput("slam_patient_dt"),
-              uiOutput("slam_load_patient_btn")
+              selectInput("slam_filter_status", "筛选状态 / Filter Status",
+                choices = c("全部 / All" = "all",
+                            "进行中 / In Progress" = "in_progress",
+                            "已完成 / Complete" = "complete"),
+                selected = "all", width = "40%"),
+              DT::dataTableOutput("slam_assessments_dt"),
+              uiOutput("slam_load_btn_ui")
             )
           )
         )
@@ -781,79 +784,131 @@ server <- function(input, output, session) {
     )
   })
 
-  # ── SLAM Patient DT (Subject Info tab) ─────────────────────────
-  output$slam_patient_dt <- DT::renderDataTable({
-    con <- get_con()
-    on.exit(dbDisconnect(con), add = TRUE)
+  # ── Reactive values for SLAM ────────────────────────────────────
+  rv <- reactiveValues(slam_status_version = 0L)
 
-    patients_df <- dbGetQuery(con, "
-      SELECT id, name, dob, gender, examiner
-      FROM patients
-      ORDER BY name ASC")
-
-    if (nrow(patients_df) == 0) {
-      return(DT::datatable(data.frame(
-        Message = "暂无受试者记录 / No patient records yet"
-      ), options = list(dom = "t")))
-    }
-
-    patients_df$gender_display <- sapply(patients_df$gender, function(g) {
-      switch(g, M = "男 / M", F = "女 / F", "—")
+  # ── SLAM Assessments DT (Subject Info tab) ───────────────────────
+  slam_assessments_df <- reactive({
+    df <- tryCatch({
+      list_assessments() %>%
+        filter(assessment_type == "SLAM") %>%
+        mutate(
+          age_str = glue("{age_years}y {age_months}m"),
+          date = as.character(assessment_date),
+          status_label = ifelse(status == "in_progress",
+            '<span style="color:#e67e22;font-weight:600;">● 进行中</span>',
+            '<span style="color:#27ae60;font-weight:600;">● 已完成</span>')
+        ) %>%
+        select(姓名=patient_name, 评估日期=date, 年龄=age_str, 状态=status_label)
+    }, error = function(e) {
+      data.frame(姓名=character(), 评估日期=character(), 年龄=character(), 状态=character())
     })
+    fs <- input$slam_filter_status
+    if (!is.null(fs) && fs != "all") {
+      df <- df[grepl(if (fs == "in_progress") "进行中" else "已完成", df$状态), ]
+    }
+    df
+  }) %>% bindEvent(input$slam_filter_status, rv$slam_status_version)
 
-    DT::datatable(
-      patients_df[, c("name", "dob", "gender_display", "examiner")],
-      colnames = c("姓名 / Name" = "name", "出生日期 / DOB" = "dob",
-                   "性别 / Gender" = "gender_display", "评估师 / Examiner" = "examiner"),
-      selection = "single",
+  output$slam_assessments_dt <- DT::renderDataTable({
+    df <- slam_assessments_df()
+    if (nrow(df) == 0) return(df)
+    DT::datatable(df, selection = "single", escape = FALSE,
       options = list(
         pageLength = 10,
-        dom = "frtip",
-        language = list(emptyTable = "暂无受试者记录 / No patient records yet")
+        lengthMenu = c(10, 25, 50),
+        dom = 'frtip',
+        language = list(
+          emptyTable = "暂无 SLAM 评估记录",
+          search = "搜索：",
+          lengthMenu = "每页 _MENU_ 条",
+          info = "显示第 _START_ 至 _END_ 条，共 _TOTAL_ 条"
+        ),
+        columnDefs = list(
+          list(className = 'dt-center', targets = c(1, 2, 3))
+        ),
+        initComplete = htmlwidgets::JS(
+          "function(settings, json) {",
+          "  $(this.api().table().body()).css('font-size','13px');",
+          "  $(this.api().table().header()).css('background','#f8f9fa');",
+          "  $(this.api().table().header()).css('font-weight','600');",
+          "}")
+      ),
+      rownames = FALSE,
+      class = "stripe hover compact")
+  }, server = FALSE)
+
+  # ── Load/Delete buttons (when row selected) ─────────────────────
+  output$slam_load_btn_ui <- renderUI({
+    req(!is.null(input$slam_assessments_dt_rows_selected))
+    tagList(
+      hr(),
+      fluidRow(
+        column(6,
+          actionButton("slam_btn_load_assessment", "📂 加载 / Load",
+            class = "btn-primary",
+            style = sprintf("width:100%%; background:%s;", SLAM_BLUE))
+        ),
+        column(6,
+          actionButton("slam_btn_delete_confirm", "🗑 删除 / Delete",
+            class = "btn-danger",
+            style = "width:100%;"))
       )
     )
   })
 
-  # ── Load patient button (when row selected) ─────────────────────
-  output$slam_load_patient_btn <- renderUI({
-    req(input$slam_patient_dt_rows_selected)
-    tagList(
-      hr(),
-      actionButton("slam_load_patient_btn2", "📂 加载选中受试者 / Load Selected Patient",
-        class = "btn-primary",
-        style = sprintf("background:%s; border-color:%s;", SLAM_BLUE, SLAM_BLUE))
-    )
-  })
-
-  # ── Load patient — populate form fields ──────────────────────────
-  observeEvent(input$slam_load_patient_btn2, {
-    req(input$slam_patient_dt_rows_selected)
+  # ── Load assessment — populate form fields ───────────────────────
+  observeEvent(input$slam_btn_load_assessment, {
+    req(input$slam_assessments_dt_rows_selected)
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
 
-    patients_df <- dbGetQuery(con, "
-      SELECT id, name, dob, gender, school, grade, examiner
-      FROM patients
-      ORDER BY name ASC")
+    assessments_list <- list_assessments() %>% filter(assessment_type == "SLAM")
+    row_idx <- input$slam_assessments_dt_rows_selected[1]
+    if (row_idx > nrow(assessments_list)) return()
 
-    row_idx <- input$slam_patient_dt_rows_selected[1]
-    if (row_idx > nrow(patients_df)) return()
-
-    row <- patients_df[row_idx, ]
-    updateTextInput(session, "slam_patient_name", value = row$name %||% "")
-    updateSelectInput(session, "slam_patient_gender", selected = row$gender %||% "")
-    updateTextInput(session, "slam_school_name", value = row$school %||% "")
-    updateTextInput(session, "slam_grade_level", value = row$grade %||% "")
+    row <- assessments_list[row_idx, ]
+    updateTextInput(session, "slam_patient_name", value = row$patient_name %||% "")
+    updateDateInput(session, "slam_dob",
+      value = as.Date(paste0(row$age_years, "-01-01")) + months(row$age_months))
+    updateDateInput(session, "slam_assessment_date", value = as.Date(row$assessment_date))
     updateTextInput(session, "slam_examiner", value = row$examiner %||% "")
 
-    if (!is.na(row$dob) && nzchar(row$dob)) {
-      updateDateInput(session, "slam_dob", value = as.Date(row$dob))
-    }
+    rv$assessment_id <- row$id
+    rv$patient_id <- row$patient_id
 
     showNotification(
-      tagList(icon("check-circle"), sprintf(" 已加载受试者: %s", row$name)),
+      tagList(icon("check-circle"), sprintf(" 已加载评估: %s (ID#%d)", row$patient_name, row$id)),
       type = "message", duration = 3
     )
+  })
+
+  # ── Delete assessment ─────────────────────────────────────────
+  observeEvent(input$slam_btn_delete_confirm, {
+    req(input$slam_assessments_dt_rows_selected)
+    showModal(modalDialog(
+      title = "确认删除 / Confirm Delete",
+      "确定要删除这条 SLAM 评估记录吗？此操作不可撤销。",
+      footer = tagList(
+        modalButton("取消 / Cancel"),
+        actionButton("slam_btn_delete_do", "🗑 确定删除",
+          class = "btn-danger")
+      )
+    ))
+  })
+
+  observeEvent(input$slam_btn_delete_do, {
+    req(input$slam_assessments_dt_rows_selected)
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+    assessments_list <- list_assessments() %>% filter(assessment_type == "SLAM")
+    row_idx <- input$slam_assessments_dt_rows_selected[1]
+    aid <- assessments_list[row_idx, ]$id
+    dbExecute(con, "DELETE FROM assessments WHERE id=?", params = list(aid))
+    dbExecute(con, "DELETE FROM slam_responses WHERE assessment_id=?", params = list(aid))
+    removeModal()
+    rv$slam_status_version <- rv$slam_status_version + 1L
+    showNotification("评估已删除 / Assessment deleted", type = "message")
   })
 
   # ── Start Assessment button ──────────────────────────────────

@@ -106,8 +106,6 @@ ui <- fluidPage(
                                       "男 / Male"   = "M",
                                       "女 / Female" = "F"),
                           selected = "", width = "100%"),
-              textInput("school_name", "学校 / School", placeholder = "就读学校"),
-              textInput("grade_level", "年级 / Grade", placeholder = "如：小一、初二、高一"),
               textInput("examiner", "评估师 / Examiner", placeholder = "评估师姓名"),
               dateInput("dob", "出生日期 * / Date of Birth *", format = "yyyy-mm-dd", value = character(0)),
               dateInput("assessment_date", "评估日期 * / Assessment Date *",
