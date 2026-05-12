@@ -5,11 +5,14 @@
 
 library(shiny)
 library(bslib)
+library(purrr)
 library(dplyr)
 library(tidyr)
 library(lubridate)
 library(RSQLite)
 library(glue)
+
+source("/home/yzhang/clawfiles/celf5_shiny/global.R")
 
 # ─────────────────────────────────────────────────────────────
 # 0. Constants & Colors
@@ -21,6 +24,24 @@ SLAM_GRAY   <- "#6B7280"
 DB_PATH     <- "/home/yzhang/clawfiles/celf5_shiny/celf5_assessments.db"
 
 get_con <- function() dbConnect(SQLite(), DB_PATH)
+
+# ─────────────────────────────────────────────────────────────
+# 0b. Story Image Carousel (served from www/story_images/)
+# ─────────────────────────────────────────────────────────────
+story_img_carousel <- function(story_id, n_images) {
+  # Shiny serves www/ folder at root, so relative path works
+  img_tags <- lapply(seq_len(n_images), function(p) {
+    page_num <- sprintf("p%d", p)
+    img_path <- sprintf("story_images/%s_%s_img1.png", story_id, page_num)
+    tags$div(class = "carousel-slide",
+      tags$img(src = img_path, class = "story-img",
+                alt = sprintf("Page %d of %s", p, story_id))
+    )
+  })
+  tags$div(class = "story-carousel", id = sprintf("carousel_%s", story_id),
+    tagList(img_tags)
+  )
+}
 
 # ─────────────────────────────────────────────────────────────
 # 1. Story Metadata (from slam_content_audit.md)
@@ -296,11 +317,11 @@ get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
 # 3. CSS
 # ─────────────────────────────────────────────────────────────
 slam_css <- function() {
-  HTML(sprintf("
-    body { background: linear-gradient(135deg, #f0f4fa 0%%, #e8ecf3 100%%);
+  HTML("
+    body { background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%);
            font-family: 'Segoe UI', Arial, sans-serif; }
     .slam-hero {
-      background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%);
+      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%);
       color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px;
       box-shadow: 0 8px 30px rgba(27,58,107,0.25); }
     .slam-hero h2 { color: white; font-size: 28px; font-weight: 700; margin: 0 0 6px; }
@@ -309,32 +330,32 @@ slam_css <- function() {
       background: white; border-radius: 16px; border: 1.5px solid #e2e8f0;
       box-shadow: 0 4px 16px rgba(0,0,0,0.06); margin-bottom: 24px; overflow: hidden; }
     .story-card-header {
-      background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%);
+      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%);
       color: white; padding: 16px 24px; font-size: 17px; font-weight: 600;
       display: flex; align-items: center; gap: 10px; }
     .story-card-body { padding: 24px; }
     .synopsis-box {
-      background: %s; border-left: 4px solid %s;
+      background: #F0F4FA; border-left: 4px solid #C8A951;
       border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
       font-size: 14px; color: #374151; line-height: 1.7; }
     .section-label {
-      font-size: 13px; font-weight: 700; color: %s; text-transform: uppercase;
+      font-size: 13px; font-weight: 700; color: #1B3A6B; text-transform: uppercase;
       letter-spacing: 0.8px; margin-bottom: 14px; padding-bottom: 6px;
-      border-bottom: 2px solid %s; }
+      border-bottom: 2px solid #1B3A6B; }
     .wf-item, .gfa-item {
       background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 14px;
       border: 1px solid #e2e8f0; }
-    .wf-prompt { font-size: 15px; font-weight: 600; color: %s; margin-bottom: 10px; }
+    .wf-prompt { font-size: 15px; font-weight: 600; color: #1B3A6B; margin-bottom: 10px; }
     .gfa-passage {
-      background: linear-gradient(135deg, #f0f4fa 0%%, #e8ecf3 100%%);
+      background: linear-gradient(135deg, #f0f4fa 0%, #e8ecf3 100%);
       border-radius: 10px; padding: 18px 20px; margin-bottom: 12px;
       font-size: 15px; color: #1e293b; line-height: 1.9; font-style: italic; }
-    .gfa-passage .blank { color: %s; font-weight: 700; text-decoration: none;
-                           border-bottom: 2px dashed %s; }
+    .gfa-passage .blank { color: #1B3A6B; font-weight: 700; text-decoration: none;
+                           border-bottom: 2px dashed #C8A951; }
     .rubric-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
     .rubric-btn { flex: 1; min-width: 60px; }
     .btn-save-slam {
-      background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%); color: white;
+      background: linear-gradient(135deg, #1B3A6B 0%, #2a5ab3 100%); color: white;
       border: none; border-radius: 10px; padding: 13px 32px; font-size: 15px;
       font-weight: 600; transition: all 0.2s ease; }
     .btn-save-slam:hover { transform: translateY(-1px);
@@ -342,43 +363,40 @@ slam_css <- function() {
     .btn-save-slam:disabled { background: #ccc; transform: none; box-shadow: none; }
     .score-badge { display: inline-block; padding: 5px 14px; border-radius: 20px;
                    font-size: 13px; font-weight: 700; margin: 2px; }
-    .badge-raw   { background: #e8f0fe; color: %s; }
+    .badge-raw   { background: #e8f0fe; color: #1B3A6B; }
     .badge-std   { background: #fff3e0; color: #e65100; }
     .badge-pr    { background: #e8f5e9; color: #2e7d32; }
-    .progress-story { font-size: 12px; color: %s; }
+    .progress-story { font-size: 12px; color: #6B7280; }
     .nav-btn {
-      background: white; color: %s; border: 2px solid %s;
+      background: white; color: #1B3A6B; border: 2px solid #1B3A6B;
       border-radius: 25px; padding: 8px 22px; font-size: 13px; font-weight: 600;
       transition: all 0.2s ease; cursor: pointer; }
-    .nav-btn:hover { background: %s; color: white; border-color: %s; }
-    .nav-btn.active { background: %s; color: white; border-color: %s; }
-    .image-placeholder {
-      background: linear-gradient(135deg, #f0f4fa, #e8ecf3);
-      border: 2px dashed #c0c8d8; border-radius: 12px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      min-height: 200px; color: %s; font-size: 14px; gap: 8px; }
+    .nav-btn:hover { background: #1B3A6B; color: white; border-color: #1B3A6B; }
+    .nav-btn.active { background: #1B3A6B; color: white; border-color: #1B3A6B; }
+    .story-carousel {
+      display: flex; gap: 12px; overflow-x: auto; padding: 10px 0;
+      scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    }
+    .carousel-slide { flex: 0 0 auto; scroll-snap-align: start; }
+    .story-img {
+      height: 260px; width: auto; border-radius: 10px;
+      border: 2px solid #e2e8f0; object-fit: cover;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
     .narrative-box {
       background: #fefce8; border: 1.5px solid #fde68a; border-radius: 10px;
       padding: 18px; margin-top: 14px; }
     textarea.form-control { border-radius: 10px; border: 1.5px solid #d0d7e2;
       padding: 12px 14px; font-size: 14px; }
-    textarea.form-control:focus { border-color: %s;
+    textarea.form-control:focus { border-color: #1B3A6B;
       box-shadow: 0 0 0 3px rgba(27,58,107,0.1); }
-    .rubric-dim-label { font-size: 13px; font-weight: 600; color: %s; margin-bottom: 6px; }
+    .rubric-dim-label { font-size: 13px; font-weight: 600; color: #1B3A6B; margin-bottom: 6px; }
     .results-card { background: white; border-radius: 14px; border: 1.5px solid #e2e8f0;
                     padding: 20px; margin-top: 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-    .results-title { font-size: 16px; font-weight: 700; color: %s; margin-bottom: 14px; }
+    .results-title { font-size: 16px; font-weight: 700; color: #1B3A6B; margin-bottom: 14px; }
     .tab-success { background: #ecfdf5; border-radius: 10px; padding: 16px; margin-top: 12px;
                    border: 1px solid #a7f3d0; }
-  ",
-  SLAM_BLUE, SLAM_BLUE, SLAM_LIGHT, SLAM_GOLD,
-  SLAM_BLUE, SLAM_BLUE,
-  SLAM_BLUE, SLAM_BLUE, SLAM_GOLD,
-  SLAM_BLUE, SLAM_GRAY, SLAM_BLUE, SLAM_BLUE,
-  SLAM_BLUE, SLAM_BLUE, SLAM_BLUE, SLAM_BLUE, SLAM_GRAY,
-  SLAM_BLUE, SLAM_BLUE, SLAM_BLUE, SLAM_BLUE, SLAM_BLUE, SLAM_BLUE,
-  SLAM_GRAY, SLAM_BLUE, SLAM_BLUE, SLAM_BLUE
-  ))
+  ")
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -424,14 +442,23 @@ ui <- fluidPage(
                 selected = "", width = "100%")
             )
           ),
-          column(4,
+          column(3,
             div(class = "form-group",
               tags$label("评估日期 / Date", class = "form-label"),
               dateInput("slam_assessment_date", NULL,
                 value = Sys.Date(), format = "yyyy-mm-dd", width = "100%")
             )
+          ),
+          column(1,
+            div(class = "form-group",
+              tags$label("&nbsp;", class = "form-label"),
+              actionButton("slam_info_submit", "✔",
+                title = "确认学生信息 / Confirm Student Info",
+                style = sprintf("margin-top: 24px; background:%s; color:white; border-color:%s; font-size:18px; padding:6px 14px;", SLAM_BLUE, SLAM_BLUE))
+            )
           )
-        )
+        ),
+        uiOutput("slam_info_status")
       )
     ),
 
@@ -455,11 +482,7 @@ ui <- fluidPage(
 
             # Images placeholder
             div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            div(class = "image-placeholder", style = "margin-bottom: 20px;",
-              span("📄 PDF: 1. SLAM Baseball Troubles_English.pdf"), br(),
-              span("图片路径: /tmp/slam_extract/.../1. SLAM Baseball Troubles_English.pdf"),
-              span("(需要PDF图片提取) — 请在评估时展示给受试者")
-            ),
+            story_img_carousel("baseball_troubles", 8),
 
             # Word Finding
             div(class = "section-label", "🔤 Word Finding / 图片命名"),
@@ -488,7 +511,7 @@ ui <- fluidPage(
               gfa <- STORIES$baseball_troubles$gfa_items
               ms <- gfa$max_score[i]
               choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
-              blank_p <- gsub("___", sprintf('<span class="blank">___</span>', i), gfa$passage_en[i])
+              blank_p <- gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])
               div(class = "gfa-item", id = sprintf("gfa_bt_%d", i),
                 div(class = "gfa-passage",
                   HTML(gsub("\\{\\{blank\\}\\}", blank_p, gfa$passage_en[i])),
@@ -554,10 +577,7 @@ ui <- fluidPage(
               p(STORIES$the_best_turkey$synopsis)
             ),
             div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            div(class = "image-placeholder", style = "margin-bottom: 20px;",
-              span("📄 PDF: 2. SLAM The Ball Mystery_English.pdf"),
-              span("(PDF图片需提取后引用) — 请在评估时展示给受试者")
-            ),
+            story_img_carousel("the_best_turkey", 8),
             div(class = "section-label", "🔤 Word Finding / 图片命名"),
             lapply(1:5, function(i) {
               wf <- STORIES$the_best_turkey$word_finding
@@ -580,7 +600,7 @@ ui <- fluidPage(
               choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
               div(class = "gfa-item", id = sprintf("gfa_tbt_%d", i),
                 div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___</span>'), gfa$passage_en[i])),
+                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
                   p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
                 ),
                 fluidRow(
@@ -632,10 +652,7 @@ ui <- fluidPage(
               p(STORIES$the_girl_who_loved_horses$synopsis)
             ),
             div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            div(class = "image-placeholder", style = "margin-bottom: 20px;",
-              span("📄 PDF: 3. SLAM Lost Cellphone_English.pdf"),
-              span("(PDF图片需提取后引用) — 请在评估时展示给受试者")
-            ),
+            story_img_carousel("the_girl_who_loved_horses", 6),
             div(class = "section-label", "🔤 Word Finding / 图片命名"),
             lapply(1:6, function(i) {
               wf <- STORIES$the_girl_who_loved_horses$word_finding
@@ -658,7 +675,7 @@ ui <- fluidPage(
               choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
               div(class = "gfa-item", id = sprintf("gfa_gwh_%d", i),
                 div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___</span>'), gfa$passage_en[i])),
+                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
                   p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
                 ),
                 fluidRow(
@@ -710,10 +727,7 @@ ui <- fluidPage(
               p(STORIES$wallace_and_batty$synopsis)
             ),
             div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-            div(class = "image-placeholder", style = "margin-bottom: 20px;",
-              span("📄 PDF: 4. SLAM Kittens Love Milk Cards (English).pdf"),
-              span("(PDF图片需提取后引用) — 请在评估时展示给受试者")
-            ),
+            story_img_carousel("wallace_and_batty", 6),
             div(class = "section-label", "🔤 Word Finding / 图片命名"),
             lapply(1:5, function(i) {
               wf <- STORIES$wallace_and_batty$word_finding
@@ -736,7 +750,7 @@ ui <- fluidPage(
               choices <- c("—"="", setNames(as.character(ms:0), paste0(ms:0, "分")))
               div(class = "gfa-item", id = sprintf("gfa_wb_%d", i),
                 div(class = "gfa-passage",
-                  HTML(gsub("___", sprintf('<span class="blank">___</span>'), gfa$passage_en[i])),
+                  HTML(gsub("___", sprintf('<span class="blank">___%d</span>', i), gfa$passage_en[i])),
                   p(style = "margin-top: 8px; font-size: 13px; color: #6b7280; font-style: normal;", gfa$passage_zh[i])
                 ),
                 fluidRow(
@@ -771,6 +785,23 @@ ui <- fluidPage(
               actionButton("save_wb", "💾 保存 Wallace and Batty 评分",
                 class = "btn-save-slam")
             )
+          )
+        )
+      ),
+
+      # ── Tab 5: AI Report ──────────────────────────────────
+      tabPanel("🤖 AI 综合报告 / AI Report",
+        div(class = "story-card",
+          div(class = "story-card-header",
+            span("🤖"), "AI 综合报告 / Hybrid CELF-5 + SLAM Report",
+            span(class = "progress-story", "选择学生 → 生成综合报告")
+          ),
+          div(class = "story-card-body",
+            p(strong("选择学生 / Select Student:"), " 点击下方表格选择一位有SLAM记录的学生",
+              style = "margin-bottom: 16px; font-size: 14px; color: #374151;"),
+            DT::dataTableOutput("slam_patient_dt"),
+            hr(),
+            uiOutput("slam_ai_report_content")
           )
         )
       )
@@ -888,27 +919,27 @@ server <- function(input, output, session) {
       con <- get_con()
       on.exit(dbDisconnect(con), add = TRUE)
 
-      # Get or create patient
+      # Get or create patient — match by name AND dob to avoid duplicates
+      dob_calc <- if (!is.na(si$age)) {
+        as.character(Sys.Date() - years(si$age))
+      } else { as.character(Sys.Date()) }
       patient_id <- dbGetQuery(con,
-        "SELECT id FROM patients WHERE name = ? LIMIT 1",
-        params = list(si$name))$id[1]
+        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
+        params = list(si$name, dob_calc))$id[1]
       if (is.na(patient_id)) {
         dbExecute(con,
           "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
-          params = list(si$name, si$date, si$gender, "", ""))
+          params = list(si$name, dob_calc, si$gender, "", ""))
         patient_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
       }
 
       # Create assessment
-      dob_calc <- if (!is.na(si$age)) {
-        as.character(Sys.Date() - years(si$age))
-      } else { as.character(Sys.Date()) }
+      ag <- sprintf("%d:0-%d:11", floor(age_to_group(si$age)), floor(age_to_group(si$age)) + 1)
 
       dbExecute(con,
-        "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status)
-         VALUES (?, ?, ?, ?, 'in_progress')",
-        params = list(patient_id, si$date, si$age,
-          sprintf("%d:0-%d:11", floor(age_to_group(si$age)), floor(age_to_group(si$age)) + 1)))
+        "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status, assessment_type)
+         VALUES (?, ?, ?, ?, 'in_progress', 'SLAM')",
+        params = list(patient_id, si$date, si$age, ag))
 
       assessment_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
 
@@ -982,6 +1013,196 @@ server <- function(input, output, session) {
     save_one_story("WallaceAndBatty", "wf_wb", "gfa_wb", "narr_wb", 5, 4)
   })
 
+  # ── Student Info Submit ─────────────────────────────────
+  observeEvent(input$slam_info_submit, {
+    si <- student_info()
+    if (si$name == "") {
+      output$slam_info_status <- renderUI({
+        div(style = "color: #dc2626; font-size: 13px; margin-top: 4px;",
+          icon("exclamation-triangle"), " 请输入学生姓名 / Please enter student name")
+      })
+      return()
+    }
+    tryCatch({
+      con <- get_con()
+      on.exit(dbDisconnect(con), add = TRUE)
+      dob_calc <- if (!is.na(si$age)) as.character(Sys.Date() - years(si$age)) else as.character(Sys.Date())
+      pid <- dbGetQuery(con,
+        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
+        params = list(si$name, dob_calc))$id[1]
+      if (is.na(pid)) {
+        dbExecute(con,
+          "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
+          params = list(si$name, dob_calc, si$gender, "", ""))
+        pid <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
+      }
+      age_display <- if (!is.na(si$age)) sprintf("%d岁", si$age) else "—"
+      gender_display <- switch(si$gender, M = "男 / M", F = "女 / F", "—")
+      output$slam_info_status <- renderUI({
+        div(style = sprintf("color: %s; font-size: 13px; margin-top: 4px; font-weight: 600;", SLAM_BLUE),
+          icon("check-circle"),
+          sprintf(" ✓ %s | %s | %s | %s (Patient ID: %d)",
+            si$name, age_display, gender_display, si$date, pid))
+      })
+    }, error = function(e) {
+      output$slam_info_status <- renderUI({
+        div(style = "color: #dc2626; font-size: 13px; margin-top: 4px;",
+          icon("exclamation-triangle"), sprintf(" 错误: %s", e$message))
+      })
+    })
+  })
+
+  # ── AI Report — Patient DT ──────────────────────────────
+  output$slam_patient_dt <- DT::renderDataTable({
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+    patients_df <- dbGetQuery(con, "
+      SELECT DISTINCT p.id, p.name, p.dob,
+             MAX(a.assessment_date) AS most_recent_date
+      FROM patients p
+      JOIN assessments a ON a.patient_id = p.id
+      WHERE a.assessment_type = 'SLAM'
+      GROUP BY p.id, p.name, p.dob
+      ORDER BY most_recent_date DESC")
+    if (nrow(patients_df) == 0) {
+      return(DT::datatable(data.frame(
+        Message = character("暂无SLAM记录 / No SLAM records yet")
+      ), options = list(dom = "t")))
+    }
+    DT::datatable(patients_df[, c("name", "dob", "most_recent_date")],
+      colnames = c("姓名 / Name" = "name", "出生日期 / DOB" = "dob",
+                   "最近评估日期 / Most Recent" = "most_recent_date"),
+      selection = "single",
+      options = list(
+        pageLength = 10,
+        dom = "frtip",
+        language = list(emptyTable = "暂无SLAM记录 / No SLAM records yet")
+      ))
+  })
+
+  # ── AI Report — Selected Patient Report ─────────────────
+  selected_slam_pid <- reactive({
+    input$slam_patient_dt_rows_selected
+  })
+
+  output$slam_ai_report_content <- renderUI({
+    req(selected_slam_pid())
+    con <- get_con()
+    on.exit(dbDisconnect(con), add = TRUE)
+    patients_df <- dbGetQuery(con, "
+      SELECT DISTINCT p.id, p.name, p.dob
+      FROM patients p
+      JOIN assessments a ON a.patient_id = p.id
+      WHERE a.assessment_type = 'SLAM'
+      ORDER BY MAX(a.assessment_date) DESC")
+    if (length(selected_slam_pid()) == 0 || selected_slam_pid()[1] > nrow(patients_df)) {
+      return(div("请在上方表格中选择一位学生 / Please select a student from the table above."))
+    }
+    pid <- patients_df$id[selected_slam_pid()[1]]
+    pname <- patients_df$name[selected_slam_pid()[1]]
+    pdob <- patients_df$dob[selected_slam_pid()[1]]
+
+    # Fetch ALL assessments (CELF5 + SLAM) for this patient
+    all_data <- dbGetQuery(con, "
+      SELECT a.*, p.name AS patient_name, p.dob, p.gender
+      FROM assessments a
+      JOIN patients p ON a.patient_id = p.id
+      WHERE a.patient_id = ? AND a.assessment_type IN ('CELF5','SLAM')
+      ORDER BY a.assessment_date DESC",
+      params = list(pid))
+
+    if (nrow(all_data) == 0) {
+      return(div("该患者没有评估记录 / No assessment records found for this patient."))
+    }
+
+    # Separate SLAM vs CELF5
+    slam_data <- all_data[all_data$assessment_type == "SLAM", ]
+    celf_data <- all_data[all_data$assessment_type == "CELF5", ]
+
+    # Build report sections
+    report_parts <- list()
+
+    # Header
+    report_parts[[length(report_parts) + 1]] <- div(
+      style = sprintf("background: linear-gradient(135deg, %s 0%%, #2a5ab3 100%%); color: white; border-radius: 14px; padding: 24px; margin-bottom: 20px;"),
+      h3(sprintf("综合评估报告 / Comprehensive Assessment Report: %s", pname), style = "margin:0 0 8px; color: white;"),
+      p(sprintf("出生日期 DOB: %s | 性别 Gender: %s | Patient ID: %d", pdob, slam_data$gender[1] %||% "—", pid), style = "margin:0; opacity: 0.85;")
+    )
+
+    # SLAM Summary
+    if (nrow(slam_data) > 0) {
+      slam_ids <- slam_data$id
+      slam_scores <- dbGetQuery(con, "
+        SELECT ss.* FROM subtest_scores ss
+        WHERE ss.assessment_id IN ({paste(slam_ids, collapse=',')})",
+        params = list())
+      slam_narratives <- dbGetQuery(con, "
+        SELECT r.* FROM responses r
+        WHERE r.assessment_id IN ({paste(slam_ids, collapse=',')}) AND r.subtest LIKE '%_Narrative'",
+        params = list())
+
+      slam_block <- div(style = "margin-bottom: 24px;",
+        h4(sprintf("📊 SLAM 叙事评估 / SLAM Narrative Assessment (%d次评估)", nrow(slam_data)),
+           style = sprintf("color: %s; border-bottom: 2px solid %s; padding-bottom: 8px;", SLAM_BLUE, SLAM_GOLD)),
+        lapply(seq_len(nrow(slam_data)), function(i) {
+          aid <- slam_data$id[i]
+          adate <- slam_data$assessment_date[i]
+          scores_i <- slam_scores[slam_scores$assessment_id == aid, ]
+          narratives_i <- slam_narratives[slam_narratives$assessment_id == aid, ]
+          div(style = "background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0;",
+            strong(sprintf("评估日期: %s | 年龄: %s岁", adate, slam_data$age_years[i] %||% "—")), br(),
+            if (nrow(scores_i) > 0) {
+              tagList(
+                lapply(seq_len(nrow(scores_i)), function(si) {
+                  row <- scores_i[si, ]
+                  div(style = "display: inline-block; margin-right: 16px;",
+                    span(class = "score-badge badge-raw",
+                      sprintf("%s: %d分", sub("^[^_]*_", "", row$subtest), row$raw_score %||% 0)),
+                    if (!is.na(row$scaled_score)) {
+                      span(class = "score-badge badge-std",
+                        sprintf("标准分: %d", row$scaled_score))
+                    }
+                  )
+                })
+              )
+            },
+            if (nrow(narratives_i) > 0 && nzchar(narratives_i$response_text[1] %||% "")) {
+              div(style = "margin-top: 10px; padding: 10px; background: #fefce8; border-radius: 8px; border-left: 3px solid #C8A951;",
+                strong("自由叙事文本 / Narrative: "), br(),
+                span(style = "font-style: italic; color: #374151;", substr(narratives_i$response_text[1] %||% "", 1, 300))
+              )
+            }
+          )
+        })
+      )
+      report_parts[[length(report_parts) + 1]] <- slam_block
+    }
+
+    # CELF5 Summary
+    if (nrow(celf_data) > 0) {
+      celf_block <- div(style = "margin-bottom: 24px;",
+        h4(sprintf("📋 CELF-5 语言评估 / CELF-5 Language Assessment (%d次评估)", nrow(celf_data)),
+           style = sprintf("color: %s; border-bottom: 2px solid %s; padding-bottom: 8px;", SLAM_BLUE, SLAM_GOLD)),
+        lapply(seq_len(nrow(celf_data)), function(i) {
+          adate <- celf_data$assessment_date[i]
+          div(style = "background: #f8fafc; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #e2e8f0;",
+            strong(sprintf("评估日期: %s | 年龄: %s岁", adate, celf_data$age_years[i] %||% "—"))
+          )
+        })
+      )
+      report_parts[[length(report_parts) + 1]] <- celf_block
+    }
+
+    if (length(report_parts) == 1) {
+      report_parts[[length(report_parts) + 1]] <- div(
+        style = "color: #6b7280; font-style: italic;",
+        "暂无详细分数记录 / No detailed score records found."
+      )
+    }
+
+    tagList(report_parts)
+  })
+
   # ── Summary Table ───────────────────────────────────────
 
   output$slam_summary_table <- renderUI({
@@ -1043,14 +1264,17 @@ server <- function(input, output, session) {
       con <- get_con()
       on.exit(dbDisconnect(con), add = TRUE)
 
-      # Get or create patient
+      # Get or create patient — match by name AND dob
+      dob_for_lookup <- if (!is.na(si$age)) {
+        as.character(Sys.Date() - years(si$age))
+      } else { as.character(Sys.Date()) }
       patient_id <- dbGetQuery(con,
-        "SELECT id FROM patients WHERE name = ? LIMIT 1",
-        params = list(si$name))$id[1]
+        "SELECT id FROM patients WHERE name = ? AND dob = ? LIMIT 1",
+        params = list(si$name, dob_for_lookup))$id[1]
       if (is.na(patient_id)) {
         dbExecute(con,
           "INSERT INTO patients (name, dob, gender, examiner, notes) VALUES (?, ?, ?, ?, ?)",
-          params = list(si$name, si$date, si$gender, "", ""))
+          params = list(si$name, dob_for_lookup, si$gender, "", ""))
         patient_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
       }
 
@@ -1060,8 +1284,8 @@ server <- function(input, output, session) {
       ag <- sprintf("%d:0-%d:11", floor(age_to_group(age)), floor(age_to_group(age)) + 1)
 
       dbExecute(con,
-        "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status)
-         VALUES (?, ?, ?, ?, 'completed')",
+        "INSERT INTO assessments (patient_id, assessment_date, age_years, age_group, status, assessment_type)
+         VALUES (?, ?, ?, ?, 'completed', 'SLAM')",
         params = list(patient_id, si$date, age, ag))
       assessment_id <- dbGetQuery(con, "SELECT last_insert_rowid() as id")$id[1]
 
