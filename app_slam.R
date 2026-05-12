@@ -791,7 +791,7 @@ server <- function(input, output, session) {
   slam_assessments_df <- reactive({
     df <- tryCatch({
       list_assessments() %>%
-        filter(assessment_type == "SLAM") %>%
+
         mutate(
           age_str = glue("{age_years}y {age_months}m"),
           date = as.character(assessment_date),
@@ -863,7 +863,7 @@ server <- function(input, output, session) {
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
 
-    assessments_list <- list_assessments() %>% filter(assessment_type == "SLAM")
+    assessments_list <- list_assessments()
     row_idx <- input$slam_assessments_dt_rows_selected[1]
     if (row_idx > nrow(assessments_list)) return()
 
@@ -901,7 +901,7 @@ server <- function(input, output, session) {
     req(input$slam_assessments_dt_rows_selected)
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
-    assessments_list <- list_assessments() %>% filter(assessment_type == "SLAM")
+    assessments_list <- list_assessments()
     row_idx <- input$slam_assessments_dt_rows_selected[1]
     aid <- assessments_list[row_idx, ]$id
     dbExecute(con, "DELETE FROM assessments WHERE id=?", params = list(aid))
