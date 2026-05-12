@@ -181,7 +181,7 @@ STORIES <- list(
     name = "Lost Cellphone",
     name_zh = "丢失的手机",
     age_range = "13-17岁",
-    n_images = 6,
+    n_images = 3,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. SLAM Lost Cellphone_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. GFA - Lost Cellphone.pdf",
     synopsis = "一个男孩在便利店结账时被女孩分散了注意力，手机忘在柜台上被后面的人拿走。\nA boy gets distracted by a girl at the store and leaves his cellphone on the counter. Someone behind him takes it.",
@@ -251,7 +251,7 @@ STORIES <- list(
     name = "Kittens Love Milk Cards",
     name_zh = "小猫爱牛奶",
     age_range = "7-14岁",
-    n_images = 5,
+    n_images = 3,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/4. SLAM Kittens Love Milk Cards (English).pdf",
     gfa_path = NULL,
     synopsis = "一个女人买完东西上楼时，口袋里装了一只小猫她自己却不知道。\nA woman carrying groceries goes upstairs when a little kitten secretly jumps into her bag.",
@@ -457,14 +457,14 @@ ui <- fluidPage(
         # Right: SLAM assessments history (8 cols)
         column(8,
           div(class = "panel",
-            div(class = "panel-heading", "SLAM 评估历史 / Assessment History"),
+            div(class = "panel-heading", "选择受试者 / Select Subject"),
             div(class = "panel-body",
               selectInput("slam_filter_status", "筛选状态 / Filter Status",
                 choices = c("全部 / All" = "all",
                             "进行中 / In Progress" = "in_progress",
                             "已完成 / Complete" = "complete"),
                 selected = "all", width = "40%"),
-              DT::dataTableOutput("slam_assessments_dt"),
+              DT::dataTableOutput("slam_patient_dt"),
               uiOutput("slam_load_btn_ui")
             )
           )
@@ -640,7 +640,7 @@ ui <- fluidPage(
             p(STORIES$lost_cellphone$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("lost_cellphone", 6),
+          story_img_carousel("lost_cellphone", 3),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$lost_cellphone$gfa_items$item), function(i) {
             gfa <- STORIES$lost_cellphone$gfa_items
@@ -708,7 +708,7 @@ ui <- fluidPage(
             p(STORIES$kittens_love_milk$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("kittens_love_milk", 5),
+          story_img_carousel("kittens_love_milk", 3),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$kittens_love_milk$gfa_items$item), function(i) {
             gfa <- STORIES$kittens_love_milk$gfa_items
@@ -787,45 +787,66 @@ server <- function(input, output, session) {
   # ── Reactive values for SLAM ────────────────────────────────────
   rv <- reactiveValues(slam_status_version = 0L)
 
-  # ── SLAM Assessments DT (Subject Info tab) ───────────────────────
-  slam_assessments_df <- reactive({
-    df <- tryCatch({
-      list_assessments() %>%
-
-        mutate(
-          age_str = glue("{age_years}y {age_months}m"),
-          date = as.character(assessment_date),
-          status_label = ifelse(status == "in_progress",
-            '<span style="color:#e67e22;font-weight:600;">● 进行中</span>',
-            '<span style="color:#27ae60;font-weight:600;">● 已完成</span>')
-        ) %>%
-        select(姓名=patient_name, 评估日期=date, 年龄=age_str, 状态=status_label)
-    }, error = function(e) {
-      data.frame(姓名=character(), 评估日期=character(), 年龄=character(), 状态=character())
-    })
-    fs <- input$slam_filter_status
-    if (!is.null(fs) && fs != "all") {
-      df <- df[grepl(if (fs == "in_progress") "进行中" else "已完成", df$状态), ]
-    }
-    df
+  # ── SLAM Patients DT (Subject Info tab — shared patients table) ─
+  slam_patients_df <- reactive({
+    con <- get_con()
+    on.exit(dbDisconnect(con))
+    patients <- dbGetQuery(con, "
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner,
+             (SELECT COUNT(*) FROM assessments a WHERE a.patient_id = p.id) as n_assessments
+      FROM patients p
+      ORDER BY p.id DESC")
+    patients
   }) %>% bindEvent(input$slam_filter_status, rv$slam_status_version)
 
-  output$slam_assessments_dt <- DT::renderDataTable({
-    df <- slam_assessments_df()
-    if (nrow(df) == 0) return(df)
-    DT::datatable(df, selection = "single", escape = FALSE,
+  output$slam_patient_dt <- DT::renderDataTable({
+    con <- get_con()
+    on.exit(dbDisconnect(con))
+    patients <- dbGetQuery(con, "
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner,
+             (SELECT COUNT(*) FROM assessments a WHERE a.patient_id = p.id) as n_assessments
+      FROM patients p
+      ORDER BY p.id DESC
+    ")
+
+    if (nrow(patients) == 0) {
+      return(data.frame(
+        ID = integer(), Name = character(), DOB = character(),
+        Gender = character(), Examiner = character(), Assessments = integer()
+      ))
+    }
+
+    dt_df <- data.frame(
+      ID          = patients$id,
+      Name        = patients$name,
+      DOB         = ifelse(is.na(patients$dob), "-", as.character(patients$dob)),
+      Gender      = ifelse(is.na(patients$gender), "-",
+                    ifelse(patients$gender == "M", "男 / M", "女 / F")),
+      Examiner    = ifelse(is.na(patients$examiner), "-", patients$examiner),
+      Assessments = patients$n_assessments,
+      stringsAsFactors = FALSE
+    )
+
+    # Filter by slam_filter_status if not "all"
+    fs <- input$slam_filter_status
+    if (!is.null(fs) && fs == "in_progress") {
+      dt_df <- dt_df[dt_df$Assessments > 0, ]
+    }
+
+    DT::datatable(dt_df, selection = "single", escape = FALSE,
       options = list(
         pageLength = 10,
         lengthMenu = c(10, 25, 50),
         dom = 'frtip',
         language = list(
-          emptyTable = "暂无 SLAM 评估记录",
+          emptyTable = "暂无受试者 / No subjects found",
           search = "搜索：",
           lengthMenu = "每页 _MENU_ 条",
           info = "显示第 _START_ 至 _END_ 条，共 _TOTAL_ 条"
         ),
         columnDefs = list(
-          list(className = 'dt-center', targets = c(1, 2, 3))
+          list(className = 'dt-center', targets = c(0, 2, 3, 4, 5)),
+          list(visible = FALSE, targets = 0)  # hide ID col
         ),
         initComplete = htmlwidgets::JS(
           "function(settings, json) {",
@@ -838,14 +859,14 @@ server <- function(input, output, session) {
       class = "stripe hover compact")
   }, server = FALSE)
 
-  # ── Load/Delete buttons (when row selected) ─────────────────────
+  # ── Load/Delete buttons (when patient row selected) ──────────────
   output$slam_load_btn_ui <- renderUI({
-    req(!is.null(input$slam_assessments_dt_rows_selected))
+    req(!is.null(input$slam_patient_dt_rows_selected))
     tagList(
       hr(),
       fluidRow(
         column(6,
-          actionButton("slam_btn_load_assessment", "📂 加载 / Load",
+          actionButton("slam_btn_load_patient", "📂 加载 / Load",
             class = "btn-primary",
             style = sprintf("width:100%%; background:%s;", SLAM_BLUE))
         ),
@@ -857,58 +878,69 @@ server <- function(input, output, session) {
     )
   })
 
-  # ── Load assessment — populate form fields ───────────────────────
-  observeEvent(input$slam_btn_load_assessment, {
-    req(input$slam_assessments_dt_rows_selected)
+  # ── Load patient — populate form fields ─────────────────────────
+  observeEvent(input$slam_btn_load_patient, {
+    req(input$slam_patient_dt_rows_selected)
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
 
-    assessments_list <- list_assessments()
-    row_idx <- input$slam_assessments_dt_rows_selected[1]
-    if (row_idx > nrow(assessments_list)) return()
+    patients <- dbGetQuery(con, "
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner
+      FROM patients p
+      ORDER BY p.id DESC
+    ")
 
-    row <- assessments_list[row_idx, ]
-    updateTextInput(session, "slam_patient_name", value = row$patient_name %||% "")
-    updateDateInput(session, "slam_dob",
-      value = as.Date(paste0(row$age_years, "-01-01")) + months(row$age_months))
-    updateDateInput(session, "slam_assessment_date", value = as.Date(row$assessment_date))
+    row_idx <- input$slam_patient_dt_rows_selected[1]
+    if (row_idx > nrow(patients)) return()
+
+    row <- patients[row_idx, ]
+    rv$patient_id <- as.integer(row$id)
+
+    updateTextInput(session, "slam_patient_name", value = row$name %||% "")
     updateTextInput(session, "slam_examiner", value = row$examiner %||% "")
-
-    rv$assessment_id <- row$id
-    rv$patient_id <- row$patient_id
+    updateSelectInput(session, "slam_patient_gender", selected = row$gender %||% "")
+    updateDateInput(session, "slam_dob", value = ifelse(is.na(row$dob), NA, as.Date(row$dob)))
 
     showNotification(
-      tagList(icon("check-circle"), sprintf(" 已加载评估: %s (ID#%d)", row$patient_name, row$id)),
+      tagList(icon("check-circle"), sprintf(" 已加载受试者: %s (ID#%d)", row$name, row$id)),
       type = "message", duration = 3
     )
   })
 
-  # ── Delete assessment ─────────────────────────────────────────
+  # ── Delete patient (via modal) ──────────────────────────────────
   observeEvent(input$slam_btn_delete_confirm, {
-    req(input$slam_assessments_dt_rows_selected)
+    req(input$slam_patient_dt_rows_selected)
     showModal(modalDialog(
       title = "确认删除 / Confirm Delete",
-      "确定要删除这条 SLAM 评估记录吗？此操作不可撤销。",
+      "确定要删除这位受试者吗？所有关联的评估记录也将被删除，此操作不可撤销。",
       footer = tagList(
         modalButton("取消 / Cancel"),
-        actionButton("slam_btn_delete_do", "🗑 确定删除",
+        actionButton("slam_btn_delete_patient_do", "🗑 确定删除",
           class = "btn-danger")
       )
     ))
   })
 
-  observeEvent(input$slam_btn_delete_do, {
-    req(input$slam_assessments_dt_rows_selected)
+  observeEvent(input$slam_btn_delete_patient_do, {
+    req(input$slam_patient_dt_rows_selected)
     con <- get_con()
     on.exit(dbDisconnect(con), add = TRUE)
-    assessments_list <- list_assessments()
-    row_idx <- input$slam_assessments_dt_rows_selected[1]
-    aid <- assessments_list[row_idx, ]$id
-    dbExecute(con, "DELETE FROM assessments WHERE id=?", params = list(aid))
-    dbExecute(con, "DELETE FROM slam_responses WHERE assessment_id=?", params = list(aid))
+
+    patients <- dbGetQuery(con, "
+      SELECT p.id, p.name
+      FROM patients p
+      ORDER BY p.id DESC
+    ")
+    row_idx <- input$slam_patient_dt_rows_selected[1]
+    pid <- as.integer(patients$id[row_idx])
+
+    # Delete related assessments first
+    dbExecute(con, "DELETE FROM assessments WHERE patient_id=?", params = list(pid))
+    dbExecute(con, "DELETE FROM patients WHERE id=?", params = list(pid))
+
     removeModal()
     rv$slam_status_version <- rv$slam_status_version + 1L
-    showNotification("评估已删除 / Assessment deleted", type = "message")
+    showNotification("受试者已删除 / Subject deleted", type = "message")
   })
 
   # ── Start Assessment button ──────────────────────────────────
