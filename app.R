@@ -579,9 +579,10 @@ server <- function(input, output, session) {
     rv$current_subtest <- input$selected_subtest
     sp <- get_start_point(rv$current_subtest, rv$age_group)
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
-    # 使用数据库实际最大题号（而非理论 max_items）来限制导航范围
-    real_max <- get_db_max_item(rv$current_subtest, rv$age_group)
-    scored_items <- sub_resp$item_number
+    # max_items: SUBTEST_DEFS 理论最大题号（所有年龄组共享同一题库）
+    max_items <- SUBTEST_DEFS %>% filter(subtest==rv$current_subtest) %>% pull(max_items) %>% .[[1]]
+    # real_max kept as alias for max_items (used in multiple places)
+    real_max <- max_items
     candidates <- setdiff(seq(1, real_max), scored_items)
     next_item <- if (length(candidates) > 0) min(candidates) else real_max
     # 避免 btn_start/init 时覆盖 current_item（btn_start 在此之前已正确设置）
@@ -605,8 +606,9 @@ server <- function(input, output, session) {
     t <- rv$current_subtest
     item_n <- rv$current_item
     sp <- rv$start_point
-    # 使用数据库实际最大题号限制导航（避免导航到不存在的题）
-    real_max <- get_db_max_item(t, rv$age_group)
+    # max_items: SUBTEST_DEFS 理论最大题号（所有年龄组共享同一题库，无 ending point）
+    max_items <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
+    real_max <- max_items  # kept as alias for compatibility
 
     if (rv$discontinue_triggered) {
       return(div(class="alert alert-warning", style="margin-top:20px",
@@ -615,7 +617,7 @@ server <- function(input, output, session) {
 
     if (item_n > real_max) {
       return(div(class="alert alert-success", style="margin-top:20px",
-                 h3(glue("✅ {box_title} 已完成所有题目（共{real_max}题）")),
+                 h3(glue("{box_title} 已完成所有题目（共{real_max}题）")),
                  p("所有可用题目已完成，请选择下一测试或查看报告。")))
     }
 
@@ -629,7 +631,7 @@ server <- function(input, output, session) {
 
     tagList(
       h3(
-        glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {real_max} 题 total)"),
+        glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {display_max} 题 total)"),
         if (item_n == sp) span(class = "badge bg-danger", style = "margin-left:10px;vertical-align:middle;font-size:16px;padding:4px 10px;", "★ 起始题 Start")
       ),
 
@@ -1304,8 +1306,8 @@ server <- function(input, output, session) {
     check_reversal(t)
 
     # ── 导航：保存后前进到下一题 ───────────────────────────
-    # 使用数据库实际最大题号限制导航
-    real_max <- get_db_max_item(t, rv$age_group)
+    # max_items: 所有年龄组共享题库，无 ending point
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
     if (rv$discontinue_triggered || i_n >= real_max) {
       # 结束当前 subtest（discontinue 或 已做完最后题）
       rv$completed_subtests <- c(rv$completed_subtests, t) %>% unique()
@@ -1345,8 +1347,8 @@ server <- function(input, output, session) {
     i_n <- rv$current_item
     # 重置 discontinue 状态，避免用户点击「下一题」时卡在 discontinue 提示上
     rv$discontinue_triggered <- FALSE
-    # 使用数据库实际最大题号限制导航
-    real_max <- get_db_max_item(t, rv$age_group)
+    # 所有年龄组共享题库：导航边界用 SUBTEST_DEFS max_items
+    real_max <- SUBTEST_DEFS %>% filter(subtest==t) %>% pull(max_items) %>% .[[1]]
     if (i_n < real_max) {
       rv$current_item <- i_n + 1L
     } else {
