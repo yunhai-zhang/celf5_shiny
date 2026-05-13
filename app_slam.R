@@ -1399,20 +1399,15 @@ ui <- fluidPage(
       )
 
       )  # end jh_hs_tabs
-    ),    # end JH-HS tabPanel
+      ),    # end jh_hs_tabs
 
-    # ── Report Tab ──────────────────────────────────────────────────
-    tabPanel("📋 Report / 报告", value = "slam_report_tab",
-      uiOutput("slam_report")
-    )
+      # ── Report Tab ──────────────────────────────────────────────────
+      tabPanel("📋 Report / 报告", value = "slam_report_tab",
+        uiOutput("slam_report")
+      )
+    ),    # end JH-HS tabPanel
   ),  # end tabsetPanel
 
-  # Footer
-  div(style = "text-align: center; margin-top: 36px; padding: 20px; color: #aaa; font-size: 13px;",
-    span(style = sprintf("color: %s; font-weight: 600;", SLAM_BLUE), "SLAM"),
-    "© 2026  |  Columbia University Leaders Project — Free for Copying and Distribution  |  ",
-    "Powered by R Shiny"
-  ))
 )
 
 # ─────────────────────────────────────────────────────────────
@@ -1495,7 +1490,7 @@ server <- function(input, output, session) {
         ),
         columnDefs = list(
           list(className = 'dt-center', targets = c(0, 2, 3, 4, 5)),
-          list(visible = FALSE, targets = 0)  # hide ID col
+          list(visible = TRUE, targets = 0)   # show ID col
         ),
         initComplete = htmlwidgets::JS(
           "function(settings, json) {",
