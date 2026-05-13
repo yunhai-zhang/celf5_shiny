@@ -495,7 +495,7 @@ STORIES_ELEM <- list(
       probing     = "4-5",
       support     = "Below 4"
     ),
-    n_images = 4,
+    n_images = 1,
     pdf_path = "story_images/the_crayons",
     gfa_path = NULL,
     synopsis = "红色蜡笔在墙上乱画后嫁祸给小蓝蜡笔，紫色蜡笔很生气。\nThe red crayon draws on the wall and blames the little blue crayon. The purple crayon is angry at blue.",
@@ -969,7 +969,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("the_crayons", 2),
+              story_img_carousel("the_crayons", 1),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$the_crayons$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$the_crayons$gfa_items
