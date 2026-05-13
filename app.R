@@ -631,7 +631,7 @@ server <- function(input, output, session) {
 
     tagList(
       h3(
-        glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {display_max} 题 total)"),
+        glue("{box_title} — 第 {item_n} 题 / Item {item_n} (共 {real_max} 题 total)"),
         if (item_n == sp) span(class = "badge bg-danger", style = "margin-left:10px;vertical-align:middle;font-size:16px;padding:4px 10px;", "★ 起始题 Start")
       ),
 
