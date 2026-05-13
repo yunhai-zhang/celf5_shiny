@@ -29,15 +29,31 @@ get_con <- function() dbConnect(SQLite(), DB_PATH)
 # ─────────────────────────────────────────────────────────────
 # 0b. Story Image Carousel (served from www/story_images/)
 # ─────────────────────────────────────────────────────────────
-story_img_carousel <- function(story_id, n_images) {
-  img_tags <- lapply(seq_len(n_images), function(p) {
-    page_num <- sprintf("p%d", p)
-    img_path <- sprintf("story_images/%s_%s_img1.png", story_id, page_num)
-    tags$div(class = "carousel-slide",
-      tags$img(src = img_path, class = "story-img",
-                alt = sprintf("Page %d of %s", p, story_id))
-    )
-  })
+story_img_carousel <- function(story_id, n_images, images_per_page = 1) {
+  if (images_per_page == 1) {
+    # Portrait: one image per page
+    img_tags <- lapply(seq_len(n_images), function(p) {
+      page_num <- sprintf("p%d", p)
+      img_path <- sprintf("story_images/%s_%s_img1.png", story_id, page_num)
+      tags$div(class = "carousel-slide",
+        tags$img(src = img_path, class = "story-img",
+                  alt = sprintf("Page %d of %s", p, story_id))
+      )
+    })
+  } else {
+    # Landscape / 2-up: two images per page
+    n_pages <- ceiling(n_images / images_per_page)
+    img_tags <- lapply(seq_len(n_images), function(idx) {
+      page_num <- ceiling(idx / images_per_page)
+      img_num  <- ((idx - 1) %% images_per_page) + 1
+      page_str <- sprintf("p%d", page_num)
+      img_path <- sprintf("story_images/%s_%s_img%d.png", story_id, page_str, img_num)
+      tags$div(class = "carousel-slide",
+        tags$img(src = img_path, class = "story-img",
+                  alt = sprintf("Page %d image %d", page_num, img_num))
+      )
+    })
+  }
   tags$div(class = "story-carousel", id = sprintf("carousel_%s", story_id),
     tagList(img_tags)
   )
@@ -983,7 +999,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("the_crayons", 4),
+              story_img_carousel("the_crayons", 4, images_per_page = 2),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
               lapply(seq_len(nrow(STORIES_ELEM$the_crayons$word_finding)), function(i) {
                 wf <- STORIES_ELEM$the_crayons$word_finding
