@@ -647,11 +647,12 @@ get_slam_standard_score <- function(raw, type = c("word_finding","gfa"), age) {
 # ─────────────────────────────────────────────────────────────
 slam_css <- function() {
   HTML(paste0(
-"body { background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; }
+"/* ── Viewport / base ── */
+body { background: #ffffff; font-family: 'Segoe UI', Arial, sans-serif; -webkit-text-size-adjust: 100%%; }
 .container-fluid { padding: 0; }
 .tab-content { padding: 20px; background: #ffffff; min-height: 100vh; }
 .nav-tabs { border-bottom: 2px solid #e2e8f0; }
-.nav-tabs > li > a { border-radius: 8px 8px 0 0; font-weight: 600; color: ", SLAM_GRAY, "; }
+.nav-tabs > li > a { border-radius: 8px 8px 0 0; font-weight: 600; color: ", SLAM_GRAY, "; font-size: 14px; padding: 8px 14px; }
 .nav-tabs > li.active > a { color: ", SLAM_BLUE, "; border-color: #e2e8f0 #e2e8f0 white; border-bottom: 3px solid ", SLAM_GOLD, "; }
 .nav-tabs > li > a:hover { color: ", SLAM_BLUE, "; }
 .slam-hero { background: linear-gradient(135deg, ", SLAM_BLUE, " 0%, #b45309 100%); color: white; border-radius: 18px; padding: 36px 40px; margin-bottom: 28px; box-shadow: 0 8px 30px rgba(217,119,6,0.25); }
@@ -692,12 +693,58 @@ textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3
 .panel { border-radius: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 .panel-heading { background: ", SLAM_BLUE, "; color: white; border-radius: 10px 10px 0 0; font-weight: 600; padding: 12px 16px; }
 .panel-body { background: white; padding: 16px; }
-.form-control { border-radius: 6px; border: 1px solid #ccc; }
+.form-control { border-radius: 6px; border: 1px solid #ccc; font-size: 15px; padding: 8px 12px; }
+.btn { font-size: 15px; padding: 8px 16px; border-radius: 6px; }
 .btn-primary { background: ", SLAM_BLUE, "; border-color: ", SLAM_BLUE, "; font-weight: 600; }
 .btn-primary:hover { background: #B45309; border-color: #B45309; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: ", SLAM_GRAY, "; }
 ::-webkit-scrollbar-thumb { background: ", SLAM_BLUE, "; border-radius: 4px; }
+
+/* ── Tablet 768-1024px ── */
+@media (max-width: 1024px) {
+  .nav-tabs { font-size: 12px; }
+  .nav-tabs > li > a { padding: 6px 10px; }
+  .tab-content { padding: 15px; }
+  .slam-hero { padding: 24px 20px; }
+  .slam-hero h2 { font-size: 22px; }
+  .story-card-body { padding: 16px; }
+  .story-img { height: 200px; }
+  .wf-item, .gfa-item { padding: 12px; }
+  .btn-save-slam { padding: 10px 24px; font-size: 14px; }
+}
+
+/* ── Phone <768px ── */
+@media (max-width: 767px) {
+  body { font-size: 15px; }
+  .container-fluid { padding: 0 10px; }
+  .tab-content { padding: 12px 10px; }
+  .nav-tabs { font-size: 11px; display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .nav-tabs > li { flex: 0 0 auto; }
+  .nav-tabs > li > a { padding: 5px 8px; white-space: nowrap; }
+  .slam-hero { padding: 16px 14px; border-radius: 12px; margin-bottom: 16px; }
+  .slam-hero h2 { font-size: 18px; }
+  .slam-hero p { font-size: 13px; }
+  .story-card { margin-bottom: 16px; }
+  .story-card-header { padding: 12px 16px; font-size: 15px; }
+  .story-card-body { padding: 14px 12px; }
+  .synopsis-box { font-size: 13px; padding: 10px 12px; }
+  .section-label { font-size: 12px; }
+  .story-img { height: auto; width: 100%%; max-height: 260px; object-fit: contain; }
+  .story-carousel { gap: 8px; padding: 8px 0; }
+  .wf-item, .gfa-item { padding: 12px; margin-bottom: 10px; }
+  .wf-prompt { font-size: 14px; }
+  .gfa-passage { font-size: 14px; padding: 12px 14px; }
+  .btn-save-slam { width: 100%%; padding: 12px; font-size: 16px; border-radius: 8px; }
+  .btn { font-size: 16px; padding: 10px 16px; width: 100%%; margin-bottom: 8px; }
+  .form-control { font-size: 16px; padding: 10px 12px; }
+  .panel-heading { font-size: 14px; padding: 10px 12px; }
+  .rubric-row { flex-direction: column; }
+  .rubric-btn { min-width: unset; }
+  .results-card { padding: 14px; }
+  textarea.form-control { font-size: 15px; }
+  .shiny-input-container { margin-bottom: 10px; }
+}
 "))}
 
 # ─────────────────────────────────────────────────────────────
@@ -705,7 +752,10 @@ textarea.form-control:focus { border-color: ", SLAM_BLUE, "; box-shadow: 0 0 0 3
 # ─────────────────────────────────────────────────────────────
 ui <- fluidPage(
   theme = bslib::bs_theme(version = 5, primary = SLAM_BLUE, secondary = SLAM_GOLD),
-  tags$head(tags$style(slam_css())),
+  tags$head(
+    tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"),
+    tags$style(slam_css())
+  ),
 
   # Title
   titlePanel(

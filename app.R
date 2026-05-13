@@ -26,6 +26,7 @@ celf5_white <- "#FFFFFF"
 
 ui <- fluidPage(
   tags$head(
+    tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"),
     tags$script(HTML("
       // Clear dateInput browser-cache values on page load
       // DOB needs manual entry so clear it; assessment_date defaults to today so leave it
@@ -37,19 +38,22 @@ ui <- fluidPage(
       });
     ")),
     tags$style(HTML(sprintf("
-      body { background: %s; font-family: 'Segoe UI', Arial, sans-serif; }
+      /* ── Base ── */
+      body { background: %s; font-family: 'Segoe UI', Arial, sans-serif; -webkit-text-size-adjust: 100%%; }
       .container-fluid { padding: 0; }
       .tab-content { padding: 20px; background: %s; min-height: 100vh; }
-      .nav-tabs > li > a { color: %s; font-weight: 600; }
+      .nav-tabs { font-size: 13px; }
+      .nav-tabs > li > a { color: %s; font-weight: 600; padding: 8px 12px; }
       .nav-tabs > li.active > a { background: %s !important; color: %s !important; }
       .nav-tabs > li > a:hover { color: %s; }
-      .form-control { border-radius: 6px; border: 1px solid #ccc; }
+      .form-control { border-radius: 6px; border: 1px solid #ccc; font-size: 15px; padding: 8px 12px; }
+      .btn { font-size: 15px; padding: 8px 16px; border-radius: 6px; }
       .btn-primary { background: %s; border-color: %s; font-weight: 600; }
       .btn-primary:hover { background: %s; border-color: %s; }
       .btn-default { border-radius: 6px; }
       h1, h2, h3, h4 { color: %s; }
       .panel { border-radius: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-      .panel-heading { background: %s; color: %s; border-radius: 10px 10px 0 0; font-weight: 600; }
+      .panel-heading { background: %s; color: %s; border-radius: 10px 10px 0 0; font-weight: 600; font-size: 15px; }
       .panel-body { background: %s; }
       .well { background: %s; border-radius: 8px; border: none; }
       .alert-info { background: #E8F0FE; border-color: %s; color: %s; }
@@ -61,6 +65,48 @@ ui <- fluidPage(
       ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: %s; }
       ::-webkit-scrollbar-thumb { background: %s; border-radius: 4px; }
+
+      /* ── Mobile: Tablet 768-1024px ── */
+      @media (max-width: 1024px) {
+        .nav-tabs { font-size: 12px; }
+        .nav-tabs > li > a { padding: 6px 10px; }
+        .tab-content { padding: 15px; }
+        h1 { font-size: 22px; }
+        h2 { font-size: 18px; }
+        h3 { font-size: 16px; }
+      }
+
+      /* ── Mobile: Phone <768px ── */
+      @media (max-width: 767px) {
+        body { font-size: 15px; }
+        .container-fluid { padding: 0 10px; }
+        .tab-content { padding: 12px 10px; }
+        .nav-tabs { font-size: 11px; display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .nav-tabs > li { flex: 0 0 auto; }
+        .nav-tabs > li > a { padding: 5px 8px; white-space: nowrap; }
+        h1 { font-size: 18px; }
+        h2 { font-size: 16px; }
+        h3 { font-size: 14px; }
+        .panel-heading { font-size: 14px; }
+        .well { padding: 12px; }
+        .form-control { font-size: 16px; padding: 10px 12px; }
+        .btn { font-size: 16px; padding: 10px 16px; width: 100%%; margin-bottom: 8px; }
+        .shiny-input-container { margin-bottom: 10px; }
+        .shiny-table { font-size: 13px; }
+        /* Subject info form: stack on phone */
+        .col-sm-4, .col-sm-8 { width: 100%%; padding: 0; }
+        /* Score buttons larger for touch */
+        .score-btn { min-height: 48px; font-size: 18px; }
+        /* Question display */
+        #question_ui { font-size: 15px; }
+        /* Back link */
+        .action-link { font-size: 13px; }
+      }
+
+      /* ── Mobile: Large phone landscape / small tablet 768px ── */
+      @media (min-width: 768px) and (max-width: 1024px) {
+        .form-horizontal .control-label { font-size: 13px; }
+      }
     ",
     celf5_white, celf5_white,
     celf5_blue, celf5_blue, celf5_white,
