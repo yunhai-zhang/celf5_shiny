@@ -999,7 +999,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("the_crayons", 4, images_per_page = 2),
+              story_img_carousel("the_crayons", 4),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
               lapply(seq_len(nrow(STORIES_ELEM$the_crayons$word_finding)), function(i) {
                 wf <- STORIES_ELEM$the_crayons$word_finding
