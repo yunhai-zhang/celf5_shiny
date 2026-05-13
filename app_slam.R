@@ -203,7 +203,7 @@ STORIES <- list(
     name = "Lost Cellphone",
     name_zh = "丢失的手机",
     age_range = "13-17岁",
-    n_images = 3,
+    n_images = 6,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. SLAM Lost Cellphone_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/3. GFA - Lost Cellphone.pdf",
     synopsis = "一个男孩在便利店结账时被女孩分散了注意力，手机忘在柜台上被后面的人拿走。\nA boy gets distracted by a girl at the store and leaves his cellphone on the counter. Someone behind him takes it.",
@@ -273,7 +273,7 @@ STORIES <- list(
     name = "Kittens Love Milk Cards",
     name_zh = "小猫爱牛奶",
     age_range = "7-14岁",
-    n_images = 3,
+    n_images = 6,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/4. SLAM Kittens Love Milk Cards (English).pdf",
     gfa_path = NULL,
     synopsis = "一个女人买完东西上楼时，口袋里装了一只小猫她自己却不知道。\nA woman carrying groceries goes upstairs when a little kitten secretly jumps into her bag.",
@@ -1228,7 +1228,7 @@ ui <- fluidPage(
                 )
               ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("lost_cellphone", 3),
+          story_img_carousel("lost_cellphone", 6, images_per_page = 2),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$lost_cellphone$gfa_items$item), function(i) {
             gfa <- STORIES$lost_cellphone$gfa_items
@@ -1296,7 +1296,7 @@ ui <- fluidPage(
             p(STORIES$kittens_love_milk$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("kittens_love_milk", 3),
+          story_img_carousel("kittens_love_milk", 6, images_per_page = 2),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$kittens_love_milk$gfa_items$item), function(i) {
             gfa <- STORIES$kittens_love_milk$gfa_items
