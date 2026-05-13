@@ -1399,14 +1399,14 @@ ui <- fluidPage(
       )
 
       )  # end jh_hs_tabs
-    ),    # end jh_hs_tabs
-    ),    # end JH-HS tabPanel
+      ),    # end jh_hs_tabs
 
-    # ── Report Tab ──────────────────────────────────────────────────
-    tabPanel("📋 Report / 报告", value = "slam_report_tab",
-      uiOutput("slam_report")
-    )
-  ),  # end slam_main_tabs
+      # ── Report Tab ──────────────────────────────────────────────────
+      tabPanel("📋 Report / 报告", value = "slam_report_tab",
+        uiOutput("slam_report")
+      )
+    ),    # end JH-HS tabPanel
+  ),  # end tabsetPanel
 
 )
 

@@ -305,7 +305,7 @@ server <- function(input, output, session) {
                       info = "显示第 _START_ 至 _END_ 条，共 _TOTAL_ 条"
                     ),
                     columnDefs = list(
-                      list(className = 'dt-center', targets = c(1, 2, 3))
+                      list(className = 'dt-center', targets = c(0, 1, 2, 3))
                     ),
                     initComplete = htmlwidgets::JS(
                       "function(settings, json) {",

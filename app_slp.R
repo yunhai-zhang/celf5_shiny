@@ -340,7 +340,7 @@ server <- function(input, output, session) {
         ),
         columnDefs  = list(
           list(className = 'dt-center', targets = c(0, 2, 3, 4, 5)),
-          list(visible  = FALSE, targets  = 0)  # hide ID column, use data instead
+          list(visible  = TRUE, targets  = 0)  # show ID column
         )
       )
     )
