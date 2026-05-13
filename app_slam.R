@@ -1440,6 +1440,9 @@ server <- function(input, output, session) {
     patients
   }) %>% bindEvent(input$slam_filter_status, rv$slam_status_version)
 
+  # Proxy for server=FALSE DT refresh after delete
+  proxy <- DT::dataTableProxy("slam_patient_dt")
+
   output$slam_patient_dt <- DT::renderDataTable({
     con <- get_con()
     on.exit(dbDisconnect(con))
@@ -1579,8 +1582,26 @@ server <- function(input, output, session) {
     dbExecute(con, "DELETE FROM assessments WHERE patient_id=?", params = list(pid))
     dbExecute(con, "DELETE FROM patients WHERE id=?", params = list(pid))
 
+    # Refresh the DT with fresh data
+    fresh_patients <- dbGetQuery(con, "
+      SELECT p.id, p.name, p.dob, p.gender, p.examiner,
+             (SELECT COUNT(*) FROM assessments a WHERE a.patient_id = p.id) as n_assessments
+      FROM patients p
+      ORDER BY p.id DESC
+    ")
+    dt_df <- data.frame(
+      ID          = fresh_patients$id,
+      Name        = fresh_patients$name,
+      DOB         = ifelse(is.na(fresh_patients$dob), "-", as.character(fresh_patients$dob)),
+      Gender      = ifelse(is.na(fresh_patients$gender), "-",
+                    ifelse(fresh_patients$gender == "M", "男 / M", "女 / F")),
+      Examiner    = ifelse(is.na(fresh_patients$examiner), "-", fresh_patients$examiner),
+      Assessments = fresh_patients$n_assessments,
+      stringsAsFactors = FALSE
+    )
+    DT::replaceData(proxy, dt_df, resetPaging = FALSE)
+
     removeModal()
-    rv$slam_status_version <- rv$slam_status_version + 1L
     showNotification("受试者已删除 / Subject deleted", type = "message")
   })
 
