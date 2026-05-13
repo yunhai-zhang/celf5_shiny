@@ -52,6 +52,12 @@ STORIES <- list(
     name = "Baseball Troubles",
     name_zh = "棒球烦恼",
     age_range = "13-17岁",
+    age_norms = list(
+      range_label = "Late elementary thru high school",
+      typical     = "12-16",
+      probing     = "9-11",
+      support     = "Below 9"
+    ),
     n_images = 6,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/1. SLAM Baseball Troubles_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/1. GFA - Baseball Troubles.pdf",
@@ -321,8 +327,14 @@ STORIES_ELEM <- list(
     name = "Dog Comes Home",
     name_zh = "狗回家",
     age_range = "3-6岁",
-    n_images = 6,
-    pdf_path = NULL,
+    age_norms = list(
+      range_label = "4 thru early elementary",
+      typical     = "11-14",
+      probing     = "8-10",
+      support     = "Below 8"
+    ),
+    n_images = 4,
+    pdf_path = "story_images/dog_comes_home",
     gfa_path = NULL,
     synopsis = "一个小女孩偷偷把一只脏狗带回家藏进包里，被发现后给狗洗澡，妈妈回来看到又惊又气。\nA girl secretly hides a dirty dog in her bag to take it home. When discovered, she bathes the dog. Mom returns shocked and upset.",
     word_finding = tibble(
@@ -385,8 +397,14 @@ STORIES_ELEM <- list(
     name = "Bunny Goes to School",
     name_zh = "小兔子去学校",
     age_range = "7-12岁",
-    n_images = 6,
-    pdf_path = NULL,
+    age_norms = list(
+      range_label = "4 thru early elementary",
+      typical     = "12-16",
+      probing     = "9-11",
+      support     = "Below 9"
+    ),
+    n_images = 4,
+    pdf_path = "story_images/bunny_goes_school",
     gfa_path = NULL,
     synopsis = "一只小兔子偷偷钻进书包跟男孩去学校，被发现后全班惊慌，男孩用胡萝卜引诱抓住兔子，妈妈被叫到学校。\nA bunny secretly hops into a boy's backpack to follow him to school. Discovered, the class panics. The boy lures it with a carrot. Mom is called to school.",
     word_finding = tibble(
@@ -455,8 +473,14 @@ STORIES_ELEM <- list(
     name = "The Crayons",
     name_zh = "蜡笔大战",
     age_range = "4-12岁",
+    age_norms = list(
+      range_label = "Kindergarten thru high school",
+      typical     = "6-8",
+      probing     = "4-5",
+      support     = "Below 4"
+    ),
     n_images = 4,
-    pdf_path = NULL,
+    pdf_path = "story_images/the_crayons",
     gfa_path = NULL,
     synopsis = "红色蜡笔在墙上乱画后嫁祸给小蓝蜡笔，紫色蜡笔很生气。\nThe red crayon draws on the wall and blames the little blue crayon. The purple crayon is angry at blue.",
     word_finding = tibble(
@@ -771,7 +795,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("dog_comes_home", 6),
+              story_img_carousel("dog_comes_home", 4),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
               lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$word_finding)), function(i) {
                 wf <- STORIES_ELEM$dog_comes_home$word_finding
@@ -865,7 +889,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("bunny_goes_school", 6),
+              story_img_carousel("bunny_goes_school", 4),
               div(class = "section-label", "🔤 Word Finding / 词汇查找"),
               lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$word_finding)), function(i) {
                 wf <- STORIES_ELEM$bunny_goes_school$word_finding
@@ -1823,6 +1847,32 @@ server <- function(input, output, session) {
       sprintf("<b>%s分</b> — %s", score_label, desc)
     }
 
+    # Helper: age-normed interpretation for GFA total
+    gfa_age_interp <- function(gfa_total, story_id, age_years) {
+      norms <- switch(story_id,
+        "dog_comes_home"   = list(typical = 11:14, probing = 8:10,  support_max = 7),
+        "bunny_goes_school"= list(typical = 12:16, probing = 9:11,  support_max = 8),
+        "the_crayons"      = list(typical = 6:8,   probing = 4:5,   support_max = 3),
+        "baseball_troubles"= list(typical = 12:16, probing = 9:11,  support_max = 8),
+        "lost_cellphone"   = list(typical = 12:16, probing = 9:11,  support_max = 8),
+        "the_ball_mystery" = list(typical = 12:16, probing = 9:11,  support_max = 8),
+        "kittens_love_milk"= list(typical = 12:16, probing = 9:11,  support_max = 8),
+        NULL
+      )
+      if (is.null(norms)) return(list(level = "unknown", label_zh = "未知", color = "#6b7280"))
+
+      level <- if (gfa_total %in% norms$typical) {
+        list("typical", "典型发展", "#16a34a")
+      } else if (gfa_total %in% norms$probing) {
+        list("probing", "需进一步探查", "#ea580c")
+      } else if (gfa_total <= norms$support_max) {
+        list("support", "可能需要支持", "#dc2626")
+      } else {
+        list("unknown", "待评估", "#6b7280")
+      }
+      list(level = level[[1]], label_zh = level[[2]], color = level[[3]])
+    }
+
     # Fetch responses
     res <- dbGetQuery(con, "
       SELECT subtest, item_number, response_text, score
@@ -1940,7 +1990,16 @@ server <- function(input, output, session) {
                 p("GFA", style = "font-weight:700; margin:0; color:#EA580C;"),
                 p(sprintf("原始分: %s", if (length(gfa_raw)) gfa_raw else "—"), style = "font-size:13px; margin:4px 0;"),
                 p(sprintf("标准化: %s", if (length(gfa_std) && !is.na(gfa_std)) gfa_std else "—"), style = "font-size:13px; margin:4px 0;"),
-                p(sprintf("百分位: %s%%", if (length(gfa_pr) && !is.na(gfa_pr)) round(gfa_pr, 1) else "—"), style = "font-size:13px; margin:4px 0;")
+                p(sprintf("百分位: %s%%", if (length(gfa_pr) && !is.na(gfa_pr)) round(gfa_pr, 1) else "—"), style = "font-size:13px; margin:4px 0;"),
+                # Age-normed interpretation
+                if (length(gfa_raw) && !is.na(gfa_raw)) {
+                  interp <- gfa_age_interp(as.numeric(gfa_raw), s$id, NA)
+                  tags$div(style = sprintf("margin-top:8px; padding:6px 8px; background:%s22; border-radius:6px; border:1.5px solid %s;",
+                    substr(interp$color, 2, 7), interp$color),
+                    tags$span(style = sprintf("color:%s; font-weight:700; font-size:12px;", interp$color),
+                      interp$label_zh)
+                  )
+                }
               )
             ),
             column(4,
