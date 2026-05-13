@@ -349,7 +349,7 @@ STORIES_ELEM <- list(
       probing     = "8-10",
       support     = "Below 8"
     ),
-    n_images = 4,
+    n_images = 7,
     pdf_path = "story_images/dog_comes_home",
     gfa_path = NULL,
     synopsis = "一个小女孩偷偷把一只脏狗带回家藏进包里，被发现后给狗洗澡，妈妈回来看到又惊又气。\nA girl secretly hides a dirty dog in her bag to take it home. When discovered, she bathes the dog. Mom returns shocked and upset.",
@@ -419,7 +419,7 @@ STORIES_ELEM <- list(
       probing     = "9-11",
       support     = "Below 9"
     ),
-    n_images = 3,
+    n_images = 6,
     pdf_path = "story_images/bunny_goes_school",
     gfa_path = NULL,
     synopsis = "一只小兔子偷偷钻进书包跟男孩去学校，被发现后全班惊慌，男孩用胡萝卜引诱抓住兔子，妈妈被叫到学校。\nA bunny secretly hops into a boy's backpack to follow him to school. Discovered, the class panics. The boy lures it with a carrot. Mom is called to school.",
@@ -811,7 +811,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("dog_comes_home", 4),
+              story_img_carousel("dog_comes_home", 7, images_per_page = 2),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$dog_comes_home$gfa_items
@@ -890,7 +890,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("bunny_goes_school", 3),
+              story_img_carousel("bunny_goes_school", 6, images_per_page = 2),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$bunny_goes_school$gfa_items
