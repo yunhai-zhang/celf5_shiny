@@ -74,7 +74,7 @@ STORIES <- list(
       probing     = "9-11",
       support     = "Below 9"
     ),
-    n_images = 6,
+    n_images = 7,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/1. SLAM Baseball Troubles_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/1. GFA - Baseball Troubles.pdf",
     synopsis = "两个男孩打棒球时，球打破了一扇窗户。他们冤枉一个戴着耳机的女孩。\nTwo boys are playing baseball. A ball breaks a window. They blame a girl wearing headphones.",
@@ -140,7 +140,7 @@ STORIES <- list(
     name = "The Ball Mystery",
     name_zh = "神秘小球",
     age_range = "10-14岁",
-    n_images = 5,
+    n_images = 7,
     pdf_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/2. SLAM The Ball Mystery_English.pdf",
     gfa_path = "/tmp/slam_extract/SLAM/SLAM/SLAM sets/Junior High to High School SLAM/2. GFA - The Ball Mystery.pdf",
     synopsis = "几个大男孩把球塞进衣服里假装肚子大，小男孩们偷偷拿球玩了起来。\nSome big boys tuck a ball under their shirts pretending they have big bellies. The little boys secretly take the ball to play.",
@@ -419,7 +419,7 @@ STORIES_ELEM <- list(
       probing     = "9-11",
       support     = "Below 9"
     ),
-    n_images = 4,
+    n_images = 3,
     pdf_path = "story_images/bunny_goes_school",
     gfa_path = NULL,
     synopsis = "一只小兔子偷偷钻进书包跟男孩去学校，被发现后全班惊慌，男孩用胡萝卜引诱抓住兔子，妈妈被叫到学校。\nA bunny secretly hops into a boy's backpack to follow him to school. Discovered, the class panics. The boy lures it with a carrot. Mom is called to school.",
@@ -890,7 +890,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("bunny_goes_school", 4),
+              story_img_carousel("bunny_goes_school", 3),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$bunny_goes_school$gfa_items
@@ -1039,7 +1039,7 @@ ui <- fluidPage(
 
           # Images
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("baseball_troubles", 6),
+          story_img_carousel("baseball_troubles", 7),
 
           # GFA
           div(class = "section-label", "📝 GFA 语法填空 / Grammar Fluency Assessment"),
@@ -1140,7 +1140,7 @@ ui <- fluidPage(
                 )
               ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("the_ball_mystery", 5),
+          story_img_carousel("the_ball_mystery", 7),
           div(class = "section-label", "📝 GFA 语法填空"),
           lapply(seq_along(STORIES$the_ball_mystery$gfa_items$item), function(i) {
             gfa <- STORIES$the_ball_mystery$gfa_items
