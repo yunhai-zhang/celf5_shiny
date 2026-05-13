@@ -890,7 +890,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("bunny_goes_school", 6),
+              story_img_carousel("bunny_goes_school", 6, images_per_page = 2),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$bunny_goes_school$gfa_items
@@ -1228,7 +1228,7 @@ ui <- fluidPage(
                 )
               ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("lost_cellphone", 6),
+              story_img_carousel("lost_cellphone", 6, images_per_page = 2),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$lost_cellphone$gfa_items$item), function(i) {
             gfa <- STORIES$lost_cellphone$gfa_items
@@ -1296,7 +1296,7 @@ ui <- fluidPage(
             p(STORIES$kittens_love_milk$synopsis)
           ),
           div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-          story_img_carousel("kittens_love_milk", 6),
+              story_img_carousel("kittens_love_milk", 6, images_per_page = 2),
           div(class = "section-label", "📝 GFA 语法问答"),
           lapply(seq_along(STORIES$kittens_love_milk$gfa_items$item), function(i) {
             gfa <- STORIES$kittens_love_milk$gfa_items
