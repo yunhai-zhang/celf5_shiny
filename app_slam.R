@@ -812,21 +812,6 @@ ui <- fluidPage(
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
               story_img_carousel("dog_comes_home", 4),
-              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
-              lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$word_finding)), function(i) {
-                wf <- STORIES_ELEM$dog_comes_home$word_finding
-                div(class = "wf-item",
-                  div(class = "wf-prompt", wf$prompt_en[i],
-                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
-                  ),
-                  fluidRow(
-                    column(8, textInput(sprintf("wf_dog_%d_text", i), "回答 / Response:", width = "100%")),
-                    column(4, tags$label("评分 Score", class = "form-label"),
-                      selectInput(sprintf("wf_dog_%d_score", i), NULL,
-                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
-                  )
-                )
-              }),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$dog_comes_home$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$dog_comes_home$gfa_items
@@ -906,21 +891,6 @@ ui <- fluidPage(
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
               story_img_carousel("bunny_goes_school", 4),
-              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
-              lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$word_finding)), function(i) {
-                wf <- STORIES_ELEM$bunny_goes_school$word_finding
-                div(class = "wf-item",
-                  div(class = "wf-prompt", wf$prompt_en[i],
-                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
-                  ),
-                  fluidRow(
-                    column(8, textInput(sprintf("wf_bunny_%d_text", i), "回答 / Response:", width = "100%")),
-                    column(4, tags$label("评分 Score", class = "form-label"),
-                      selectInput(sprintf("wf_bunny_%d_score", i), NULL,
-                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
-                  )
-                )
-              }),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$bunny_goes_school$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$bunny_goes_school$gfa_items
@@ -999,22 +969,7 @@ ui <- fluidPage(
                 )
               ),
               div(class = "section-label", "📷 图片卡片 / Picture Cards"),
-              story_img_carousel("the_crayons", 4),
-              div(class = "section-label", "🔤 Word Finding / 词汇查找"),
-              lapply(seq_len(nrow(STORIES_ELEM$the_crayons$word_finding)), function(i) {
-                wf <- STORIES_ELEM$the_crayons$word_finding
-                div(class = "wf-item",
-                  div(class = "wf-prompt", wf$prompt_en[i],
-                    span(style = "font-weight:400; color:#6b7280; font-size:13px;", paste0(" / ", wf$prompt_zh[i]))
-                  ),
-                  fluidRow(
-                    column(8, textInput(sprintf("wf_crayons_%d_text", i), "回答 / Response:", width = "100%")),
-                    column(4, tags$label("评分 Score", class = "form-label"),
-                      selectInput(sprintf("wf_crayons_%d_score", i), NULL,
-                        choices = c("—"="", "1分"="1", "0分"="0"), selected = "", width = "100%"))
-                  )
-                )
-              }),
+              story_img_carousel("the_crayons", 2),
               div(class = "section-label", "📝 GFA 语法问答 / Grammar Fluency Assessment"),
               lapply(seq_len(nrow(STORIES_ELEM$the_crayons$gfa_items)), function(i) {
                 gfa <- STORIES_ELEM$the_crayons$gfa_items
