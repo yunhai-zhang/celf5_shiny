@@ -625,6 +625,7 @@ server <- function(input, output, session) {
     rv$current_subtest <- input$selected_subtest
     sp <- get_start_point(rv$current_subtest, rv$age_group)
     sub_resp <- rv$responses %>% filter(subtest == rv$current_subtest)
+    scored_items <- sub_resp %>% pull(item_number)
     # max_items: SUBTEST_DEFS 理论最大题号（所有年龄组共享同一题库）
     max_items <- SUBTEST_DEFS %>% filter(subtest==rv$current_subtest) %>% pull(max_items) %>% .[[1]]
     # real_max kept as alias for max_items (used in multiple places)
