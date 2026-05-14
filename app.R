@@ -200,8 +200,7 @@ ui <- fluidPage(
       fluidRow(
         column(3,
           wellPanel(
-            uiOutput("subtest_selector"),
-            uiOutput("item_calculator_ui")
+            uiOutput("subtest_selector")
           )
         ),
         column(9,
